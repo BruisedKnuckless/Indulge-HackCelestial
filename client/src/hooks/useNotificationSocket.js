@@ -17,8 +17,11 @@ export default function useNotificationSocket() {
   useEffect(() => {
     if (!user) return;
 
+    // Same rationale as api/client.js: '/' relies on the Vite dev proxy for
+    // local development, but a production deploy with a separate backend
+    // origin (e.g. Railway) needs the real URL from VITE_SOCKET_URL.
     const token = localStorage.getItem(TOKEN_KEY);
-    const socket = io('/', { auth: { token } });
+    const socket = io(import.meta.env.VITE_SOCKET_URL || '/', { auth: { token } });
 
     socket.on('notification', (n) => {
       toast(n.message || n.title, { icon: '🔔', duration: 5000 });

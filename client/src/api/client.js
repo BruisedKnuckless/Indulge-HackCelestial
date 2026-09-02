@@ -2,7 +2,14 @@ import axios from 'axios';
 
 export const TOKEN_KEY = 'indulge.token';
 
-const api = axios.create({ baseURL: '/api' });
+// In dev, Vite proxies '/api' to the local server (see vite.config.js), so the
+// relative path just works. In production the frontend and backend are
+// separate deployments (e.g. two Railway services), so VITE_API_URL must point
+// at the backend's real origin — falls back to '/api' when unset, which is
+// also correct for a same-origin production deploy.
+const baseURL = import.meta.env.VITE_API_URL || '/api';
+
+const api = axios.create({ baseURL });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_KEY);
