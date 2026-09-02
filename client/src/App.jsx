@@ -5,6 +5,7 @@ import useNotificationSocket from './hooks/useNotificationSocket';
 
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
+import ScrollToTop from './components/ScrollToTop';
 import { Spinner } from './components/ui';
 
 import Home from './pages/Home';
@@ -50,6 +51,7 @@ export default function App() {
 
   return (
     <>
+      <ScrollToTop />
       <Toaster
         position="top-center"
         toastOptions={{

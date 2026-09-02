@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useSearch, useAnalytics } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
 import HeroCarousel from '../components/HeroCarousel';
+import ScrollSequence from '../components/ScrollSequence';
 import { ResourceTile } from '../components/ResourceCard';
 import { GridCard, Price, Stars, DealBadge, Spinner } from '../components/ui';
 import { CATEGORIES, CATEGORY_LABELS, resourceImage } from '../lib/constants';
@@ -130,6 +131,9 @@ export default function Home() {
 
   return (
     <div className="relative">
+      {/* Cinematic intro runs first; the marketplace begins once it has played out. */}
+      <ScrollSequence />
+
       <HeroCarousel />
 
       {/* The card row that overlaps the bottom of the hero. */}
