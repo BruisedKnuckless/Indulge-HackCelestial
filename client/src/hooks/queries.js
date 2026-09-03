@@ -183,3 +183,62 @@ export function useUserReviews(userId) {
     enabled: Boolean(userId),
   });
 }
+
+/* -------------------------------------------------------- Reverse Marketplace / RFQ */
+
+export function useRequirementsFeed(params) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['requirements', 'feed', params],
+    queryFn: async () => (await api.get('/requirements/feed', { params })).data,
+    enabled: Boolean(user),
+    refetchInterval: 15000,
+  });
+}
+
+export function useMyRequirements(status) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['requirements', 'mine', status],
+    queryFn: async () =>
+      (await api.get('/requirements/mine', { params: status ? { status } : {} })).data,
+    enabled: Boolean(user),
+  });
+}
+
+export function useRequirement(id) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['requirement', id],
+    queryFn: async () => (await api.get(`/requirements/${id}`)).data,
+    enabled: Boolean(user && id),
+  });
+}
+
+export function useRequirementActions() {
+  const qc = useQueryClient();
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['requirements'] });
+    qc.invalidateQueries({ queryKey: ['requirement'] });
+    qc.invalidateQueries({ queryKey: ['bookings'] });
+    qc.invalidateQueries({ queryKey: ['notifications'] });
+  };
+
+  return {
+    create: useMutation({
+      mutationFn: async (payload) => (await api.post('/requirements', payload)).data,
+      onSuccess: refresh,
+    }),
+    submitProposal: useMutation({
+      mutationFn: async ({ requirementId, ...body }) =>
+        (await api.post(`/requirements/${requirementId}/proposals`, body)).data,
+      onSuccess: refresh,
+    }),
+    acceptProposal: useMutation({
+      mutationFn: async ({ requirementId, proposalId }) =>
+        (await api.post(`/requirements/${requirementId}/proposals/${proposalId}/accept`)).data,
+      onSuccess: refresh,
+    }),
+  };
+}

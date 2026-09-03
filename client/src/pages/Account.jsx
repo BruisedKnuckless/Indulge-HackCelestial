@@ -121,6 +121,18 @@ export default function Account() {
           description="See your listings and reviews as other businesses do"
         />
         <Tile
+          to="/requirements/mine"
+          icon="cart"
+          title="My RFQs & Quotations"
+          description="Track broadcasted requirements and review supplier bids"
+        />
+        <Tile
+          to="/requirements/feed"
+          icon="requests"
+          title="Supplier RFQ Feed"
+          description="Find open requirements nearby and submit bids"
+        />
+        <Tile
           to="/requirements/new"
           icon="security"
           title="Post a Requirement"

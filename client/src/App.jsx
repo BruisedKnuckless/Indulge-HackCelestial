@@ -25,6 +25,8 @@ import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import ProviderProfile from './pages/ProviderProfile';
 import PostRequirement from './pages/PostRequirement';
+import RequirementsFeed from './pages/RequirementsFeed';
+import MyRFQs from './pages/MyRFQs';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -188,6 +190,22 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <PostRequirement />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/requirements/feed"
+                  element={
+                    <RequireAuth>
+                      <RequirementsFeed />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/requirements/mine"
+                  element={
+                    <RequireAuth>
+                      <MyRFQs />
                     </RequireAuth>
                   }
                 />

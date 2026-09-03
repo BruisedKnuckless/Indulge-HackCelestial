@@ -288,9 +288,10 @@ export default function Header() {
           {[
             ['/s?sort=match', 'Today’s Availability'],
             ['/s?sort=distance', 'Near Me'],
-            ...CATEGORIES.slice(0, 6).map((c) => [`/s?category=${c.value}`, c.label]),
+            ['/requirements/feed', 'Supplier RFQ Feed'],
+            ['/requirements/mine', 'My RFQs'],
             ['/requirements/new', 'Post a Requirement'],
-            ['/s?sort=rating', 'Top-Rated Providers'],
+            ...CATEGORIES.slice(0, 4).map((c) => [`/s?category=${c.value}`, c.label]),
             ['/listings', 'Indulge Business'],
             ['/account', 'Customer Service'],
           ].map(([to, label]) => (
