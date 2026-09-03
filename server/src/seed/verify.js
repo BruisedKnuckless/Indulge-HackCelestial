@@ -304,6 +304,111 @@ async function main() {
     cal.body.days.some((d) => d.availableQuantity > 0)
   );
 
+  // ---- reverse marketplace / RFQs ----
+  console.log('\nReverse Marketplace & RFQ');
+  const rfqWindow = { startDateTime: at(35, 10), endDateTime: at(35, 20) };
+
+  // 1. Authenticated seeker creates RFQ
+  const newRfq = await api('POST', '/api/requirements', {
+    token: kalpataru,
+    body: {
+      title: 'Annual Dealer Awards — Need 400 pax Banquet Space',
+      category: 'banquet_space',
+      description: 'Stage, AC, valet parking required for corporate annual dealer gala.',
+      requiredQuantity: 1,
+      minCapacity: 350,
+      maxBudget: 90000,
+      radiusKm: 30,
+      urgency: 'medium',
+      ...rfqWindow,
+    },
+  });
+  check('authenticated seeker can create an RFQ', newRfq.status === 201 && newRfq.body.requirement?.status === 'open');
+
+  const createdRfqId = newRfq.body.requirement?._id;
+
+  // 2. Unauthenticated RFQ creation
+  const noAuthRfq = await api('POST', '/api/requirements', {
+    body: { title: 'No Auth RFQ', category: 'banquet_space', ...rfqWindow },
+  });
+  check('unauthenticated RFQ creation is rejected', noAuthRfq.status === 401);
+
+  // 3. RFQ with invalid dates (end before start)
+  const badDatesRfq = await api('POST', '/api/requirements', {
+    token: kalpataru,
+    body: {
+      title: 'Backwards Dates RFQ',
+      category: 'banquet_space',
+      startDateTime: at(35, 20),
+      endDateTime: at(35, 10),
+    },
+  });
+  check('RFQ with invalid dates is rejected', badDatesRfq.status === 400);
+
+  // 4. Provider discovers open RFQ in feed
+  const feed = await api('GET', '/api/requirements/feed?category=banquet_space', { token: seasons });
+  const matchedInFeed = (feed.body.requirements || []).find((r) => r._id === createdRfqId);
+  check('provider discovers open RFQ in feed with distance', Boolean(matchedInFeed && matchedInFeed.distanceKm != null));
+
+  // 5. Seeker attempting to bid on own RFQ
+  const ownBid = await api('POST', `/api/requirements/${createdRfqId}/proposals`, {
+    token: kalpataru,
+    body: {
+      resourceId: ballroom._id,
+      quotedPrice: 50000,
+    },
+  });
+  check('seeker bidding on own RFQ is rejected', ownBid.status === 400);
+
+  // 6. Provider submits quotation referencing an owned resource
+  const proposal1 = await api('POST', `/api/requirements/${createdRfqId}/proposals`, {
+    token: seasons, // Seasons owns ballroom
+    body: {
+      resourceId: ballroom._id,
+      quotedPrice: 82000,
+      notes: 'Includes Crystal Grand stage and valet for 120 cars.',
+    },
+  });
+  check('provider can submit quotation referencing an owned resource', proposal1.status === 201 && proposal1.body.proposal?.status === 'submitted');
+
+  const proposalId = proposal1.body.proposal?._id;
+
+  // 7. Duplicate quotation from same provider
+  const dupeProp = await api('POST', `/api/requirements/${createdRfqId}/proposals`, {
+    token: seasons,
+    body: {
+      resourceId: ballroom._id,
+      quotedPrice: 80000,
+    },
+  });
+  check('duplicate quotation from same provider is rejected', dupeProp.status === 409);
+
+  // 8. Unauthorized third party cannot accept proposal
+  const thirdPartyAccept = await api('POST', `/api/requirements/${createdRfqId}/proposals/${proposalId}/accept`, {
+    token: orchid, // Orchid is not the seeker
+  });
+  check('unauthorized third party cannot accept proposal', thirdPartyAccept.status === 403);
+
+  // 9. Seeker accepts proposal -> converts to confirmed booking
+  const acceptRes = await api('POST', `/api/requirements/${createdRfqId}/proposals/${proposalId}/accept`, {
+    token: kalpataru,
+  });
+  check(
+    'seeker accepting proposal converts to confirmed booking',
+    acceptRes.status === 201 &&
+      acceptRes.body.booking?.status === 'confirmed' &&
+      acceptRes.body.requirement?.status === 'fulfilled' &&
+      acceptRes.body.proposal?.status === 'accepted'
+  );
+
+  // 10. Competing proposals on fulfilled RFQ are closed/rejected
+  const rfqDetails = await api('GET', `/api/requirements/${createdRfqId}`, { token: kalpataru });
+  const allProps = rfqDetails.body.proposals || [];
+  check(
+    'accepted proposal is recorded and marked',
+    allProps.some((p) => p._id === proposalId && p.status === 'accepted')
+  );
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
 
   server.close();
