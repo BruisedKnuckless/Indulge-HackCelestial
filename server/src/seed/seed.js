@@ -7,6 +7,8 @@ import Negotiation from '../models/Negotiation.js';
 import Review from '../models/Review.js';
 import Notification from '../models/Notification.js';
 import Transaction from '../models/Transaction.js';
+import Requirement from '../models/Requirement.js';
+import Proposal from '../models/Proposal.js';
 import { BUSINESSES, RESOURCES } from './seedData.js';
 import { estimatePrice } from '../utils/pricing.js';
 
@@ -32,6 +34,8 @@ export async function runSeed({ quiet = false } = {}) {
     Review.deleteMany({}),
     Notification.deleteMany({}),
     Transaction.deleteMany({}),
+    Requirement.deleteMany({}),
+    Proposal.deleteMany({}),
   ]);
 
   const passwordHash = await User.hashPassword(DEMO_PASSWORD);
@@ -156,6 +160,61 @@ export async function runSeed({ quiet = false } = {}) {
       message: 'Can do ₹31,500 for the full day if you cover the rigging crew’s dinner.',
     },
   ]);
+
+  // Seeded open RFQ requirements for the reverse marketplace feed
+  const rfq1 = await Requirement.create({
+    seeker: users.kalpataru._id,
+    title: 'Pharma leadership conclave — 200 pax banquet hall',
+    category: 'banquet_space',
+    description: 'Looking for a pillarless hall with pre-function area and stage for full day delegate sessions.',
+    requiredQuantity: 1,
+    unit: 'unit',
+    minCapacity: 200,
+    maxBudget: 75000,
+    startDateTime: at(18, 9),
+    endDateTime: at(18, 22),
+    location: {
+      address: users.kalpataru.location.address,
+      city: users.kalpataru.location.city,
+      coordinates: users.kalpataru.location.coordinates,
+      radiusKm: 30,
+    },
+    urgency: 'medium',
+    status: 'open',
+    proposalCount: 1,
+  });
+
+  await Proposal.create({
+    requirement: rfq1._id,
+    provider: users.grandOrchid._id,
+    resource: orchidHall._id,
+    quotedPrice: 68000,
+    proposedStart: at(18, 9),
+    proposedEnd: at(18, 22),
+    notes: 'Can provide Orchid Hall with complimentary green room and tea/coffee lounge access.',
+    status: 'submitted',
+  });
+
+  await Requirement.create({
+    seeker: users.coastal._id,
+    title: 'Urgent: 150 Chiavari gold chairs for weekend terrace dinner',
+    category: 'furniture',
+    description: 'Need 150 matching Chiavari gold chairs with white cushions, delivered by Friday 2pm.',
+    requiredQuantity: 150,
+    unit: 'seat',
+    maxBudget: 22000,
+    startDateTime: at(3, 14),
+    endDateTime: at(3, 23),
+    location: {
+      address: users.coastal.location.address,
+      city: users.coastal.location.city,
+      coordinates: users.coastal.location.coordinates,
+      radiusKm: 25,
+    },
+    urgency: 'high',
+    status: 'open',
+    proposalCount: 0,
+  });
 
   // Completed history. Spread across several months and weighted towards the
   // last few weeks so the revenue trend has shape and utilisation reads like a
