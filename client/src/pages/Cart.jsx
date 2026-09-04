@@ -11,7 +11,7 @@ function CartLine({ item, onUpdate, onRemove }) {
   const unit = PRICE_UNIT_LABELS[r.pricing?.priceUnit] || '';
 
   return (
-    <div className="flex gap-4 py-4 border-b border-bd last:border-0">
+    <div className="flex gap-4 py-4 border-b border-line last:border-0">
       <Link to={`/r/${r._id}`} className="shrink-0">
         <img
           src={resourceImage(r)}
@@ -21,16 +21,16 @@ function CartLine({ item, onUpdate, onRemove }) {
       </Link>
 
       <div className="flex-1 min-w-0">
-        <Link to={`/r/${r._id}`} className="text-title a-link block leading-snug">
+        <Link to={`/r/${r._id}`} className="text-lg link block leading-snug">
           {r.title}
         </Link>
 
         <p className="text-base text-ink-soft mt-0.5">by {r.owner?.businessName}</p>
 
         {item.available ? (
-          <p className="text-base text-success font-bold mt-0.5">Available for your dates</p>
+          <p className="text-base text-success font-semibold mt-0.5">Available for your dates</p>
         ) : (
-          <p className="text-base text-danger font-bold mt-0.5">{item.unavailableReason}</p>
+          <p className="text-base text-danger font-semibold mt-0.5">{item.unavailableReason}</p>
         )}
 
         <p className="text-base text-ink-soft mt-1">
@@ -43,7 +43,7 @@ function CartLine({ item, onUpdate, onRemove }) {
             <select
               value={item.quantity}
               onChange={(e) => onUpdate({ itemId: item._id, quantity: Number(e.target.value) })}
-              className="a-select"
+              className="field-select"
             >
               {Array.from({ length: Math.min(r.totalQuantity, 30) }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>
@@ -55,7 +55,7 @@ function CartLine({ item, onUpdate, onRemove }) {
 
           <span className="text-bd">|</span>
 
-          <button onClick={() => onRemove(item._id)} className="a-link text-base">
+          <button onClick={() => onRemove(item._id)} className="link text-base">
             Delete
           </button>
 
@@ -63,7 +63,7 @@ function CartLine({ item, onUpdate, onRemove }) {
 
           <button
             onClick={() => onUpdate({ itemId: item._id, savedForLater: !item.savedForLater })}
-            className="a-link text-base"
+            className="link text-base"
           >
             {item.savedForLater ? 'Move to cart' : 'Save for later'}
           </button>
@@ -71,7 +71,7 @@ function CartLine({ item, onUpdate, onRemove }) {
 
         {/* Inline date editing keeps the cart usable without going back to the PDP. */}
         <div className="flex flex-wrap gap-3 mt-2">
-          <label className="text-mini text-ink-soft">
+          <label className="text-xs text-ink-soft">
             From
             <input
               type="datetime-local"
@@ -82,10 +82,10 @@ function CartLine({ item, onUpdate, onRemove }) {
                   startDateTime: new Date(e.target.value).toISOString(),
                 })
               }
-              className="a-input mt-0.5 w-[190px]"
+              className="field mt-0.5 w-[190px]"
             />
           </label>
-          <label className="text-mini text-ink-soft">
+          <label className="text-xs text-ink-soft">
             To
             <input
               type="datetime-local"
@@ -93,7 +93,7 @@ function CartLine({ item, onUpdate, onRemove }) {
               onChange={(e) =>
                 onUpdate({ itemId: item._id, endDateTime: new Date(e.target.value).toISOString() })
               }
-              className="a-input mt-0.5 w-[190px]"
+              className="field mt-0.5 w-[190px]"
             />
           </label>
         </div>
@@ -101,7 +101,7 @@ function CartLine({ item, onUpdate, onRemove }) {
 
       <div className="text-right shrink-0">
         <Price amount={item.estimatedPrice} size="md" />
-        <p className="text-mini text-ink-soft mt-0.5">
+        <p className="text-xs text-ink-soft mt-0.5">
           {inr(r.pricing?.basePrice)}
           {unit}
         </p>
@@ -140,21 +140,21 @@ export default function Cart() {
   };
 
   return (
-    <div className="page-shell py-4">
+    <div className="shell pt-12 pb-20">
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
-        <div className="bg-white p-5">
-          <div className="flex items-baseline justify-between border-b border-bd pb-2 mb-2">
-            <h1 className="text-page font-normal">Request Cart</h1>
+        <div className="card">
+          <div className="flex items-baseline justify-between border-b border-line pb-2 mb-2">
+            <h1 className="h-page">Request Cart</h1>
             <span className="text-base text-ink-soft">Price</span>
           </div>
 
           {active.length === 0 && saved.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-title font-bold mb-1">Your Indulge cart is empty</p>
+              <p className="h-card mb-2">Your Indulge cart is empty</p>
               <p className="text-base text-ink-soft mb-4">
                 Add resources from search or a listing page and request them together.
               </p>
-              <Link to="/s" className="btn-yellow btn-pill">
+              <Link to="/s" className="btn-primary">
                 Browse resources
               </Link>
             </div>
@@ -172,16 +172,16 @@ export default function Cart() {
                 <CartLine key={item._id} item={item} onUpdate={onUpdate} onRemove={onRemove} />
               ))}
 
-              <div className="text-right pt-3 text-title">
+              <div className="text-right pt-3 text-lg">
                 Subtotal ({active.length} item{active.length === 1 ? '' : 's'}):{' '}
-                <span className="font-bold">{inr(data.subtotal)}</span>
+                <span className="font-semibold">{inr(data.subtotal)}</span>
               </div>
             </>
           )}
 
           {saved.length > 0 && (
             <div className="mt-8">
-              <h2 className="text-section font-bold border-b border-bd pb-2 mb-2">
+              <h2 className="text-xl font-semibold border-b border-line pb-2 mb-2">
                 Saved for later ({saved.length})
               </h2>
               {saved.map((item) => (
@@ -204,20 +204,20 @@ export default function Cart() {
                 </p>
               )}
 
-              <p className="text-title mb-3">
+              <p className="text-lg mb-3">
                 Subtotal ({active.length} item{active.length === 1 ? '' : 's'}):{' '}
-                <span className="font-bold">{inr(data.subtotal)}</span>
+                <span className="font-semibold">{inr(data.subtotal)}</span>
               </p>
 
               <button
                 onClick={() => navigate('/checkout')}
                 disabled={blocked.length > 0}
-                className="btn-yellow btn-pill w-full"
+                className="btn-primary w-full"
               >
                 Proceed to Request
               </button>
 
-              <p className="text-mini text-ink-soft mt-3">
+              <p className="text-xs text-ink-soft mt-3">
                 Requests are sent to each provider for approval. Nothing is charged until a booking
                 is confirmed.
               </p>

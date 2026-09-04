@@ -6,6 +6,7 @@ import api, { errorMessage } from '../api/client';
 import { useResource } from '../hooks/queries';
 import { Alert, Spinner } from '../components/ui';
 import { CATEGORIES, PRICE_UNITS, UNITS } from '../lib/constants';
+import { toLocalInput } from '../lib/format';
 
 const BLANK = {
   title: '',
@@ -21,14 +22,15 @@ const BLANK = {
   conditions: '',
   tags: '',
   images: '',
+  availabilityWindows: [],
 };
 
 function Field({ label, hint, children }) {
   return (
     <div className="mb-4">
-      <label className="a-label">{label}</label>
+      <label className="label">{label}</label>
       {children}
-      {hint && <p className="text-mini text-ink-mute mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-ink-mute mt-1">{hint}</p>}
     </div>
   );
 }
@@ -62,10 +64,31 @@ export default function ListingForm() {
       conditions: r.conditions || '',
       tags: (r.tags || []).join(', '),
       images: (r.images || []).join('\n'),
+      availabilityWindows: (r.availabilityWindows || []).map((w) => ({
+        start: toLocalInput(w.start),
+        end: toLocalInput(w.end),
+      })),
     });
   }, [data]);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const addWindow = () =>
+    setForm((f) => ({ ...f, availabilityWindows: [...f.availabilityWindows, { start: '', end: '' }] }));
+
+  const updateWindow = (index, key, value) =>
+    setForm((f) => ({
+      ...f,
+      availabilityWindows: f.availabilityWindows.map((w, i) =>
+        i === index ? { ...w, [key]: value } : w
+      ),
+    }));
+
+  const removeWindow = (index) =>
+    setForm((f) => ({
+      ...f,
+      availabilityWindows: f.availabilityWindows.filter((_, i) => i !== index),
+    }));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -88,6 +111,10 @@ export default function ListingForm() {
       conditions: form.conditions,
       tags: form.tags.split(',').map((s) => s.trim()).filter(Boolean),
       images: form.images.split('\n').map((s) => s.trim()).filter(Boolean),
+      // Empty means "always bookable"; only fully-filled rows are sent.
+      availabilityWindows: form.availabilityWindows
+        .filter((w) => w.start && w.end)
+        .map((w) => ({ start: new Date(w.start).toISOString(), end: new Date(w.end).toISOString() })),
     };
 
     try {
@@ -111,17 +138,17 @@ export default function ListingForm() {
   if (editing && isLoading) return <Spinner label="Loading listing" />;
 
   return (
-    <div className="page-shell py-4 max-w-[860px]">
-      <p className="text-mini text-ink-soft mb-3">
-        <Link to="/listings" className="a-link">
+    <div className="shell pt-12 pb-20 max-w-prose">
+      <p className="text-xs text-ink-soft mb-3">
+        <Link to="/listings" className="link">
           Your listings
         </Link>
         {' › '}
         <span>{editing ? 'Edit listing' : 'New listing'}</span>
       </p>
 
-      <div className="bg-white p-6">
-        <h1 className="text-page font-normal mb-1">
+      <div className="card">
+        <h1 className="h-page mb-2">
           {editing ? 'Edit your listing' : 'List a resource'}
         </h1>
         <p className="text-base text-ink-soft mb-5">
@@ -136,12 +163,12 @@ export default function ListingForm() {
 
         <form onSubmit={submit}>
           <Field label="Title" hint="What another business would search for, e.g. “Crystal Ballroom — 500 guests”.">
-            <input value={form.title} onChange={set('title')} className="a-input" required />
+            <input value={form.title} onChange={set('title')} className="field" required />
           </Field>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
             <Field label="Category">
-              <select value={form.category} onChange={set('category')} className="a-select w-full">
+              <select value={form.category} onChange={set('category')} className="field-select w-full">
                 {CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
@@ -156,7 +183,7 @@ export default function ListingForm() {
                 min="0"
                 value={form.capacity}
                 onChange={set('capacity')}
-                className="a-input"
+                className="field"
               />
             </Field>
           </div>
@@ -166,7 +193,7 @@ export default function ListingForm() {
               rows={4}
               value={form.description}
               onChange={set('description')}
-              className="a-textarea"
+              className="field-area"
             />
           </Field>
 
@@ -175,7 +202,7 @@ export default function ListingForm() {
               rows={4}
               value={form.highlights}
               onChange={set('highlights')}
-              className="a-textarea"
+              className="field-area"
               placeholder={'Pillarless 6,500 sq ft floor\nIn-house stage & lighting'}
             />
           </Field>
@@ -190,13 +217,13 @@ export default function ListingForm() {
                 min="1"
                 value={form.totalQuantity}
                 onChange={set('totalQuantity')}
-                className="a-input"
+                className="field"
                 required
               />
             </Field>
 
             <Field label="Unit">
-              <select value={form.unit} onChange={set('unit')} className="a-select w-full">
+              <select value={form.unit} onChange={set('unit')} className="field-select w-full">
                 {UNITS.map((u) => (
                   <option key={u.value} value={u.value}>
                     {u.label}
@@ -213,13 +240,13 @@ export default function ListingForm() {
                 min="0"
                 value={form.basePrice}
                 onChange={set('basePrice')}
-                className="a-input"
+                className="field"
                 required
               />
             </Field>
 
             <Field label="Charged">
-              <select value={form.priceUnit} onChange={set('priceUnit')} className="a-select w-full">
+              <select value={form.priceUnit} onChange={set('priceUnit')} className="field-select w-full">
                 {PRICE_UNITS.map((p) => (
                   <option key={p.value} value={p.value}>
                     {p.label}
@@ -234,7 +261,7 @@ export default function ListingForm() {
                 min="1"
                 value={form.minRentalPeriodHours}
                 onChange={set('minRentalPeriodHours')}
-                className="a-input"
+                className="field"
               />
             </Field>
           </div>
@@ -244,7 +271,7 @@ export default function ListingForm() {
               rows={2}
               value={form.conditions}
               onChange={set('conditions')}
-              className="a-textarea"
+              className="field-area"
             />
           </Field>
 
@@ -252,7 +279,7 @@ export default function ListingForm() {
             <input
               value={form.tags}
               onChange={set('tags')}
-              className="a-input"
+              className="field"
               placeholder="wedding, AC, stage, valet"
             />
           </Field>
@@ -262,16 +289,65 @@ export default function ListingForm() {
               rows={3}
               value={form.images}
               onChange={set('images')}
-              className="a-textarea"
+              className="field-area"
               placeholder="https://images.unsplash.com/photo-…"
             />
           </Field>
 
-          <div className="flex gap-2 pt-2 border-t border-bd">
-            <button type="submit" disabled={busy} className="btn-yellow btn-pill">
+          {/* Availability windows: when the resource is offered at all. Distinct
+              from bookings, which are what has already been taken within them. */}
+          <div className="mb-4">
+            <label className="label">When is this available?</label>
+            <p className="text-xs text-ink-mute mb-3">
+              Leave empty if it can be hired at any time. Add windows to restrict it — an
+              off-peak kitchen offered only overnight, or a lawn only in season. Requests
+              outside every window are refused automatically.
+            </p>
+
+            {form.availabilityWindows.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {form.availabilityWindows.map((w, i) => (
+                  <div key={i} className="flex flex-wrap items-end gap-2">
+                    <div>
+                      <span className="block text-xs text-ink-mute mb-1">From</span>
+                      <input
+                        type="datetime-local"
+                        value={w.start}
+                        onChange={(e) => updateWindow(i, 'start', e.target.value)}
+                        className="field text-sm w-[210px]"
+                      />
+                    </div>
+                    <div>
+                      <span className="block text-xs text-ink-mute mb-1">To</span>
+                      <input
+                        type="datetime-local"
+                        value={w.end}
+                        onChange={(e) => updateWindow(i, 'end', e.target.value)}
+                        className="field text-sm w-[210px]"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeWindow(i)}
+                      className="btn-ghost btn-sm"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button type="button" onClick={addWindow} className="btn-secondary btn-sm">
+              Add a window
+            </button>
+          </div>
+
+          <div className="flex gap-2 pt-2 border-t border-line">
+            <button type="submit" disabled={busy} className="btn-primary">
               {busy ? 'Saving…' : editing ? 'Save changes' : 'Publish listing'}
             </button>
-            <Link to="/listings" className="btn-secondary btn-pill">
+            <Link to="/listings" className="btn-secondary">
               Cancel
             </Link>
           </div>

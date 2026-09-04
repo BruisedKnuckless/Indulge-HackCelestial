@@ -42,7 +42,7 @@ export default function ResourceDetail() {
   });
 
   if (isLoading) return <Spinner label="Loading resource" />;
-  if (!resource) return <div className="page-shell py-8">Resource not found.</div>;
+  if (!resource) return <div className="shell pt-12 pb-20">Resource not found.</div>;
 
   const owner = resource.owner || {};
   const isOwn = user && String(owner._id) === String(user._id);
@@ -98,14 +98,14 @@ export default function ResourceDetail() {
 
   return (
     <div className="bg-white">
-      <div className="page-shell py-4">
+      <div className="shell pt-12 pb-20">
         {/* Breadcrumb */}
-        <p className="text-mini text-ink-soft mb-3">
-          <Link to="/s" className="a-link">
+        <p className="text-xs text-ink-soft mb-3">
+          <Link to="/s" className="link">
             All resources
           </Link>
           {' › '}
-          <Link to={`/s?category=${resource.category}`} className="a-link">
+          <Link to={`/s?category=${resource.category}`} className="link">
             {CATEGORY_LABELS[resource.category]}
           </Link>
           {' › '}
@@ -123,14 +123,14 @@ export default function ResourceDetail() {
                     onMouseEnter={() => setImgIndex(i)}
                     onClick={() => setImgIndex(i)}
                     className={`w-[42px] h-[42px] rounded border-2 overflow-hidden ${
-                      i === imgIndex ? 'border-link' : 'border-bd'
+                      i === imgIndex ? 'border-ink' : 'border-line'
                     }`}
                   >
                     <img src={src} alt="" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
-              <div className="flex-1 bg-[#F7F8F8] rounded overflow-hidden">
+              <div className="flex-1 bg-surface-sunk rounded overflow-hidden">
                 <img
                   src={resourceImage(resource, imgIndex)}
                   alt={resource.title}
@@ -142,9 +142,9 @@ export default function ResourceDetail() {
 
           {/* ------------------------------------------------- details */}
           <div className="min-w-0">
-            <h1 className="text-page font-normal leading-tight mb-1">{resource.title}</h1>
+            <h1 className="text-3xl font-normal leading-tight mb-1">{resource.title}</h1>
 
-            <Link to={`/provider/${owner._id}`} className="a-link text-body">
+            <Link to={`/provider/${owner._id}`} className="link text-base">
               Visit the {owner.businessName} listings
             </Link>
 
@@ -163,7 +163,7 @@ export default function ResourceDetail() {
               )}
             </div>
 
-            <hr className="border-0 border-t border-bd mb-3" />
+            <hr className="border-0 border-t border-line mb-3" />
 
             <div className="mb-3">
               <Price amount={resource.pricing?.basePrice} unit={unit} size="lg" />
@@ -175,10 +175,10 @@ export default function ResourceDetail() {
             </div>
 
             <dl className="grid grid-cols-[130px_1fr] gap-y-1 text-base mb-4">
-              <dt className="font-bold">Category</dt>
+              <dt className="font-semibold">Category</dt>
               <dd>{CATEGORY_LABELS[resource.category]}</dd>
 
-              <dt className="font-bold">Total quantity</dt>
+              <dt className="font-semibold">Total quantity</dt>
               <dd>
                 {resource.totalQuantity} {resource.unit}
                 {resource.totalQuantity > 1 ? 's' : ''}
@@ -186,12 +186,12 @@ export default function ResourceDetail() {
 
               {resource.capacity && (
                 <>
-                  <dt className="font-bold">Capacity</dt>
+                  <dt className="font-semibold">Capacity</dt>
                   <dd>{resource.capacity} guests</dd>
                 </>
               )}
 
-              <dt className="font-bold">Location</dt>
+              <dt className="font-semibold">Location</dt>
               <dd>
                 {resource.location?.address}
                 {resource.location?.city ? `, ${resource.location.city}` : ''}
@@ -200,7 +200,7 @@ export default function ResourceDetail() {
 
             {resource.highlights?.length > 0 && (
               <div className="mb-4">
-                <h2 className="text-lead font-bold mb-1">About this resource</h2>
+                <h2 className="text-base font-semibold mb-1">About this resource</h2>
                 <ul className="list-disc pl-5 space-y-0.5 text-base">
                   {resource.highlights.map((h) => (
                     <li key={h}>{h}</li>
@@ -215,7 +215,7 @@ export default function ResourceDetail() {
 
             {resource.conditions && (
               <Alert tone="warn" className="mb-4">
-                <span className="font-bold">Conditions: </span>
+                <span className="font-semibold">Conditions: </span>
                 {resource.conditions}
               </Alert>
             )}
@@ -226,7 +226,7 @@ export default function ResourceDetail() {
                   <Link
                     key={t}
                     to={`/s?q=${encodeURIComponent(t)}`}
-                    className="text-mini border border-bd rounded-full px-2.5 py-0.5 hover:bg-[#F7FAFA]"
+                    className="text-xs border border-line rounded-full px-2.5 py-0.5 hover:bg-surface-sunk"
                   >
                     {t}
                   </Link>
@@ -241,7 +241,7 @@ export default function ResourceDetail() {
               <Price amount={resource.pricing?.basePrice} unit={unit} size="md" />
 
               <p
-                className={`text-title mt-2 mb-3 ${enough && !tooShort ? 'text-success' : 'text-danger'}`}
+                className={`text-lg mt-2 mb-3 ${enough && !tooShort ? 'text-success' : 'text-danger'}`}
               >
                 {tooShort
                   ? `Minimum hire is ${minHours} hours`
@@ -261,7 +261,7 @@ export default function ResourceDetail() {
 
               <div className="space-y-2 mb-3">
                 <div>
-                  <label className="a-label" htmlFor="start">
+                  <label className="label" htmlFor="start">
                     From
                   </label>
                   <input
@@ -269,11 +269,11 @@ export default function ResourceDetail() {
                     type="datetime-local"
                     value={start}
                     onChange={(e) => setStart(e.target.value)}
-                    className="a-input"
+                    className="field"
                   />
                 </div>
                 <div>
-                  <label className="a-label" htmlFor="end">
+                  <label className="label" htmlFor="end">
                     To
                   </label>
                   <input
@@ -281,18 +281,18 @@ export default function ResourceDetail() {
                     type="datetime-local"
                     value={end}
                     onChange={(e) => setEnd(e.target.value)}
-                    className="a-input"
+                    className="field"
                   />
                 </div>
                 <div>
-                  <label className="a-label" htmlFor="qty">
+                  <label className="label" htmlFor="qty">
                     Quantity
                   </label>
                   <select
                     id="qty"
                     value={quantity}
                     onChange={(e) => setQuantity(Number(e.target.value))}
-                    className="a-select w-full"
+                    className="field-select w-full"
                   >
                     {Array.from(
                       { length: Math.min(resource.totalQuantity, 20) },
@@ -309,7 +309,7 @@ export default function ResourceDetail() {
               {hours > 0 && (
                 <p className="text-base text-ink-soft mb-3">
                   {hours.toFixed(0)} hour hire ·{' '}
-                  <span className="font-bold text-ink">
+                  <span className="font-semibold text-ink">
                     est. {inr(estimate(resource, quantity, hours))}
                   </span>
                 </p>
@@ -318,37 +318,39 @@ export default function ResourceDetail() {
               {isOwn ? (
                 <Alert tone="info">
                   This is your own listing.{' '}
-                  <Link to={`/listings/${resource._id}/edit`} className="a-link">
+                  <Link to={`/listings/${resource._id}/edit`} className="link">
                     Edit it
                   </Link>
                   .
                 </Alert>
               ) : (
                 <div className="space-y-2">
+                  {/* One primary action; sending the request straight away is
+                      the alternative path, so it recedes to secondary weight. */}
                   <button
                     onClick={addToCart}
                     disabled={busy || tooShort || !enough}
-                    className="btn-yellow btn-pill w-full"
+                    className="btn-primary w-full"
                   >
-                    Add to Request Cart
+                    Add to request cart
                   </button>
                   <button
                     onClick={requestNow}
                     disabled={busy || tooShort || !enough}
-                    className="btn-orange btn-pill w-full"
+                    className="btn-secondary w-full"
                   >
-                    Request Now
+                    Request now
                   </button>
                 </div>
               )}
 
-              <hr className="my-3 border-0 border-t border-bd" />
+              <hr className="my-3 border-0 border-t border-line" />
 
-              <dl className="text-mini space-y-1">
+              <dl className="text-xs space-y-1">
                 <div className="flex justify-between gap-2">
                   <dt className="text-ink-soft">Provider</dt>
                   <dd className="text-right">
-                    <Link to={`/provider/${owner._id}`} className="a-link">
+                    <Link to={`/provider/${owner._id}`} className="link">
                       {owner.businessName}
                     </Link>
                   </dd>
@@ -368,13 +370,13 @@ export default function ResourceDetail() {
 
         {/* ---------------------------------------------- availability */}
         <div className="mt-8">
-          <h2 className="text-section font-bold mb-3">Availability calendar</h2>
+          <h2 className="h-section mb-5">Availability calendar</h2>
           <AvailabilityCalendar resourceId={resource._id} />
         </div>
 
         {/* --------------------------------------------------- reviews */}
         <div id="reviews" className="mt-8 max-w-[860px]">
-          <h2 className="text-section font-bold mb-3">Customer reviews</h2>
+          <h2 className="h-section mb-5">Customer reviews</h2>
 
           {reviews.length === 0 ? (
             <p className="text-base text-ink-soft">
@@ -384,7 +386,7 @@ export default function ResourceDetail() {
             <div className="space-y-5">
               <div className="flex items-center gap-3">
                 <Stars rating={resource.ratingAvg} size={20} />
-                <span className="text-title">
+                <span className="text-lg">
                   {resource.ratingAvg.toFixed(1)} out of 5
                 </span>
                 <span className="text-base text-ink-soft">
@@ -393,13 +395,13 @@ export default function ResourceDetail() {
               </div>
 
               {reviews.map((rev) => (
-                <div key={rev._id} className="border-t border-bd pt-4">
-                  <p className="text-base font-bold mb-0.5">{rev.reviewer?.businessName}</p>
+                <div key={rev._id} className="border-t border-line pt-4">
+                  <p className="text-base font-semibold mb-0.5">{rev.reviewer?.businessName}</p>
                   <div className="flex items-center gap-2 mb-1">
                     <Stars rating={rev.rating} size={14} />
-                    {rev.title && <span className="text-base font-bold">{rev.title}</span>}
+                    {rev.title && <span className="text-base font-semibold">{rev.title}</span>}
                   </div>
-                  <p className="text-mini text-ink-soft mb-1">Reviewed {relative(rev.createdAt)}</p>
+                  <p className="text-xs text-ink-soft mb-1">Reviewed {relative(rev.createdAt)}</p>
                   <p className="text-base">{rev.comment}</p>
                 </div>
               ))}

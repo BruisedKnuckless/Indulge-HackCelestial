@@ -19,7 +19,7 @@ function Tile({ to, icon, title, description }) {
   return (
     <Link
       to={to}
-      className="a-panel p-4 flex gap-4 hover:bg-[#F7FAFA] transition-colors"
+      className="border border-line rounded p-4 flex gap-4 hover:bg-surface-sunk transition-colors"
     >
       <svg
         viewBox="0 0 24 24"
@@ -35,7 +35,7 @@ function Tile({ to, icon, title, description }) {
         <path d={icons[icon]} />
       </svg>
       <div className="min-w-0">
-        <h2 className="text-title leading-snug">{title}</h2>
+        <h2 className="text-lg leading-snug">{title}</h2>
         <p className="text-base text-ink-soft">{description}</p>
       </div>
     </Link>
@@ -47,12 +47,12 @@ export default function Account() {
   const { data: summary } = useAnalytics('summary');
 
   return (
-    <div className="page-shell py-4 max-w-[1000px]">
-      <h1 className="text-page font-normal mb-4">Your Account</h1>
+    <div className="shell pt-12 pb-20">
+      <h1 className="h-page mb-8">Your Account</h1>
 
-      <div className="a-panel p-4 mb-4 flex items-center justify-between flex-wrap gap-3">
+      <div className="border border-line rounded p-4 mb-4 flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p className="text-title font-bold">{user.businessName}</p>
+          <p className="h-card">{user.businessName}</p>
           <p className="text-base text-ink-soft">
             {user.email}
             {user.location?.city ? ` · ${user.location.city}` : ''}
@@ -63,16 +63,16 @@ export default function Account() {
         </div>
         <div className="flex gap-6 text-center">
           <div>
-            <p className="text-section font-bold">{summary?.activeListings ?? 0}</p>
-            <p className="text-mini text-ink-soft">Listings</p>
+            <p className="h-section">{summary?.activeListings ?? 0}</p>
+            <p className="text-xs text-ink-soft">Listings</p>
           </div>
           <div>
-            <p className="text-section font-bold">{summary?.pendingRequests ?? 0}</p>
-            <p className="text-mini text-ink-soft">To review</p>
+            <p className="h-section">{summary?.pendingRequests ?? 0}</p>
+            <p className="text-xs text-ink-soft">To review</p>
           </div>
           <div>
-            <p className="text-section font-bold">{summary?.activeRequests ?? 0}</p>
-            <p className="text-mini text-ink-soft">Your requests</p>
+            <p className="h-section">{summary?.activeRequests ?? 0}</p>
+            <p className="text-xs text-ink-soft">Your requests</p>
           </div>
         </div>
       </div>
@@ -121,10 +121,16 @@ export default function Account() {
           description="See your listings and reviews as other businesses do"
         />
         <Tile
-          to="/requirements/new"
+          to="/requirements"
           icon="security"
-          title="Post a Requirement"
-          description="Tell providers what you need and let them come to you"
+          title="Your Requirements"
+          description="What you have asked the market for, and the offers received"
+        />
+        <Tile
+          to="/requirements/board"
+          icon="requests"
+          title="Open Requirements"
+          description="What other businesses need — offer your spare capacity"
         />
       </div>
     </div>

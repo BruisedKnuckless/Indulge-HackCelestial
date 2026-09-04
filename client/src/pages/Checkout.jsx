@@ -11,11 +11,11 @@ import { inr, dateRange } from '../lib/format';
 /** Numbered section, the way a checkout funnel segments its steps. */
 function Step({ n, title, children, aside }) {
   return (
-    <div className="bg-white p-5 mb-3">
+    <div className="card mb-4">
       <div className="flex gap-3">
-        <span className="text-section font-bold text-ink-soft shrink-0">{n}</span>
+        <span className="text-xl font-semibold text-ink-soft shrink-0">{n}</span>
         <div className="flex-1 min-w-0">
-          <h2 className="text-section font-bold mb-2">{title}</h2>
+          <h2 className="h-section mb-4">{title}</h2>
           {children}
         </div>
         {aside && <div className="shrink-0">{aside}</div>}
@@ -53,10 +53,10 @@ export default function Checkout() {
 
   if (items.length === 0) {
     return (
-      <div className="page-shell py-8">
-        <div className="bg-white p-8 text-center">
-          <p className="text-title font-bold mb-2">Nothing to request</p>
-          <Link to="/s" className="btn-yellow btn-pill">
+      <div className="shell pt-12 pb-20">
+        <div className="card text-center">
+          <p className="h-card mb-3">Nothing to request</p>
+          <Link to="/s" className="btn-primary">
             Browse resources
           </Link>
         </div>
@@ -89,36 +89,36 @@ export default function Checkout() {
 
   return (
     <div className="bg-white min-h-screen">
-      <div className="border-b border-bd">
-        <div className="page-shell py-3 flex items-baseline justify-between">
-          <h1 className="text-page font-normal">
+      <div className="border-b border-line">
+        <div className="shell py-3 flex items-baseline justify-between">
+          <h1 className="h-page">
             Review your request ({items.length} item{items.length === 1 ? '' : 's'})
           </h1>
-          <Link to="/cart" className="a-link text-base">
+          <Link to="/cart" className="link text-base">
             Back to cart
           </Link>
         </div>
       </div>
 
-      <div className="page-shell py-4 bg-ground">
+      <div className="shell py-4 bg-surface-alt">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
           <div>
             <Step n="1" title="Requesting business">
-              <p className="text-base font-bold">{user.businessName}</p>
+              <p className="text-base font-semibold">{user.businessName}</p>
               <p className="text-base text-ink-soft">
                 {user.location?.address}
                 {user.location?.city ? `, ${user.location.city}` : ''}{' '}
                 {user.location?.pincode}
               </p>
               <p className="text-base text-ink-soft">{user.phone || 'No phone on file'}</p>
-              <Link to="/account/profile" className="a-link text-base mt-1 inline-block">
+              <Link to="/account/profile" className="link text-base mt-1 inline-block">
                 Change
               </Link>
             </Step>
 
             <Step n="2" title="Logistics & priority">
               <fieldset className="mb-4">
-                <legend className="a-label mb-1">How will the resource be moved?</legend>
+                <legend className="label mb-1">How will the resource be moved?</legend>
                 {[
                   ['self_pickup', 'We will collect and return it ourselves'],
                   ['provider_transport', 'Ask the provider to arrange transport'],
@@ -135,29 +135,29 @@ export default function Checkout() {
                     {label}
                   </label>
                 ))}
-                <p className="text-mini text-ink-mute mt-1">
+                <p className="text-xs text-ink-mute mt-1">
                   Transport costs are agreed with the provider and are not included in the estimate.
                 </p>
               </fieldset>
 
               <fieldset>
-                <legend className="a-label mb-1">How urgent is this?</legend>
+                <legend className="label mb-1">How urgent is this?</legend>
                 <select
                   value={urgency}
                   onChange={(e) => setUrgency(e.target.value)}
-                  className="a-select w-full max-w-[280px]"
+                  className="field-select w-full max-w-[280px]"
                 >
                   <option value="low">Planning ahead — no rush</option>
                   <option value="medium">Normal</option>
                   <option value="high">Urgent — needed within 24 hours</option>
                 </select>
-                <p className="text-mini text-ink-mute mt-1">
+                <p className="text-xs text-ink-mute mt-1">
                   Urgent requests are flagged at the top of the provider’s inbox.
                 </p>
               </fieldset>
 
               <div className="mt-4">
-                <label htmlFor="notes" className="a-label">
+                <label htmlFor="notes" className="label">
                   Notes for the provider (optional)
                 </label>
                 <textarea
@@ -166,7 +166,7 @@ export default function Checkout() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Event details, access timings, setup requirements…"
-                  className="a-textarea max-w-[560px]"
+                  className="field-area max-w-[560px]"
                 />
               </div>
             </Step>
@@ -181,8 +181,8 @@ export default function Checkout() {
 
               <div className="space-y-4">
                 {byProvider.map(({ owner, items: group }) => (
-                  <div key={owner?._id} className="border border-bd rounded">
-                    <div className="bg-[#F0F2F2] px-3 py-1.5 text-base font-bold border-b border-bd">
+                  <div key={owner?._id} className="border border-line rounded">
+                    <div className="bg-surface-sunk px-3 py-1.5 text-base font-semibold border-b border-line">
                       Request to {owner?.businessName}
                       <span className="font-normal text-ink-soft">
                         {' '}
@@ -191,20 +191,20 @@ export default function Checkout() {
                     </div>
 
                     {group.map((item) => (
-                      <div key={item._id} className="flex gap-3 p-3 border-b border-bd last:border-0">
+                      <div key={item._id} className="flex gap-3 p-3 border-b border-line last:border-0">
                         <img
                           src={resourceImage(item.resource)}
                           alt=""
                           className="w-[70px] h-[70px] object-cover rounded shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="text-base font-bold line-clamp-1">{item.resource.title}</p>
-                          <p className="text-mini text-ink-soft">
+                          <p className="text-base font-semibold line-clamp-1">{item.resource.title}</p>
+                          <p className="text-xs text-ink-soft">
                             {dateRange(item.startDateTime, item.endDateTime)}
                           </p>
-                          <p className="text-mini text-ink-soft">Quantity: {item.quantity}</p>
+                          <p className="text-xs text-ink-soft">Quantity: {item.quantity}</p>
                           {!item.available && (
-                            <p className="text-mini text-danger font-bold mt-0.5">
+                            <p className="text-xs text-danger font-semibold mt-0.5">
                               {item.unavailableReason}
                             </p>
                           )}
@@ -225,19 +225,19 @@ export default function Checkout() {
               <button
                 onClick={placeRequest}
                 disabled={busy || items.length === blocked.length}
-                className="btn-yellow btn-pill w-full mb-3"
+                className="btn-primary w-full mb-3"
               >
                 {busy ? 'Sending…' : 'Place your request'}
               </button>
 
-              <p className="text-mini text-ink-soft mb-3">
+              <p className="text-xs text-ink-soft mb-3">
                 By placing this request you agree to Indulge’s Conditions of Use. Providers must
                 accept before anything is confirmed.
               </p>
 
-              <hr className="border-0 border-t border-bd mb-3" />
+              <hr className="border-0 border-t border-line mb-3" />
 
-              <h2 className="text-lead font-bold mb-2">Request summary</h2>
+              <h2 className="text-base font-semibold mb-2">Request summary</h2>
               <dl className="text-base space-y-1">
                 <div className="flex justify-between">
                   <dt className="text-ink-soft">Items</dt>
@@ -253,14 +253,14 @@ export default function Checkout() {
                 </div>
               </dl>
 
-              <hr className="border-0 border-t border-bd my-3" />
+              <hr className="border-0 border-t border-line my-3" />
 
-              <div className="flex justify-between text-title text-danger font-bold">
+              <div className="flex justify-between text-lg text-danger font-semibold">
                 <span>Order total</span>
                 <span>{inr(data.subtotal)}</span>
               </div>
 
-              <p className="text-mini text-ink-mute mt-2">
+              <p className="text-xs text-ink-mute mt-2">
                 Estimates only. Final pricing is set when each provider accepts or counter-offers.
               </p>
             </Panel>

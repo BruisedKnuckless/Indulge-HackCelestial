@@ -96,6 +96,32 @@ router.get(
   })
 );
 
+const URGENCY_RANK = { high: 3, medium: 2, low: 1 };
+const AWAITING = new Set(['pending', 'negotiating']);
+
+/**
+ * Order the provider's queue by what actually needs attention: anything still
+ * awaiting a decision floats to the top, most urgent first, then whatever
+ * starts soonest. Settled requests fall back to recency.
+ *
+ * Sorted here rather than in Mongo because the urgency enum sorts
+ * alphabetically there ("high" < "low" < "medium"), which is not the intended
+ * order — a numeric rank has to be applied either way.
+ */
+function byProviderPriority(a, b) {
+  const aWaiting = AWAITING.has(a.status);
+  const bWaiting = AWAITING.has(b.status);
+  if (aWaiting !== bWaiting) return aWaiting ? -1 : 1;
+
+  if (aWaiting) {
+    const rank = (URGENCY_RANK[b.urgency] || 0) - (URGENCY_RANK[a.urgency] || 0);
+    if (rank !== 0) return rank;
+    return new Date(a.startDateTime) - new Date(b.startDateTime);
+  }
+
+  return new Date(b.createdAt) - new Date(a.createdAt);
+}
+
 router.get(
   '/received',
   requireAuth,
@@ -103,7 +129,8 @@ router.get(
     const filter = { provider: req.user._id };
     if (req.query.status) filter.status = { $in: String(req.query.status).split(',') };
 
-    const bookings = await Booking.find(filter).populate(POPULATE).sort('-createdAt').lean();
+    const bookings = await Booking.find(filter).populate(POPULATE).lean();
+    bookings.sort(byProviderPriority);
     res.json({ bookings });
   })
 );
@@ -120,7 +147,10 @@ router.get(
       throw new HttpError(403, 'You are not a party to this request.');
     }
 
-    res.json({ booking });
+    // Both parties can see the money trail for their own booking.
+    const transaction = await Transaction.findOne({ booking: booking._id }).lean();
+
+    res.json({ booking, transaction: transaction || null });
   })
 );
 

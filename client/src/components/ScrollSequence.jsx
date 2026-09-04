@@ -24,10 +24,10 @@ const SECTION_VH = 700;
 // many sockets that the first frames are delayed behind the last ones.
 const CONCURRENCY = 12;
 
-// Height of the sticky site header (60px bar + 39px nav). The section is pulled
-// up by this much so the intro is genuinely full-bleed from the first frame,
-// rather than starting below the header and only covering it once stuck.
-const HEADER_H = 99;
+// Height of the sticky site header (h-16). The section is pulled up by this
+// much so the intro is genuinely full-bleed from the first frame, rather than
+// starting below the header and only covering it once stuck.
+const HEADER_H = 64;
 
 export default function ScrollSequence() {
   const sectionRef = useRef(null);
@@ -181,16 +181,16 @@ export default function ScrollSequence() {
         {!ready && (
           <div className="absolute inset-0 grid place-items-center bg-black">
             <div className="text-center px-6">
-              <p className="text-white text-section font-bold tracking-tight mb-1">indulge</p>
-              <p className="text-white/60 text-base mb-5">Preparing your experience…</p>
+              <p className="wordmark text-white text-2xl mb-2">indulge.</p>
+              <p className="text-white/50 text-sm mb-6">Preparing your experience…</p>
 
-              <div className="w-[220px] h-[3px] bg-white/15 rounded-full overflow-hidden mx-auto">
+              <div className="w-[220px] h-[2px] bg-white/15 overflow-hidden mx-auto">
                 <div
-                  className="h-full bg-orange rounded-full transition-[width] duration-150"
+                  className="h-full bg-white transition-[width] duration-150"
                   style={{ width: `${pctLoaded}%` }}
                 />
               </div>
-              <p className="text-white/40 text-mini mt-2 tabular-nums">{pctLoaded}%</p>
+              <p className="text-white/40 text-xs mt-2 tabular-nums">{pctLoaded}%</p>
             </div>
           </div>
         )}
@@ -200,28 +200,27 @@ export default function ScrollSequence() {
             {/* Scroll affordance, retired once the viewer starts moving. */}
             <div
               data-scroll-hint
-              className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-2
-                         pointer-events-none transition-opacity duration-500"
+              className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-2 pointer-events-none transition-opacity duration-500"
               style={{ opacity: progress > 0.02 ? 0 : 1 }}
             >
-              <span className="text-white/80 text-mini tracking-[0.2em] uppercase">Scroll</span>
-              <span className="w-[22px] h-[36px] rounded-full border border-white/50 relative">
-                <span className="absolute left-1/2 top-2 -translate-x-1/2 w-[3px] h-[6px] rounded-full bg-white/80 animate-bounce" />
+              {/* Dark on the frames' mid-grey backdrop, which white washes out
+                  against — and it matches the wordmark the sequence resolves to. */}
+              <span className="text-ink/70 text-xs tracking-[0.2em] uppercase">Scroll</span>
+              <span className="w-[22px] h-[36px] rounded-full border border-ink/40 relative">
+                <span className="absolute left-1/2 top-2 -translate-x-1/2 w-[3px] h-[6px] rounded-full bg-ink/70 animate-bounce" />
               </span>
             </div>
 
             <button
               onClick={skip}
-              className="absolute top-5 right-5 text-white/70 hover:text-white text-mini
-                         tracking-wide border border-white/30 hover:border-white/60
-                         rounded-full px-3 py-1.5 backdrop-blur-sm transition-colors"
+              className="absolute top-5 right-5 text-ink/60 hover:text-ink text-xs tracking-wide border border-ink/25 hover:border-ink/60 rounded-full px-3 py-1.5 transition-colors"
             >
               Skip intro
             </button>
 
             {/* Sequence progress, mirroring the scrub position. */}
-            <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/10">
-              <div className="h-full bg-orange" style={{ width: `${progress * 100}%` }} />
+            <div className="absolute inset-x-0 bottom-0 h-[2px] bg-ink/10">
+              <div className="h-full bg-ink" style={{ width: `${progress * 100}%` }} />
             </div>
           </>
         )}

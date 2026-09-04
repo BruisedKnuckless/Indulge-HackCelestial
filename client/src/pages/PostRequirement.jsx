@@ -1,23 +1,28 @@
 import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useSearch } from '../hooks/queries';
+import toast from 'react-hot-toast';
+import { useSearch, useRequirementActions } from '../hooks/queries';
+import { errorMessage } from '../api/client';
 import ResourceCard from '../components/ResourceCard';
 import { Alert, Spinner } from '../components/ui';
 import { CATEGORIES } from '../lib/constants';
 import { toLocalInput, defaultWindow } from '../lib/format';
 
 /**
- * The reverse side of the marketplace: describe what you need and immediately
- * see what already matches, ranked. Rather than posting into a void and waiting
- * for replies, the requirement is run through the same matching engine that
- * powers search, so the answer is instant.
+ * The reverse side of the marketplace. Two things happen here, deliberately in
+ * this order: we show what already matches right now (an instant answer through
+ * the same ranking engine as search), and we let the seeker publish the
+ * requirement so providers who have nothing listed yet can still respond.
  */
 export default function PostRequirement() {
   const navigate = useNavigate();
+  const { create } = useRequirementActions();
   const initial = useMemo(() => defaultWindow(10, 9, 12), []);
 
   const [form, setForm] = useState({
+    title: '',
     category: 'banquet_space',
+    description: '',
     quantity: 1,
     minCapacity: '',
     maxPrice: '',
@@ -26,7 +31,8 @@ export default function PostRequirement() {
     start: toLocalInput(initial.start),
     end: toLocalInput(initial.end),
   });
-  const [submitted, setSubmitted] = useState(false);
+  const [previewed, setPreviewed] = useState(false);
+  const [posting, setPosting] = useState(false);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -45,36 +51,71 @@ export default function PostRequirement() {
     [form]
   );
 
-  const { data, isLoading } = useSearch(query, submitted);
+  const { data, isLoading } = useSearch(query, previewed);
   const results = data?.results || [];
 
-  const goToSearch = () => {
-    const params = new URLSearchParams(
-      Object.entries(query).filter(([, v]) => v !== undefined && v !== '')
-    );
-    navigate(`/s?${params.toString()}`);
+  const post = async () => {
+    if (!form.title.trim()) {
+      toast.error('Give the requirement a short title first.');
+      return;
+    }
+    setPosting(true);
+    try {
+      const { requirement } = await create.mutateAsync({
+        title: form.title.trim(),
+        category: form.category,
+        description: form.description,
+        quantity: Number(form.quantity) || 1,
+        minCapacity: form.minCapacity ? Number(form.minCapacity) : undefined,
+        maxPrice: form.maxPrice ? Number(form.maxPrice) : undefined,
+        startDateTime: new Date(form.start).toISOString(),
+        endDateTime: new Date(form.end).toISOString(),
+        urgency: form.urgency,
+      });
+      toast.success('Requirement posted — providers can now respond');
+      navigate(`/requirements/${requirement._id}`);
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not post the requirement.'));
+    } finally {
+      setPosting(false);
+    }
   };
 
   return (
-    <div className="page-shell py-4 max-w-[1100px]">
-      <h1 className="text-page font-normal mb-1">Post a requirement</h1>
-      <p className="text-base text-ink-soft mb-4">
-        Describe what you need. We match it against every listing nearby and rank the results by
-        price, distance, availability and fit.
-      </p>
+    <div className="shell pt-12 pb-20">
+      <header className="mb-10 max-w-prose">
+        <h1 className="h-page">Post a requirement</h1>
+        <p className="text-base muted mt-3">
+          Describe what you need. We show what already matches, and publish the requirement so
+          providers can come to you with an offer.
+        </p>
+        <Link to="/requirements" className="text-sm link mt-3 inline-block">
+          See requirements you have posted
+        </Link>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
-        <div className="bg-white p-5 h-fit">
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-14">
+        <div>
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              setSubmitted(true);
+              setPreviewed(true);
             }}
-            className="space-y-4"
+            className="space-y-5"
           >
             <div>
-              <label className="a-label">What do you need?</label>
-              <select value={form.category} onChange={set('category')} className="a-select w-full">
+              <label className="label">Title</label>
+              <input
+                value={form.title}
+                onChange={set('title')}
+                placeholder="250 banquet chairs for Saturday"
+                className="field"
+              />
+            </div>
+
+            <div>
+              <label className="label">Category</label>
+              <select value={form.category} onChange={set('category')} className="field-select w-full">
                 {CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
@@ -83,124 +124,119 @@ export default function PostRequirement() {
               </select>
             </div>
 
+            <div>
+              <label className="label">Details</label>
+              <textarea
+                rows={3}
+                value={form.description}
+                onChange={set('description')}
+                placeholder="Anything a provider should know — access, setup, condition."
+                className="field-area"
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="a-label">Quantity</label>
+                <label className="label">Quantity</label>
                 <input
                   type="number"
                   min="1"
                   value={form.quantity}
                   onChange={set('quantity')}
-                  className="a-input"
+                  className="field"
                 />
               </div>
               <div>
-                <label className="a-label">Min. capacity</label>
+                <label className="label">Min. capacity</label>
                 <input
                   type="number"
                   min="0"
                   value={form.minCapacity}
                   onChange={set('minCapacity')}
                   placeholder="Any"
-                  className="a-input"
+                  className="field"
                 />
               </div>
             </div>
 
             <div>
-              <label className="a-label">From</label>
-              <input
-                type="datetime-local"
-                value={form.start}
-                onChange={set('start')}
-                className="a-input"
-              />
+              <label className="label">From</label>
+              <input type="datetime-local" value={form.start} onChange={set('start')} className="field" />
             </div>
 
             <div>
-              <label className="a-label">To</label>
-              <input
-                type="datetime-local"
-                value={form.end}
-                onChange={set('end')}
-                className="a-input"
-              />
+              <label className="label">To</label>
+              <input type="datetime-local" value={form.end} onChange={set('end')} className="field" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="a-label">Budget cap (₹)</label>
+                <label className="label">Budget cap (₹)</label>
                 <input
                   type="number"
                   min="0"
                   value={form.maxPrice}
                   onChange={set('maxPrice')}
                   placeholder="Any"
-                  className="a-input"
+                  className="field"
                 />
               </div>
               <div>
-                <label className="a-label">Within (km)</label>
+                <label className="label">Within (km)</label>
                 <input
                   type="number"
                   min="1"
                   value={form.radiusKm}
                   onChange={set('radiusKm')}
-                  className="a-input"
+                  className="field"
                 />
               </div>
             </div>
 
             <div>
-              <label className="a-label">Urgency</label>
-              <select value={form.urgency} onChange={set('urgency')} className="a-select w-full">
+              <label className="label">Urgency</label>
+              <select value={form.urgency} onChange={set('urgency')} className="field-select w-full">
                 <option value="low">Planning ahead</option>
                 <option value="medium">Normal</option>
                 <option value="high">Urgent — within 24 hours</option>
               </select>
             </div>
 
-            <button type="submit" className="btn-yellow btn-pill w-full">
-              Find matches
-            </button>
-
-            {submitted && (
-              <button type="button" onClick={goToSearch} className="btn-secondary btn-pill w-full">
-                Open in full search
+            <div className="space-y-2 pt-4 border-t border-line">
+              <button type="button" onClick={post} disabled={posting} className="btn-primary w-full">
+                {posting ? 'Posting…' : 'Post requirement'}
               </button>
-            )}
+              <button type="submit" className="btn-secondary w-full">
+                Show what matches now
+              </button>
+            </div>
           </form>
         </div>
 
         <div>
-          {!submitted ? (
-            <div className="bg-white p-10 text-center">
-              <p className="text-title font-bold mb-1">Tell us what you are short of</p>
-              <p className="text-base text-ink-soft">
-                Fill in the form and we will show what is genuinely available for those dates —
-                not just what exists.
+          {!previewed ? (
+            <div className="border border-line rounded p-12 text-center">
+              <p className="text-lg font-medium mb-2">Tell us what you are short of</p>
+              <p className="text-base muted max-w-prose mx-auto">
+                Post it and providers bring you offers — or preview what is already listed for
+                those dates before you decide.
               </p>
             </div>
           ) : isLoading ? (
-            <div className="bg-white">
-              <Spinner label="Matching your requirement" />
-            </div>
+            <Spinner label="Matching your requirement" />
           ) : results.length === 0 ? (
-            <div className="bg-white p-8">
-              <Alert tone="warn">
-                Nothing available matches those constraints. Try widening the radius, relaxing the
-                budget, or shifting the dates.
-              </Alert>
-            </div>
+            <Alert tone="warn">
+              Nothing currently listed matches those constraints. Posting the requirement is the
+              better route — providers with spare capacity can respond directly.
+            </Alert>
           ) : (
             <>
-              <div className="bg-white px-4 py-2.5 border-b border-bd">
-                <p className="text-body">
-                  <span className="font-bold">{results.length}</span> provider
-                  {results.length === 1 ? '' : 's'} can meet this requirement, best match first.
-                </p>
-              </div>
-              <div className="bg-white">
+              <p className="text-sm muted pb-4 border-b border-line">
+                <span className="font-medium text-ink">{results.length}</span> listing
+                {results.length === 1 ? '' : 's'} already match — or post the requirement to reach
+                providers who have not listed this yet.
+              </p>
+              <div>
                 {results.map((r) => (
                   <ResourceCard key={r._id} resource={r} criteria={data?.criteria} />
                 ))}

@@ -304,6 +304,156 @@ async function main() {
     cal.body.days.some((d) => d.availableQuantity > 0)
   );
 
+  // ---- availability windows ----
+  console.log('\nAvailability windows');
+  const kitchenSearch = await api('GET', '/api/search/resources?category=kitchen_capacity&limit=20', {
+    token: kalpataru,
+  });
+  const windowed = kitchenSearch.body.results?.find((r) => r.title.includes('Commercial Kitchen'));
+  check('a windowed listing still appears in search', Boolean(windowed));
+
+  if (windowed) {
+    // The kitchen is only offered overnight (22:00–07:00). A midday request sits
+    // entirely outside every window and must be refused.
+    const midday = await api('POST', '/api/bookings', {
+      token: kalpataru,
+      body: {
+        resourceId: windowed._id,
+        quantity: 1,
+        startDateTime: at(6, 11),
+        endDateTime: at(6, 15),
+      },
+    });
+    check(
+      'request outside the availability window is refused',
+      midday.status === 409,
+      `${midday.status} ${JSON.stringify(midday.body)}`
+    );
+
+    const overnight = await api('POST', '/api/bookings', {
+      token: kalpataru,
+      body: {
+        resourceId: windowed._id,
+        quantity: 1,
+        startDateTime: at(6, 23),
+        endDateTime: at(7, 6),
+      },
+    });
+    check(
+      'request inside the availability window is accepted',
+      overnight.status === 201,
+      `${overnight.status} ${JSON.stringify(overnight.body)}`
+    );
+  }
+
+  // ---- requirements (reverse marketplace) ----
+  console.log('\nRequirements');
+  const posted = await api('POST', '/api/requirements', {
+    token: kalpataru,
+    body: {
+      title: 'Test requirement — 40 round tables',
+      category: 'furniture',
+      quantity: 40,
+      startDateTime: at(20, 9),
+      endDateTime: at(20, 22),
+      urgency: 'high',
+    },
+  });
+  check('a seeker can post a requirement', posted.status === 201, JSON.stringify(posted.body));
+  const reqId = posted.body.requirement?._id;
+
+  const board = await api('GET', '/api/requirements/open', { token: orchid });
+  check(
+    'providers see open requirements',
+    board.body.requirements?.length > 0,
+    `${board.body.requirements?.length} on the board`
+  );
+  check(
+    'the board hides your own requirements',
+    !(await api('GET', '/api/requirements/open', { token: kalpataru })).body.requirements.some(
+      (r) => String(r._id) === String(reqId)
+    )
+  );
+
+  const mine = await api('GET', '/api/requirements/mine', { token: kalpataru });
+  check('a seeker sees their own requirements', mine.body.requirements?.length > 0);
+
+  // Silverline owns the Chiavari chairs and can offer them against a furniture
+  // ask; its token is already in scope from the negotiation section above.
+  const silverListings = await api('GET', '/api/resources/mine', { token: silverline });
+  const chairsListing = silverListings.body.resources.find((r) => r.title.includes('Chiavari'));
+
+  const offered = await api('POST', `/api/requirements/${reqId}/offers`, {
+    token: silverline,
+    body: { resourceId: chairsListing._id, price: 9000, message: 'Available, delivery included.' },
+  });
+  check('a provider can offer against a requirement', offered.status === 201, JSON.stringify(offered.body));
+
+  const selfOffer = await api('POST', `/api/requirements/${reqId}/offers`, {
+    token: kalpataru,
+    body: { resourceId: chairsListing._id, price: 1 },
+  });
+  check('you cannot offer against your own requirement', selfOffer.status === 400);
+
+  const offerId = offered.body.requirement?.offers?.slice(-1)[0]?._id;
+  const accepted = await api('POST', `/api/requirements/${reqId}/offers/${offerId}/accept`, {
+    token: kalpataru,
+  });
+  check(
+    'accepting an offer creates a booking',
+    accepted.status === 200 && Boolean(accepted.body.booking?._id),
+    JSON.stringify(accepted.body).slice(0, 160)
+  );
+  check('the requirement is marked fulfilled', accepted.body.requirement?.status === 'fulfilled');
+
+  // A booking created this way must carry the same money trail as one created
+  // through the normal accept route.
+  const fromRequirement = await api('GET', `/api/bookings/${accepted.body.booking._id}`, {
+    token: kalpataru,
+  });
+  check(
+    'a requirement-sourced booking still has a transaction',
+    Boolean(fromRequirement.body.transaction),
+    JSON.stringify(fromRequirement.body.transaction)
+  );
+
+  const reoffer = await api('POST', `/api/requirements/${reqId}/offers`, {
+    token: silverline,
+    body: { resourceId: chairsListing._id, price: 8000 },
+  });
+  check('a fulfilled requirement stops accepting offers', reoffer.status === 409);
+
+  // ---- provider queue prioritisation ----
+  console.log('\nRequest prioritisation');
+  const providerQueue = await api('GET', '/api/bookings/received', { token: orchid });
+  const queue = providerQueue.body.bookings || [];
+  const waiting = queue.filter((b) => ['pending', 'negotiating'].includes(b.status));
+  const settledFirstIndex = queue.findIndex((b) => !['pending', 'negotiating'].includes(b.status));
+  check(
+    'requests awaiting a decision sort above settled ones',
+    settledFirstIndex === -1 || settledFirstIndex >= waiting.length
+  );
+  const firstUrgencies = waiting.map((b) => b.urgency);
+  const rank = { high: 3, medium: 2, low: 1 };
+  check(
+    'urgent requests sort to the top of the queue',
+    firstUrgencies.every((u, i) => i === 0 || rank[firstUrgencies[i - 1]] >= rank[u]),
+    firstUrgencies.join(',')
+  );
+
+  // ---- transaction visibility ----
+  console.log('\nTransaction tracking');
+  const sentDone = await api('GET', '/api/bookings/sent?status=completed', { token: kalpataru });
+  const doneBooking = sentDone.body.bookings?.[0];
+  if (doneBooking) {
+    const detail = await api('GET', `/api/bookings/${doneBooking._id}`, { token: kalpataru });
+    check(
+      'a completed booking exposes its transaction',
+      Boolean(detail.body.transaction),
+      JSON.stringify(detail.body.transaction)
+    );
+  }
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
 
   server.close();

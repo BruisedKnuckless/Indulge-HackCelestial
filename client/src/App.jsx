@@ -25,6 +25,9 @@ import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import ProviderProfile from './pages/ProviderProfile';
 import PostRequirement from './pages/PostRequirement';
+import MyRequirements from './pages/MyRequirements';
+import RequirementBoard from './pages/RequirementBoard';
+import RequirementDetail from './pages/RequirementDetail';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -35,10 +38,10 @@ function RequireAuth({ children }) {
   return children;
 }
 
-/** Standard chrome: header, page body on the gray ground, footer. */
+/** Standard chrome: grey header, white page, quiet footer. */
 function Shell({ children }) {
   return (
-    <div className="min-h-screen flex flex-col bg-ground">
+    <div className="min-h-screen flex flex-col bg-surface">
       <Header />
       <main className="flex-1">{children}</main>
       <Footer />
@@ -56,10 +59,11 @@ export default function App() {
         position="top-center"
         toastOptions={{
           style: {
-            borderRadius: '8px',
-            border: '1px solid #D5D9D9',
+            borderRadius: '6px',
+            border: '1px solid #E4E4E7',
+            boxShadow: 'none',
             fontSize: '14px',
-            color: '#0F1111',
+            color: '#141416',
           },
         }}
       />
@@ -184,10 +188,34 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/requirements"
+                  element={
+                    <RequireAuth>
+                      <MyRequirements />
+                    </RequireAuth>
+                  }
+                />
+                <Route
                   path="/requirements/new"
                   element={
                     <RequireAuth>
                       <PostRequirement />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/requirements/board"
+                  element={
+                    <RequireAuth>
+                      <RequirementBoard />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/requirements/:id"
+                  element={
+                    <RequireAuth>
+                      <RequirementDetail />
                     </RequireAuth>
                   }
                 />

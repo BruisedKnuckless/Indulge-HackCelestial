@@ -29,14 +29,14 @@ export default function Listings() {
   };
 
   return (
-    <div className="page-shell py-4">
+    <div className="shell pt-12 pb-20">
       <div className="flex items-baseline justify-between flex-wrap gap-2 mb-4">
-        <h1 className="text-page font-normal">Your listings</h1>
+        <h1 className="h-page">Your listings</h1>
         <div className="flex gap-2">
-          <Link to="/analytics" className="btn-secondary btn-pill">
+          <Link to="/analytics" className="btn-secondary">
             View analytics
           </Link>
-          <Link to="/listings/new" className="btn-yellow btn-pill">
+          <Link to="/listings/new" className="btn-primary">
             List a resource
           </Link>
         </div>
@@ -49,7 +49,7 @@ export default function Listings() {
           title="You have not listed anything yet"
           message="Turn idle capacity into revenue — list a hall, a vehicle, spare furniture or kitchen hours."
           action={
-            <Link to="/listings/new" className="btn-yellow btn-pill">
+            <Link to="/listings/new" className="btn-primary">
               List your first resource
             </Link>
           }
@@ -59,7 +59,7 @@ export default function Listings() {
           {listings.map((r) => {
             const stats = utilByResource[String(r._id)];
             return (
-              <div key={r._id} className="bg-white border border-bd rounded p-4 flex gap-4">
+              <div key={r._id} className="bg-white border border-line rounded p-4 flex gap-4">
                 <Link to={`/r/${r._id}`} className="shrink-0">
                   <img
                     src={resourceImage(r)}
@@ -69,7 +69,7 @@ export default function Listings() {
                 </Link>
 
                 <div className="flex-1 min-w-0">
-                  <Link to={`/r/${r._id}`} className="text-title a-link block leading-snug">
+                  <Link to={`/r/${r._id}`} className="text-lg link block leading-snug">
                     {r.title}
                   </Link>
 
@@ -89,32 +89,32 @@ export default function Listings() {
                   </div>
 
                   {r.status !== 'active' && (
-                    <p className="text-mini text-danger font-bold mt-1 capitalize">{r.status}</p>
+                    <p className="text-xs text-danger font-semibold mt-1 capitalize">{r.status}</p>
                   )}
                 </div>
 
                 {/* Per-listing performance, so the provider sees value at a glance. */}
                 <div className="hidden sm:block w-[150px] shrink-0 text-base">
-                  <p className="text-ink-soft text-mini uppercase tracking-wide mb-1">
+                  <p className="text-ink-soft text-xs uppercase tracking-wide mb-1">
                     Last 30 days
                   </p>
                   <p>
-                    <span className="font-bold">{stats?.utilization ?? 0}%</span> utilised
+                    <span className="font-semibold">{stats?.utilization ?? 0}%</span> utilised
                   </p>
                   <p className="text-ink-soft">{stats?.bookings ?? 0} bookings</p>
                   <p className="text-ink-soft">{inr(stats?.revenue ?? 0)} earned</p>
                 </div>
 
                 <div className="w-[140px] shrink-0 space-y-2">
-                  <Link to={`/listings/${r._id}/edit`} className="btn-secondary btn-pill w-full">
+                  <Link to={`/listings/${r._id}/edit`} className="btn-secondary w-full">
                     Edit listing
                   </Link>
-                  <Link to={`/r/${r._id}`} className="btn-secondary btn-pill w-full">
+                  <Link to={`/r/${r._id}`} className="btn-secondary w-full">
                     View as buyer
                   </Link>
                   <button
                     onClick={() => archive(r._id, r.title)}
-                    className="btn-secondary btn-pill w-full"
+                    className="btn-secondary w-full"
                   >
                     Remove
                   </button>

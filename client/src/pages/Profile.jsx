@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../api/client';
 import { Alert, Stars } from '../components/ui';
 import { BUSINESS_TYPES } from '../lib/constants';
+import { useSearch } from '../hooks/queries';
 
 const CITY_PRESETS = [
   { label: 'Thane', pincode: '400601', coordinates: [72.9781, 19.2183] },
@@ -21,6 +22,7 @@ export default function Profile() {
     phone: user.phone || '',
     businessType: user.businessType || 'other',
     gstNumber: user.gstNumber || '',
+    preferredProviders: user.preferences?.preferredProviders?.map(String) || [],
     address: user.location?.address || '',
     city: user.location?.city || '',
     pincode: user.location?.pincode || '',
@@ -29,6 +31,26 @@ export default function Profile() {
   const [error, setError] = useState('');
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  // The search index already carries owner details, so the list of businesses
+  // to prefer comes from there rather than a dedicated directory endpoint.
+  const { data: directory } = useSearch({ limit: 60, radiusKm: 200 });
+  const providers = Object.values(
+    Object.fromEntries(
+      (directory?.results || [])
+        .map((r) => r.owner)
+        .filter((o) => o && String(o._id) !== String(user._id))
+        .map((o) => [String(o._id), o])
+    )
+  );
+
+  const togglePreferred = (id) =>
+    setForm((f) => ({
+      ...f,
+      preferredProviders: f.preferredProviders.includes(id)
+        ? f.preferredProviders.filter((x) => x !== id)
+        : [...f.preferredProviders, id],
+    }));
 
   const applyPreset = (index) => {
     const c = CITY_PRESETS[index];
@@ -52,6 +74,7 @@ export default function Profile() {
         phone: form.phone,
         businessType: form.businessType,
         gstNumber: form.gstNumber,
+        preferences: { preferredProviders: form.preferredProviders },
         location: {
           address: form.address,
           city: form.city,
@@ -68,17 +91,17 @@ export default function Profile() {
   };
 
   return (
-    <div className="page-shell py-4 max-w-[760px]">
-      <p className="text-mini text-ink-soft mb-3">
-        <Link to="/account" className="a-link">
+    <div className="shell pt-12 pb-20 max-w-prose">
+      <p className="text-xs text-ink-soft mb-3">
+        <Link to="/account" className="link">
           Your Account
         </Link>
         {' › '}
         <span>Business profile</span>
       </p>
 
-      <div className="bg-white p-6">
-        <h1 className="text-page font-normal mb-1">Business profile</h1>
+      <div className="card">
+        <h1 className="h-page mb-2">Business profile</h1>
         <p className="text-base text-ink-soft mb-4">
           Your operating area determines which resources appear near you, and how distance is scored
           when ranking matches.
@@ -101,14 +124,14 @@ export default function Profile() {
 
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="a-label">Business name</label>
-            <input value={form.businessName} onChange={set('businessName')} className="a-input" required />
+            <label className="label">Business name</label>
+            <input value={form.businessName} onChange={set('businessName')} className="field" required />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="a-label">Business type</label>
-              <select value={form.businessType} onChange={set('businessType')} className="a-select w-full">
+              <label className="label">Business type</label>
+              <select value={form.businessType} onChange={set('businessType')} className="field-select w-full">
                 {BUSINESS_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
@@ -118,24 +141,24 @@ export default function Profile() {
             </div>
 
             <div>
-              <label className="a-label">Phone</label>
-              <input value={form.phone} onChange={set('phone')} className="a-input" />
+              <label className="label">Phone</label>
+              <input value={form.phone} onChange={set('phone')} className="field" />
             </div>
           </div>
 
           <div>
-            <label className="a-label">GST number</label>
-            <input value={form.gstNumber} onChange={set('gstNumber')} className="a-input" />
+            <label className="label">GST number</label>
+            <input value={form.gstNumber} onChange={set('gstNumber')} className="field" />
           </div>
 
-          <hr className="border-0 border-t border-bd" />
+          <hr className="border-0 border-t border-line" />
 
           <div>
-            <label className="a-label">Operating area</label>
+            <label className="label">Operating area</label>
             <select
               onChange={(e) => applyPreset(Number(e.target.value))}
               value={CITY_PRESETS.findIndex((c) => c.label.split(' (')[0] === form.city)}
-              className="a-select w-full"
+              className="field-select w-full"
             >
               <option value={-1}>Choose an area…</option>
               {CITY_PRESETS.map((c, i) => (
@@ -144,28 +167,64 @@ export default function Profile() {
                 </option>
               ))}
             </select>
-            <p className="text-mini text-ink-mute mt-1">
+            <p className="text-xs text-ink-mute mt-1">
               Currently ranking distances from{' '}
-              <span className="font-bold">{user.location?.city || 'nowhere set'}</span>.
+              <span className="font-semibold">{user.location?.city || 'nowhere set'}</span>.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-4">
             <div>
-              <label className="a-label">Street address</label>
-              <input value={form.address} onChange={set('address')} className="a-input" />
+              <label className="label">Street address</label>
+              <input value={form.address} onChange={set('address')} className="field" />
             </div>
             <div>
-              <label className="a-label">Pincode</label>
-              <input value={form.pincode} onChange={set('pincode')} className="a-input" />
+              <label className="label">Pincode</label>
+              <input value={form.pincode} onChange={set('pincode')} className="field" />
             </div>
           </div>
 
-          <div className="flex gap-2 pt-2 border-t border-bd">
-            <button type="submit" disabled={busy} className="btn-yellow btn-pill">
+          <hr className="rule" />
+
+          {/* Preferred providers earn a small ranking bonus in search, so this
+              is the one preference that visibly changes what the seeker sees. */}
+          <div>
+            <label className="label">Preferred providers</label>
+            <p className="text-xs text-ink-mute mb-3">
+              Businesses you have worked with and trust. Their listings get a 5% ranking boost in
+              your search results.
+            </p>
+
+            {providers.length === 0 ? (
+              <p className="text-sm muted">No other businesses to choose from yet.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {providers.map((p) => {
+                  const on = form.preferredProviders.includes(String(p._id));
+                  return (
+                    <button
+                      key={p._id}
+                      type="button"
+                      onClick={() => togglePreferred(String(p._id))}
+                      className={`h-9 px-3 text-sm rounded-full border transition-colors ${
+                        on
+                          ? 'bg-ink border-ink text-ink-invert'
+                          : 'border-line-strong text-ink-soft hover:border-ink hover:text-ink'
+                      }`}
+                    >
+                      {p.businessName}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2 pt-2 border-t border-line">
+            <button type="submit" disabled={busy} className="btn-primary">
               {busy ? 'Saving…' : 'Save changes'}
             </button>
-            <Link to="/account" className="btn-secondary btn-pill">
+            <Link to="/account" className="btn-secondary">
               Back to account
             </Link>
           </div>

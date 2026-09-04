@@ -183,3 +183,77 @@ export function useUserReviews(userId) {
     enabled: Boolean(userId),
   });
 }
+
+/* ------------------------------------------------------------ Requirements */
+
+/** The provider-facing board of open requirements from other businesses. */
+export function useOpenRequirements(params) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['requirements', 'open', params],
+    queryFn: async () => (await api.get('/requirements/open', { params })).data,
+    enabled: Boolean(user),
+  });
+}
+
+/** Requirements the signed-in business has posted. */
+export function useMyRequirements() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['requirements', 'mine'],
+    queryFn: async () => (await api.get('/requirements/mine')).data,
+    enabled: Boolean(user),
+  });
+}
+
+export function useRequirement(id) {
+  return useQuery({
+    queryKey: ['requirement', id],
+    queryFn: async () => (await api.get(`/requirements/${id}`)).data,
+    enabled: Boolean(id),
+  });
+}
+
+/**
+ * Every write here can change both boards and, on accept, the bookings list —
+ * so they all invalidate the same broad set rather than trying to be surgical.
+ */
+export function useRequirementActions() {
+  const qc = useQueryClient();
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['requirements'] });
+    qc.invalidateQueries({ queryKey: ['requirement'] });
+    qc.invalidateQueries({ queryKey: ['bookings'] });
+    qc.invalidateQueries({ queryKey: ['notifications'] });
+  };
+
+  const create = useMutation({
+    mutationFn: async (body) => (await api.post('/requirements', body)).data,
+    onSuccess: refresh,
+  });
+
+  const offer = useMutation({
+    mutationFn: async ({ id, ...body }) =>
+      (await api.post(`/requirements/${id}/offers`, body)).data,
+    onSuccess: refresh,
+  });
+
+  const acceptOffer = useMutation({
+    mutationFn: async ({ id, offerId }) =>
+      (await api.post(`/requirements/${id}/offers/${offerId}/accept`)).data,
+    onSuccess: refresh,
+  });
+
+  const withdrawOffer = useMutation({
+    mutationFn: async ({ id, offerId }) =>
+      (await api.patch(`/requirements/${id}/offers/${offerId}/withdraw`)).data,
+    onSuccess: refresh,
+  });
+
+  const close = useMutation({
+    mutationFn: async (id) => (await api.patch(`/requirements/${id}/close`)).data,
+    onSuccess: refresh,
+  });
+
+  return { create, offer, acceptOffer, withdrawOffer, close };
+}

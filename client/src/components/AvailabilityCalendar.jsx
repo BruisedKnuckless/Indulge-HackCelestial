@@ -39,15 +39,15 @@ export default function AvailabilityCalendar({ resourceId }) {
   const today = new Date().toISOString().slice(0, 10);
 
   const cellStyle = (day) => {
-    if (!day) return 'bg-[#F7F8F8] text-ink-mute';
+    if (!day) return 'bg-surface-sunk text-ink-mute';
     const ratio = day.totalQuantity ? day.reservedQuantity / day.totalQuantity : 0;
-    if (ratio === 0) return 'bg-[#E8F5E9] text-ink border-[#8CC98F]';
-    if (ratio >= 1) return 'bg-[#FDECEA] text-danger border-[#E8A9A2]';
-    return 'bg-[#FEF8E7] text-ink border-[#E7C65C]';
+    if (ratio === 0) return 'bg-success/10 text-ink border-success/30';
+    if (ratio >= 1) return 'bg-danger/10 text-danger border-danger/30';
+    return 'bg-warn/10 text-ink border-warn/30';
   };
 
   return (
-    <div className="a-panel p-4 max-w-[560px]">
+    <div className="border border-line rounded p-4 max-w-[560px]">
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={() => setOffset((o) => o - 1)}
@@ -57,7 +57,7 @@ export default function AvailabilityCalendar({ resourceId }) {
         >
           ‹
         </button>
-        <h3 className="text-lead font-bold">
+        <h3 className="text-base font-bold">
           {MONTHS[monthStart.getMonth()]} {monthStart.getFullYear()}
         </h3>
         <button
@@ -76,7 +76,7 @@ export default function AvailabilityCalendar({ resourceId }) {
         <>
           <div className="grid grid-cols-7 gap-1 mb-1">
             {WEEKDAYS.map((d, i) => (
-              <div key={i} className="text-center text-micro text-ink-soft font-bold py-1">
+              <div key={i} className="text-center text-xs text-ink-soft font-bold py-1">
                 {d}
               </div>
             ))}
@@ -99,7 +99,7 @@ export default function AvailabilityCalendar({ resourceId }) {
                 <div
                   key={iso}
                   className={`aspect-square rounded border text-center py-1 ${cellStyle(day)} ${
-                    iso === today ? 'ring-2 ring-link' : ''
+                    iso === today ? 'ring-2 ring-ink' : ''
                   }`}
                   title={
                     day
@@ -107,7 +107,7 @@ export default function AvailabilityCalendar({ resourceId }) {
                       : 'No data'
                   }
                 >
-                  <div className="text-mini font-bold leading-none">{dayNum}</div>
+                  <div className="text-xs font-bold leading-none">{dayNum}</div>
                   {day && day.totalQuantity > 1 && (
                     <div className="text-[9px] leading-tight mt-0.5">{day.availableQuantity}</div>
                   )}
@@ -116,11 +116,11 @@ export default function AvailabilityCalendar({ resourceId }) {
             })}
           </div>
 
-          <div className="flex flex-wrap gap-3 mt-3 text-mini text-ink-soft">
+          <div className="flex flex-wrap gap-3 mt-3 text-xs text-ink-soft">
             {[
-              ['bg-[#E8F5E9] border-[#8CC98F]', 'Fully available'],
-              ['bg-[#FEF8E7] border-[#E7C65C]', 'Partly booked'],
-              ['bg-[#FDECEA] border-[#E8A9A2]', 'Fully booked'],
+              ['bg-success/10 border-success/30', 'Fully available'],
+              ['bg-warn/10 border-warn/30', 'Partly booked'],
+              ['bg-danger/10 border-danger/30', 'Fully booked'],
             ].map(([cls, label]) => (
               <span key={label} className="flex items-center gap-1.5">
                 <span className={`w-3 h-3 rounded-sm border ${cls}`} />
