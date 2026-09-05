@@ -28,6 +28,7 @@ import PostRequirement from './pages/PostRequirement';
 import MyRequirements from './pages/MyRequirements';
 import RequirementBoard from './pages/RequirementBoard';
 import RequirementDetail from './pages/RequirementDetail';
+import Nearby from './pages/Nearby';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -60,10 +61,13 @@ export default function App() {
         toastOptions={{
           style: {
             borderRadius: '6px',
-            border: '1px solid #E4E4E7',
+            /* CSS custom properties are resolved by the browser even inside
+               JS style objects, so these automatically flip on theme change. */
+            border: '1px solid rgb(var(--color-line))',
             boxShadow: 'none',
             fontSize: '14px',
-            color: '#141416',
+            color: 'rgb(var(--color-ink))',
+            backgroundColor: 'rgb(var(--color-surface-alt))',
           },
         }}
       />
@@ -82,6 +86,7 @@ export default function App() {
                 <Route path="/s" element={<Search />} />
                 <Route path="/r/:id" element={<ResourceDetail />} />
                 <Route path="/provider/:id" element={<ProviderProfile />} />
+                <Route path="/nearby" element={<Nearby />} />
 
                 <Route
                   path="/cart"

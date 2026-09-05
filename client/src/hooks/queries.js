@@ -187,12 +187,11 @@ export function useUserReviews(userId) {
 /* ------------------------------------------------------------ Requirements */
 
 /** The provider-facing board of open requirements from other businesses. */
-export function useOpenRequirements(params) {
-  const { user } = useAuth();
+export function useOpenRequirements(params, enabled = true) {
   return useQuery({
     queryKey: ['requirements', 'open', params],
     queryFn: async () => (await api.get('/requirements/open', { params })).data,
-    enabled: Boolean(user),
+    enabled,
   });
 }
 

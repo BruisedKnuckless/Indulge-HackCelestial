@@ -2,14 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Nohemi is used for the wordmark and display headings only — one weight is
-   all the licence file provides, and Black is the wordmark's weight. */
+/* Nohemi is used for the wordmark and display headings only. */
 @font-face {
   font-family: 'Nohemi';
   src: url('/fonts/Nohemi-Black.ttf') format('truetype');
   font-weight: 900;
   font-style: normal;
   font-display: swap;
+}
+
+/* ============================================================
+   THEME TOKENS
+   All semantic colors resolve through CSS custom properties so
+   the entire UI re-themes when .dark is toggled on <html>.
+   Values are RGB triplets (space-separated) to support the
+   Tailwind rgb(var / <alpha-value>) opacity-modifier syntax.
+   ============================================================ */
+
+:root {
+  /* Surfaces */
+  --color-surface:      255 255 255;   /* #FFFFFF */
+  --color-surface-alt:  250 250 250;   /* #FAFAFA */
+  --color-surface-sunk: 244 244 245;   /* #F4F4F5 */
+
+  /* Navigation bar */
+  --color-nav:          160 161 166;   /* #A0A1A6  -- sampled from landing animation */
+  --color-nav-soft:     180 181 185;   /* #B4B5B9 */
+
+  /* Text */
+  --color-ink:          20 20 22;      /* #141416 */
+  --color-ink-soft:     92 92 97;      /* #5C5C61 */
+  --color-ink-mute:     142 142 147;   /* #8E8E93 */
+  --color-ink-invert:   255 255 255;   /* #FFFFFF  -- text on dark primary button */
+
+  /* Borders / hairlines */
+  --color-line:         228 228 231;   /* #E4E4E7 */
+  --color-line-strong:  208 208 212;   /* #D0D0D4 */
+
+  /* Semantic */
+  --color-accent:       20 20 22;      /* #141416 */
+  --color-success:      23 114 69;     /* #177245 */
+  --color-danger:       163 32 32;     /* #A32020 */
+  --color-warn:         138 106 0;     /* #8A6A00 */
+}
+
+/* Dark theme — applied when <html class="dark"> */
+.dark {
+  /* Surfaces — charcoal/near-black hierarchy */
+  --color-surface:      22 22 26;      /* #16161A */
+  --color-surface-alt:  30 30 36;      /* #1E1E24 */
+  --color-surface-sunk: 15 15 19;      /* #0F0F13 */
+
+  /* Navigation */
+  --color-nav:          26 26 31;      /* #1A1A1F */
+  --color-nav-soft:     37 37 48;      /* #252530 */
+
+  /* Text — light on dark */
+  --color-ink:          232 232 237;   /* #E8E8ED */
+  --color-ink-soft:     158 158 165;   /* #9E9EA5 */
+  --color-ink-mute:     100 100 107;   /* #64646B */
+  /* ink-invert in dark = dark text on the now-light primary button */
+  --color-ink-invert:   22 22 26;      /* #16161A */
+
+  /* Borders */
+  --color-line:         44 44 54;      /* #2C2C36 */
+  --color-line-strong:  62 62 74;      /* #3E3E4A */
+
+  /* Semantic — lighter for readability on dark backgrounds */
+  --color-accent:       232 232 237;   /* #E8E8ED */
+  --color-success:      52 199 89;     /* #34C759 */
+  --color-danger:       255 82 82;     /* #FF5252 */
+  --color-warn:         255 196 0;     /* #FFC400 */
 }
 
 @layer base {
@@ -26,7 +89,6 @@
     @apply text-inherit no-underline;
   }
 
-  /* One consistent focus treatment everywhere, rather than per-control rings. */
   :focus-visible {
     @apply outline-none ring-2 ring-ink/25 ring-offset-2 ring-offset-surface rounded;
   }
@@ -65,7 +127,9 @@
   }
 
   /* ---- Buttons --------------------------------------------------------
-     Flat, no shadows. Primary is near-black; everything else recedes. */
+     Primary: bg-ink (dark in light / light in dark) + text-ink-invert
+     (white in light / dark in dark). No dark: overrides needed — the CSS
+     variables flip both tokens automatically. */
   .btn {
     @apply inline-flex items-center justify-center gap-2 px-4 h-10
            text-sm font-medium rounded cursor-pointer select-none
@@ -74,7 +138,7 @@
   }
 
   .btn-primary {
-    @apply btn bg-ink border-ink text-ink-invert hover:bg-black;
+    @apply btn bg-ink border-ink text-ink-invert hover:bg-accent;
   }
 
   .btn-secondary {
@@ -99,24 +163,29 @@
   }
 
   /* ---- Form controls -------------------------------------------------- */
+  /* Inputs use surface-sunk so they look subtly recessed relative to the
+     card surface they sit on. In dark mode surface-sunk (#0F0F13) is darker
+     than the card surface (#16161A), creating the right depth hierarchy. */
   .field {
-    @apply w-full h-10 px-3 text-base bg-surface rounded
+    @apply w-full h-10 px-3 text-base bg-surface-sunk rounded
            border border-line-strong outline-none
            placeholder:text-ink-mute
            focus:border-ink transition-colors;
   }
 
   .field-area {
-    @apply w-full px-3 py-2 text-base bg-surface rounded
+    @apply w-full px-3 py-2 text-base bg-surface-sunk rounded
            border border-line-strong outline-none
            placeholder:text-ink-mute
            focus:border-ink transition-colors;
   }
 
   .field-select {
-    @apply h-10 pl-3 pr-9 text-base bg-surface rounded
+    @apply h-10 pl-3 pr-9 text-base bg-surface-sunk rounded
            border border-line-strong cursor-pointer outline-none
            appearance-none focus:border-ink transition-colors;
+    /* Arrow SVG: colour matches ink-mute in both themes via the raw hex that
+       sits between the light (#8E8E93) and dark (#64646B) ink-mute values. */
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238E8E93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
     background-position: right 12px center;
     background-repeat: no-repeat;
@@ -126,9 +195,7 @@
     @apply block text-sm font-medium text-ink-soft mb-1.5;
   }
 
-  /* ---- Layout ----------------------------------------------------------
-     Generous gutters and a narrower page than a dense marketplace would use;
-     whitespace is doing the work that borders and boxes used to. */
+  /* ---- Layout --------------------------------------------------------- */
   .shell {
     @apply max-w-page mx-auto px-6 sm:px-8;
   }

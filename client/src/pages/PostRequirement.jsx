@@ -28,6 +28,7 @@ export default function PostRequirement() {
     maxPrice: '',
     radiusKm: 25,
     urgency: 'medium',
+    additionalConstraints: '',
     start: toLocalInput(initial.start),
     end: toLocalInput(initial.end),
   });
@@ -68,12 +69,14 @@ export default function PostRequirement() {
         quantity: Number(form.quantity) || 1,
         minCapacity: form.minCapacity ? Number(form.minCapacity) : undefined,
         maxPrice: form.maxPrice ? Number(form.maxPrice) : undefined,
+        radiusKm: Number(form.radiusKm) || 25,
+        additionalConstraints: form.additionalConstraints.trim() || undefined,
         startDateTime: new Date(form.start).toISOString(),
         endDateTime: new Date(form.end).toISOString(),
         urgency: form.urgency,
       });
-      toast.success('Requirement posted — providers can now respond');
-      navigate(`/requirements/${requirement._id}`);
+      toast.success('Requirement posted — finding smart matches');
+      navigate(`/s?requirementId=${requirement._id}`);
     } catch (err) {
       toast.error(errorMessage(err, 'Could not post the requirement.'));
     } finally {
@@ -191,6 +194,17 @@ export default function PostRequirement() {
                   className="field"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="label">Additional constraints / notes</label>
+              <input
+                type="text"
+                value={form.additionalConstraints}
+                onChange={set('additionalConstraints')}
+                placeholder="e.g. Ground floor delivery, setup assistance needed"
+                className="field"
+              />
             </div>
 
             <div>

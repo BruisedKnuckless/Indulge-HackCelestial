@@ -43,30 +43,49 @@ export const UNITS = [
   { value: 'slot', label: 'Slot' },
 ];
 
-/** Labels for the five ranking factors, shown in the match breakdown. */
+/** Labels for the ranking factors, shown in the match breakdown. */
 export const FACTOR_LABELS = {
-  priceFit: 'Price',
+  typeFit: 'Resource type',
+  availabilityFit: 'Dates & Time',
+  priceFit: 'Budget fit',
   distanceFit: 'Distance',
-  availabilityFit: 'Availability',
-  capacityFit: 'Capacity fit',
+  capacityFit: 'Capacity',
   urgencyFit: 'Readiness',
 };
 
 export const FACTOR_WEIGHTS = {
-  priceFit: 30,
-  distanceFit: 25,
-  availabilityFit: 20,
+  typeFit: 20,
+  availabilityFit: 25,
+  priceFit: 20,
+  distanceFit: 15,
   capacityFit: 15,
-  urgencyFit: 10,
+  urgencyFit: 5,
 };
 
+/** Per-category icon glyphs for card badges. */
+export const CATEGORY_ICONS = {
+  banquet_space:    '🏛️',
+  parking:          '🅿️',
+  vehicle:          '🚐',
+  kitchen_capacity: '👨‍🍳',
+  furniture:        '🪑',
+  av_equipment:     '🎙️',
+  staff:            '👤',
+  other:            '📦',
+};
+
+/* Placeholder image — uses CSS custom properties so it adapts to the theme. */
 const PLACEHOLDER =
   'data:image/svg+xml;charset=utf-8,' +
   encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
-       <rect width="400" height="300" fill="#F4F4F5"/>
-       <text x="200" y="155" text-anchor="middle" fill="#8E8E93"
-             font-family="system-ui, sans-serif" font-size="17">No image</text>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" role="img" aria-label="No image">
+       <rect width="400" height="300" fill="rgb(244 244 245)"/>
+       <rect x="156" y="100" width="88" height="68" rx="6" fill="rgb(228 228 231)"/>
+       <circle cx="174" cy="120" r="10" fill="rgb(208 208 212)"/>
+       <polygon points="152,168 200,120 248,168" fill="rgb(208 208 212)"/>
+       <polygon points="196,168 228,136 260,168" fill="rgb(228 228 231)"/>
+       <text x="200" y="196" text-anchor="middle" fill="rgb(142 142 147)"
+             font-family="system-ui, -apple-system, sans-serif" font-size="12" letter-spacing="0.04em">NO IMAGE</text>
      </svg>`
   );
 

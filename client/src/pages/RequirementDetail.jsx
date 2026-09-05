@@ -85,17 +85,34 @@ export default function RequirementDetail() {
               {dateRange(r.startDateTime, r.endDateTime)}
               {r.maxPrice ? ` · budget ${inr(r.maxPrice)}` : ''}
               {r.minCapacity ? ` · capacity ${r.minCapacity}+` : ''}
+              {r.radiusKm ? ` · within ${r.radiusKm} km` : ''}
             </p>
+            {r.additionalConstraints && (
+              <p className="text-xs text-accent mt-1.5 font-medium">
+                Constraints: {r.additionalConstraints}
+              </p>
+            )}
             <p className="text-sm muted mt-1">
               Posted by {r.seeker?.businessName} · {relative(r.createdAt)}
             </p>
           </div>
 
-          {isOwner && r.status === 'open' && (
-            <button onClick={closeIt} className="btn-ghost btn-sm shrink-0">
-              Close requirement
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {isOwner && r.status === 'open' && (
+              <Link
+                to={`/s?requirementId=${r._id}`}
+                className="btn-primary btn-sm gap-1.5 inline-flex items-center"
+              >
+                <span>Browse matching resources</span>
+                <span aria-hidden>→</span>
+              </Link>
+            )}
+            {isOwner && r.status === 'open' && (
+              <button onClick={closeIt} className="btn-ghost btn-sm">
+                Close requirement
+              </button>
+            )}
+          </div>
         </div>
 
         {r.description && <p className="text-base muted mt-5 max-w-prose">{r.description}</p>}

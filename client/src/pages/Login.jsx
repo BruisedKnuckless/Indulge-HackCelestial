@@ -43,7 +43,7 @@ export default function Login() {
   };
 
   return (
-    <div className="bg-white min-h-screen">
+    <div className="bg-surface min-h-screen">
       <div className="flex flex-col items-center pt-4 px-4">
         <Link to="/" className="mb-4">
           <Logo width={130} dark />

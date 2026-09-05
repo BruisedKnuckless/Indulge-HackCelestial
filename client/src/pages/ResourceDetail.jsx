@@ -97,7 +97,7 @@ export default function ResourceDetail() {
   };
 
   return (
-    <div className="bg-white">
+    <div className="bg-surface">
       <div className="shell pt-12 pb-20">
         {/* Breadcrumb */}
         <p className="text-xs text-ink-soft mb-3">

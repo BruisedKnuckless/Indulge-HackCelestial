@@ -88,7 +88,7 @@ export default function Checkout() {
   };
 
   return (
-    <div className="bg-white min-h-screen">
+    <div className="bg-surface min-h-screen">
       <div className="border-b border-line">
         <div className="shell py-3 flex items-baseline justify-between">
           <h1 className="h-page">

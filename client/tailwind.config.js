@@ -1,69 +1,66 @@
-/** @type {import('tailwindcss').Config} */
+/** @type {import("tailwindcss").Config} */
 export default {
-  content: ['./index.html', './src/**/*.{js,jsx}'],
+  darkMode: "class",
+  content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
     extend: {
       colors: {
-        // The navbar grey is sampled from the landing animation's backdrop, so
-        // the chrome reads as a continuation of the intro rather than a
-        // separate surface.
-        nav: '#A0A1A6',
-        'nav-soft': '#B4B5B9',
+        // Every token resolves through a CSS custom property so a single
+        // :root / .dark block in index.css switches the entire UI.
+        // The rgb(var() / <alpha-value>) syntax preserves Tailwind opacity
+        // modifiers: bg-surface/80, text-ink/65, ring-ink/25 etc.
 
-        // Surfaces — white page, near-white for the rare raised block.
-        surface: '#FFFFFF',
-        'surface-alt': '#FAFAFA',
-        'surface-sunk': '#F4F4F5',
+        nav:           "rgb(var(--color-nav)           / <alpha-value>)",
+        "nav-soft":    "rgb(var(--color-nav-soft)      / <alpha-value>)",
 
-        // Text
-        ink: '#141416',
-        'ink-soft': '#5C5C61',
-        'ink-mute': '#8E8E93',
-        'ink-invert': '#FFFFFF',
+        surface:       "rgb(var(--color-surface)       / <alpha-value>)",
+        "surface-alt": "rgb(var(--color-surface-alt)   / <alpha-value>)",
+        "surface-sunk":"rgb(var(--color-surface-sunk)  / <alpha-value>)",
 
-        // Hairlines. Minimal UI leans on these instead of shadows.
-        line: '#E4E4E7',
-        'line-strong': '#D0D0D4',
+        ink:           "rgb(var(--color-ink)           / <alpha-value>)",
+        "ink-soft":    "rgb(var(--color-ink-soft)      / <alpha-value>)",
+        "ink-mute":    "rgb(var(--color-ink-mute)      / <alpha-value>)",
+        "ink-invert":  "rgb(var(--color-ink-invert)    / <alpha-value>)",
 
-        // A single accent keeps the palette quiet; signals stay muted.
-        accent: '#141416',
-        success: '#177245',
-        danger: '#A32020',
-        warn: '#8A6A00',
+        line:          "rgb(var(--color-line)          / <alpha-value>)",
+        "line-strong": "rgb(var(--color-line-strong)   / <alpha-value>)",
+
+        accent:        "rgb(var(--color-accent)        / <alpha-value>)",
+        success:       "rgb(var(--color-success)       / <alpha-value>)",
+        danger:        "rgb(var(--color-danger)        / <alpha-value>)",
+        warn:          "rgb(var(--color-warn)          / <alpha-value>)",
       },
       fontFamily: {
-        // Nohemi ships here as a single Black weight, so it is reserved for the
-        // wordmark and display type; body copy uses the system stack.
-        display: ['Nohemi', 'Georgia', 'serif'],
+        display: ["Nohemi", "Georgia", "serif"],
         sans: [
-          'system-ui',
-          '-apple-system',
-          'Segoe UI',
-          'Roboto',
-          'Helvetica Neue',
-          'Arial',
-          'sans-serif',
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "Roboto",
+          "Helvetica Neue",
+          "Arial",
+          "sans-serif",
         ],
       },
       fontSize: {
-        xs: ['12px', '18px'],
-        sm: ['13px', '20px'],
-        base: ['15px', '24px'],
-        lg: ['17px', '26px'],
-        xl: ['20px', '28px'],
-        '2xl': ['25px', '32px'],
-        '3xl': ['32px', '38px'],
-        '4xl': ['44px', '48px'],
+        xs:    ["12px", "18px"],
+        sm:    ["13px", "20px"],
+        base:  ["15px", "24px"],
+        lg:    ["17px", "26px"],
+        xl:    ["20px", "28px"],
+        "2xl": ["25px", "32px"],
+        "3xl": ["32px", "38px"],
+        "4xl": ["44px", "48px"],
       },
       letterSpacing: {
-        tightest: '-0.04em',
+        tightest: "-0.04em",
       },
       maxWidth: {
-        page: '1200px',
-        prose: '680px',
+        page:  "1200px",
+        prose: "680px",
       },
       borderRadius: {
-        DEFAULT: '6px',
+        DEFAULT: "6px",
       },
     },
   },

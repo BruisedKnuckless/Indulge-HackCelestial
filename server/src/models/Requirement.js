@@ -54,6 +54,9 @@ const requirementSchema = new mongoose.Schema(
       coordinates: { type: [Number], index: '2dsphere' }, // [lng, lat]
     },
 
+    radiusKm: { type: Number, default: 25 },
+    additionalConstraints: String,
+
     urgency: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
 
     offers: [offerSchema],

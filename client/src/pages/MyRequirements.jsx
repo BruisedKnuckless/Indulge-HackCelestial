@@ -44,10 +44,9 @@ export default function MyRequirements() {
           {requirements.map((r) => {
             const live = (r.offers || []).filter((o) => o.status === 'offered');
             return (
-              <Link
+              <div
                 key={r._id}
-                to={`/requirements/${r._id}`}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 py-6 border-b border-line
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-6 border-b border-line
                            hover:bg-surface-alt transition-colors px-2 -mx-2"
               >
                 <div className="flex-1 min-w-0">
@@ -63,22 +62,39 @@ export default function MyRequirements() {
                     )}
                   </div>
 
-                  <p className="text-lg font-medium">{r.title}</p>
+                  <Link
+                    to={`/requirements/${r._id}`}
+                    className="text-lg font-medium hover:text-accent transition-colors block"
+                  >
+                    {r.title}
+                  </Link>
                   <p className="text-sm muted mt-1">
                     {CATEGORY_LABELS[r.category]} · qty {r.quantity} ·{' '}
                     {dateRange(r.startDateTime, r.endDateTime)}
                     {r.maxPrice ? ` · under ${inr(r.maxPrice)}` : ''}
+                    {r.radiusKm ? ` · ${r.radiusKm} km` : ''}
                   </p>
                   <p className="text-xs text-ink-mute mt-1">Posted {relative(r.createdAt)}</p>
                 </div>
 
-                <div className="sm:text-right shrink-0">
-                  <p className="text-2xl font-semibold tracking-tight">{live.length}</p>
-                  <p className="text-xs muted">
-                    open offer{live.length === 1 ? '' : 's'}
-                  </p>
+                <div className="sm:text-right shrink-0 flex items-center sm:flex-col sm:items-end justify-between gap-3">
+                  <div>
+                    <p className="text-2xl font-semibold tracking-tight">{live.length}</p>
+                    <p className="text-xs muted">
+                      open offer{live.length === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  {r.status === 'open' && (
+                    <Link
+                      to={`/s?requirementId=${r._id}`}
+                      className="btn-primary btn-sm text-xs gap-1 inline-flex items-center"
+                    >
+                      <span>Find matches</span>
+                      <span aria-hidden>→</span>
+                    </Link>
+                  )}
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>
