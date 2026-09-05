@@ -49,8 +49,8 @@ export default function Login() {
           <Logo width={130} dark />
         </Link>
 
-        <div className="a-panel w-full max-w-[350px] p-5">
-          <h1 className="text-page font-normal mb-4">Sign in</h1>
+        <div className="border border-line rounded w-full max-w-[350px] p-5">
+          <h1 className="h-page mb-8">Sign in</h1>
 
           {error && (
             <Alert tone="error" className="mb-3">
@@ -60,7 +60,7 @@ export default function Login() {
 
           <form onSubmit={submit} className="space-y-3">
             <div>
-              <label htmlFor="email" className="a-label">
+              <label htmlFor="email" className="label">
                 Business email
               </label>
               <input
@@ -68,14 +68,14 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="a-input"
+                className="field"
                 autoComplete="email"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="a-label">
+              <label htmlFor="password" className="label">
                 Password
               </label>
               <input
@@ -83,18 +83,18 @@ export default function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="a-input"
+                className="field"
                 autoComplete="current-password"
                 required
               />
             </div>
 
-            <button type="submit" disabled={busy} className="btn-yellow w-full">
+            <button type="submit" disabled={busy} className="btn-primary w-full">
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
 
-          <p className="text-mini text-ink-soft mt-4 leading-snug">
+          <p className="text-xs text-ink-soft mt-4 leading-snug">
             By continuing, you agree to Indulge’s Conditions of Use and acknowledge our Privacy
             Notice.
           </p>
@@ -102,31 +102,31 @@ export default function Login() {
 
         {/* Demo shortcut — this is a prototype with seeded accounts. */}
         <div className="w-full max-w-[350px] mt-4">
-          <p className="text-mini font-bold text-ink-soft mb-1.5">Demo accounts</p>
+          <p className="text-xs font-semibold text-ink-soft mb-1.5">Demo accounts</p>
           <div className="space-y-1.5">
             {DEMO_ACCOUNTS.map((a) => (
               <button
                 key={a.email}
                 onClick={() => useDemo(a.email)}
-                className="w-full text-left a-panel px-3 py-2 hover:bg-[#F7FAFA]"
+                className="w-full text-left border border-line rounded px-3 py-2 hover:bg-surface-sunk"
               >
-                <span className="text-base font-bold block">{a.label}</span>
-                <span className="text-mini text-ink-soft">
+                <span className="text-base font-semibold block">{a.label}</span>
+                <span className="text-xs text-ink-soft">
                   {a.email} · {a.note}
                 </span>
               </button>
             ))}
           </div>
-          <p className="text-micro text-ink-mute mt-1.5">
-            All demo accounts use the password <span className="font-bold">indulge123</span>.
+          <p className="text-xs text-ink-mute mt-1.5">
+            All demo accounts use the password <span className="font-semibold">indulge123</span>.
           </p>
         </div>
 
         <div className="w-full max-w-[350px] my-6">
           <div className="flex items-center gap-3">
-            <hr className="flex-1 border-0 border-t border-bd" />
-            <span className="text-mini text-ink-soft">New to Indulge?</span>
-            <hr className="flex-1 border-0 border-t border-bd" />
+            <hr className="flex-1 border-0 border-t border-line" />
+            <span className="text-xs text-ink-soft">New to Indulge?</span>
+            <hr className="flex-1 border-0 border-t border-line" />
           </div>
           <Link to="/register" className="btn-secondary w-full mt-4">
             Create your Indulge account
@@ -134,13 +134,13 @@ export default function Login() {
         </div>
       </div>
 
-      <div className="border-t border-bd mt-8 pt-6 pb-10 text-center">
-        <div className="flex justify-center gap-6 text-mini mb-2">
-          <span className="a-link">Conditions of Use</span>
-          <span className="a-link">Privacy Notice</span>
-          <span className="a-link">Help</span>
+      <div className="border-t border-line mt-8 pt-6 pb-10 text-center">
+        <div className="flex justify-center gap-6 text-xs mb-2">
+          <span className="link">Conditions of Use</span>
+          <span className="link">Privacy Notice</span>
+          <span className="link">Help</span>
         </div>
-        <p className="text-micro text-ink-mute">
+        <p className="text-xs text-ink-mute">
           © {new Date().getFullYear()} Indulge — B2B Hospitality Resource Exchange
         </p>
       </div>

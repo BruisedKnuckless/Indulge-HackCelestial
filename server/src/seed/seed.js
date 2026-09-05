@@ -74,6 +74,7 @@ export async function runSeed({ quiet = false } = {}) {
   const shuttle = find('Guest Shuttle');
   const ledWall = find('LED Wall');
   const parking = find('Covered Parking');
+  const lawn = find('Poolside Lawn');
 
   /** Small helper so the demo bookings below stay readable. */
   const book = (resource, seeker, start, end, status, extra = {}) => {
@@ -292,8 +293,103 @@ export async function runSeed({ quiet = false } = {}) {
     });
   }
 
+  // ---- Availability windows -------------------------------------------
+  // Two listings are only offered on defined windows, so the window rule in
+  // the availability service is actually exercised by the demo data rather
+  // than sitting dormant behind resources that are always bookable.
+  await Resource.findByIdAndUpdate(kitchen._id, {
+    availabilityWindows: [
+      { start: at(0, 22), end: at(1, 7) },
+      { start: at(1, 22), end: at(2, 7) },
+      { start: at(2, 22), end: at(3, 7) },
+      { start: at(5, 22), end: at(6, 7) },
+      { start: at(6, 22), end: at(7, 7) },
+    ],
+  });
+  await Resource.findByIdAndUpdate(lawn._id, {
+    availabilityWindows: [{ start: at(0, 6), end: at(45, 23) }],
+  });
+
+  // ---- Open requirements ------------------------------------------------
+  // The reverse marketplace needs a populated board on first load, including
+  // one that already carries an offer so the accept flow is demoable.
+  const withOffer = await Requirement.create({
+    seeker: users.coastal._id,
+    title: '250 banquet chairs for a Saturday reception',
+    category: 'furniture',
+    description:
+      'Gold or ivory preferred. We can collect from Thane ourselves if that keeps the price down.',
+    quantity: 250,
+    maxPrice: 15000,
+    startDateTime: at(12, 9),
+    endDateTime: at(12, 23),
+    location: users.coastal.location,
+    urgency: 'medium',
+    status: 'open',
+    offers: [
+      {
+        provider: users.silverline._id,
+        resource: chairs._id,
+        price: 11250,
+        message: 'We have 300 in stock. Delivery to Hiranandani included at this price.',
+      },
+    ],
+  });
+
+  await Requirement.create([
+    {
+      seeker: users.grandOrchid._id,
+      title: 'Overflow kitchen capacity, Friday overnight',
+      category: 'kitchen_capacity',
+      description: 'Prepping for a 400-cover wedding lunch. Need FSSAI-licensed space with chillers.',
+      quantity: 1,
+      startDateTime: at(6, 22),
+      endDateTime: at(7, 7),
+      location: users.grandOrchid.location,
+      urgency: 'high',
+      status: 'open',
+    },
+    {
+      seeker: users.kalpataru._id,
+      title: 'Guest shuttle for airport transfers',
+      category: 'vehicle',
+      description: 'Two runs, morning and evening, roughly 30 guests per run.',
+      quantity: 1,
+      maxPrice: 12000,
+      startDateTime: at(18, 6),
+      endDateTime: at(18, 22),
+      location: users.kalpataru.location,
+      urgency: 'low',
+      status: 'open',
+    },
+    {
+      seeker: users.seasons._id,
+      title: 'LED wall for a product launch',
+      category: 'av_equipment',
+      description: 'Indoor, needs to be visible in a daylit atrium. Crew to rig and de-rig.',
+      quantity: 1,
+      minCapacity: 0,
+      startDateTime: at(21, 8),
+      endDateTime: at(21, 22),
+      location: users.seasons.location,
+      urgency: 'medium',
+      status: 'open',
+    },
+  ]);
+
+  await Notification.create({
+    user: users.coastal._id,
+    type: 'requirement_offer',
+    title: 'New offer on your requirement',
+    message: `${users.silverline.businessName} offered ${chairs.title}.`,
+    relatedRequirement: withOffer._id,
+  });
+
+  const requirementCount = await Requirement.countDocuments();
+
   const bookingCount = await Booking.countDocuments();
   log(`  ✓ ${bookingCount} bookings, ${past.length} reviews`);
+  log(`  ✓ ${requirementCount} open requirements, 2 listings with availability windows`);
   log(`\n  Demo login — any of these emails, password: ${DEMO_PASSWORD}`);
   log(`    ${users.grandOrchid.email}   (hotel, has listings + incoming requests)`);
   log(`    ${users.seasons.email}  (banquet venue)\n`);

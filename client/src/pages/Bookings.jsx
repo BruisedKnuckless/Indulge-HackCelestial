@@ -3,26 +3,24 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useBookings, useBookingActions } from '../hooks/queries';
 import { errorMessage } from '../api/client';
-import { StatusBadge, Spinner, EmptyState, DealBadge } from '../components/ui';
+import { StatusBadge, Spinner, EmptyState } from '../components/ui';
 import { resourceImage } from '../lib/constants';
-import { inr, dateRange, longDate, relative } from '../lib/format';
+import { inr, dateRange, relative } from '../lib/format';
 
 const TABS = [
-  { key: 'all', label: 'All requests' },
+  { key: 'all', label: 'All' },
   { key: 'pending,negotiating', label: 'Open' },
   { key: 'accepted,confirmed', label: 'Confirmed' },
   { key: 'completed', label: 'Completed' },
   { key: 'cancelled,rejected', label: 'Cancelled' },
 ];
 
-/**
- * One booking, rendered as an order card: gray meta strip on top, content and
- * actions below.
- */
-function BookingCard({ booking, direction, actions }) {
+/** One request: image, what it is, where it stands, and what you can do. */
+function BookingRow({ booking, direction, actions }) {
   const [busy, setBusy] = useState('');
   const r = booking.resource || {};
-  const counterparty = direction === 'sent' ? booking.provider : booking.seeker;
+  const isProvider = direction === 'received';
+  const counterparty = isProvider ? booking.seeker : booking.provider;
 
   const run = async (verb, mutation, extra = {}) => {
     setBusy(verb);
@@ -36,111 +34,89 @@ function BookingCard({ booking, direction, actions }) {
     }
   };
 
-  const isProvider = direction === 'received';
+  const open = ['pending', 'negotiating'].includes(booking.status);
+  const live = ['pending', 'negotiating', 'accepted', 'confirmed'].includes(booking.status);
 
   return (
-    <div className="border border-bd rounded bg-white mb-4">
-      <div className="bg-[#F0F2F2] border-b border-bd rounded-t px-4 py-2.5 flex flex-wrap gap-x-10 gap-y-2 text-mini">
-        <div>
-          <p className="text-ink-soft uppercase tracking-wide">Request placed</p>
-          <p>{longDate(booking.createdAt)}</p>
-        </div>
-        <div>
-          <p className="text-ink-soft uppercase tracking-wide">Amount</p>
-          <p>{inr(booking.agreedPrice ?? booking.quotedPrice ?? 0)}</p>
-        </div>
-        <div>
-          <p className="text-ink-soft uppercase tracking-wide">
-            {isProvider ? 'Requested by' : 'Provider'}
-          </p>
-          <p>{counterparty?.businessName}</p>
-        </div>
-        <div className="ml-auto text-right">
-          <p className="text-ink-soft uppercase tracking-wide">Request #</p>
-          <p className="font-mono">{booking._id.slice(-10).toUpperCase()}</p>
-        </div>
-      </div>
-
-      <div className="p-4 flex flex-col sm:flex-row gap-4">
+    <article className="py-8 border-b border-line last:border-0">
+      <div className="flex flex-col sm:flex-row gap-6">
         <Link to={`/r/${r._id}`} className="shrink-0">
           <img
             src={resourceImage(r)}
             alt={r.title}
-            className="w-[110px] h-[110px] object-cover rounded"
+            className="w-full sm:w-[120px] h-[100px] object-cover rounded bg-surface-sunk"
           />
         </Link>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
+          <div className="flex items-center gap-3 flex-wrap mb-2">
             <StatusBadge status={booking.status} />
-            {booking.urgency === 'high' && <DealBadge>Urgent</DealBadge>}
-            {booking.matchScore >= 0.7 && (
-              <span className="text-mini text-ink-soft">
-                {Math.round(booking.matchScore * 100)}% match at request time
-              </span>
+            {booking.urgency === 'high' && open && (
+              <span className="text-xs text-danger">Urgent</span>
             )}
           </div>
 
-          <Link to={`/r/${r._id}`} className="text-title a-link block leading-snug">
+          <Link to={`/r/${r._id}`} className="text-lg font-medium hover:underline underline-offset-4">
             {r.title}
           </Link>
 
-          <p className="text-base text-ink-soft mt-0.5">
-            {dateRange(booking.startDateTime, booking.endDateTime)}
+          <p className="text-sm muted mt-1">
+            {isProvider ? 'Requested by' : 'From'} {counterparty?.businessName}
           </p>
-          <p className="text-base text-ink-soft">
-            Quantity: {booking.requestedQuantity}
-            {booking.logistics === 'provider_transport' && ' · Provider transport requested'}
+          <p className="text-sm muted">
+            {dateRange(booking.startDateTime, booking.endDateTime)} · qty {booking.requestedQuantity}
+            {' · '}
+            {inr(booking.agreedPrice ?? booking.quotedPrice ?? 0)}
           </p>
 
           {booking.notes && (
-            <p className="text-base text-ink-soft mt-1 line-clamp-2">“{booking.notes}”</p>
+            <p className="text-sm muted mt-2 line-clamp-2 max-w-prose">“{booking.notes}”</p>
+          )}
+          {(booking.rejectionReason || booking.cancellationReason) && (
+            <p className="text-sm text-danger mt-2">
+              {booking.rejectionReason || booking.cancellationReason}
+            </p>
           )}
 
-          {booking.rejectionReason && (
-            <p className="text-base text-danger mt-1">Reason: {booking.rejectionReason}</p>
-          )}
-          {booking.cancellationReason && (
-            <p className="text-base text-danger mt-1">Reason: {booking.cancellationReason}</p>
-          )}
-
-          <p className="text-mini text-ink-mute mt-1">Updated {relative(booking.updatedAt)}</p>
+          <p className="text-xs text-ink-mute mt-2">Updated {relative(booking.updatedAt)}</p>
         </div>
 
-        <div className="sm:w-[210px] shrink-0 space-y-2">
-          <Link to={`/bookings/detail/${booking._id}`} className="btn-secondary btn-pill w-full">
-            {isProvider ? 'View request' : 'Track request'}
-          </Link>
-
-          {isProvider && ['pending', 'negotiating'].includes(booking.status) && (
-            <>
-              <button
-                onClick={() => run('accept', actions.accept)}
-                disabled={Boolean(busy)}
-                className="btn-yellow btn-pill w-full"
-              >
-                {busy === 'accept' ? 'Accepting…' : 'Accept request'}
-              </button>
-              <button
-                onClick={() => {
-                  const reason = window.prompt('Why are you declining? (optional)') ?? '';
-                  run('reject', actions.reject, { reason });
-                }}
-                disabled={Boolean(busy)}
-                className="btn-secondary btn-pill w-full"
-              >
-                Decline
-              </button>
-            </>
+        {/* Only the action that moves this forward is primary; the rest recede. */}
+        <div className="sm:w-[170px] shrink-0 flex flex-col gap-2">
+          {isProvider && open && (
+            <button
+              onClick={() => run('accept', actions.accept)}
+              disabled={Boolean(busy)}
+              className="btn-primary btn-sm"
+            >
+              {busy === 'accept' ? 'Accepting…' : 'Accept'}
+            </button>
           )}
 
           {!isProvider && booking.status === 'accepted' && (
             <button
               onClick={() => run('confirm', actions.confirm)}
               disabled={Boolean(busy)}
-              className="btn-yellow btn-pill w-full"
+              className="btn-primary btn-sm"
             >
-              {busy === 'confirm' ? 'Confirming…' : 'Confirm booking'}
+              Confirm booking
+            </button>
+          )}
+
+          <Link to={`/bookings/detail/${booking._id}`} className="btn-secondary btn-sm">
+            View
+          </Link>
+
+          {isProvider && open && (
+            <button
+              onClick={() => {
+                const reason = window.prompt('Why are you declining? (optional)') ?? '';
+                run('reject', actions.reject, { reason });
+              }}
+              disabled={Boolean(busy)}
+              className="btn-ghost btn-sm"
+            >
+              Decline
             </button>
           )}
 
@@ -148,36 +124,33 @@ function BookingCard({ booking, direction, actions }) {
             <button
               onClick={() => run('complete', actions.complete)}
               disabled={Boolean(busy)}
-              className="btn-secondary btn-pill w-full"
+              className="btn-ghost btn-sm"
             >
               Mark completed
             </button>
           )}
 
-          {['pending', 'negotiating', 'accepted', 'confirmed'].includes(booking.status) && (
+          {booking.status === 'completed' && (
+            <Link to={`/bookings/detail/${booking._id}#review`} className="btn-ghost btn-sm">
+              Write a review
+            </Link>
+          )}
+
+          {live && (
             <button
               onClick={() => {
                 const reason = window.prompt('Reason for cancelling? (optional)') ?? '';
                 run('cancel', actions.cancel, { reason });
               }}
               disabled={Boolean(busy)}
-              className="btn-secondary btn-pill w-full"
+              className="btn-ghost btn-sm"
             >
               Cancel
             </button>
           )}
-
-          {booking.status === 'completed' && (
-            <Link
-              to={`/bookings/detail/${booking._id}#review`}
-              className="btn-secondary btn-pill w-full"
-            >
-              Write a review
-            </Link>
-          )}
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -190,25 +163,23 @@ export default function Bookings({ direction = 'sent' }) {
   const isProvider = direction === 'received';
 
   return (
-    <div className="page-shell py-4">
-      <div className="flex items-baseline justify-between flex-wrap gap-2 mb-3">
-        <h1 className="text-page font-normal">
-          {isProvider ? 'Incoming requests' : 'Your requests'}
-        </h1>
-        <Link to={isProvider ? '/bookings/sent' : '/bookings/received'} className="a-link text-base">
-          {isProvider ? 'View requests you sent ›' : 'View requests you received ›'}
+    <div className="shell pt-12 pb-20">
+      <header className="flex items-end justify-between flex-wrap gap-4 mb-8">
+        <h1 className="h-page">{isProvider ? 'Incoming requests' : 'Your requests'}</h1>
+        <Link to={isProvider ? '/bookings/sent' : '/bookings/received'} className="text-sm link">
+          {isProvider ? 'Requests you sent' : 'Requests you received'}
         </Link>
-      </div>
+      </header>
 
-      <div className="border-b border-bd mb-4 flex gap-5 overflow-x-auto no-scrollbar">
+      <div className="flex gap-8 border-b border-line mb-2 overflow-x-auto no-scrollbar">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`pb-2 text-body whitespace-nowrap border-b-[3px] -mb-px transition-colors ${
+            className={`pb-3 -mb-px text-sm whitespace-nowrap border-b-2 transition-colors ${
               tab === t.key
-                ? 'border-orange font-bold text-ink'
-                : 'border-transparent a-link-plain text-link'
+                ? 'border-ink text-ink font-medium'
+                : 'border-transparent text-ink-soft hover:text-ink'
             }`}
           >
             {t.label}
@@ -220,24 +191,26 @@ export default function Bookings({ direction = 'sent' }) {
         <Spinner label="Loading requests" />
       ) : bookings.length === 0 ? (
         <EmptyState
-          title={isProvider ? 'No requests here yet' : 'No requests in this view'}
+          title={isProvider ? 'Nothing here yet' : 'No requests in this view'}
           message={
             isProvider
-              ? 'When another business requests one of your listings, it will appear here.'
+              ? 'When another business requests one of your listings, it appears here.'
               : 'Browse resources and add them to your request cart to get started.'
           }
           action={
             !isProvider && (
-              <Link to="/s" className="btn-yellow btn-pill">
+              <Link to="/s" className="btn-primary">
                 Browse resources
               </Link>
             )
           }
         />
       ) : (
-        bookings.map((b) => (
-          <BookingCard key={b._id} booking={b} direction={direction} actions={actions} />
-        ))
+        <div>
+          {bookings.map((b) => (
+            <BookingRow key={b._id} booking={b} direction={direction} actions={actions} />
+          ))}
+        </div>
       )}
     </div>
   );

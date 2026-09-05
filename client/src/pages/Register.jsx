@@ -75,8 +75,8 @@ export default function Register() {
           <Logo width={130} dark />
         </Link>
 
-        <div className="a-panel w-full max-w-[380px] p-5">
-          <h1 className="text-page font-normal mb-4">Create account</h1>
+        <div className="border border-line rounded w-full max-w-[380px] p-5">
+          <h1 className="h-page mb-8">Create account</h1>
 
           {error && (
             <Alert tone="error" className="mb-3">
@@ -86,27 +86,27 @@ export default function Register() {
 
           <form onSubmit={submit} className="space-y-3">
             <div>
-              <label htmlFor="businessName" className="a-label">
+              <label htmlFor="businessName" className="label">
                 Business name
               </label>
               <input
                 id="businessName"
                 value={form.businessName}
                 onChange={set('businessName')}
-                className="a-input"
+                className="field"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="businessType" className="a-label">
+              <label htmlFor="businessType" className="label">
                 Business type
               </label>
               <select
                 id="businessType"
                 value={form.businessType}
                 onChange={set('businessType')}
-                className="a-select w-full"
+                className="field-select w-full"
               >
                 {BUSINESS_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>
@@ -117,7 +117,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label htmlFor="email" className="a-label">
+              <label htmlFor="email" className="label">
                 Business email
               </label>
               <input
@@ -125,28 +125,28 @@ export default function Register() {
                 type="email"
                 value={form.email}
                 onChange={set('email')}
-                className="a-input"
+                className="field"
                 autoComplete="email"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="phone" className="a-label">
+              <label htmlFor="phone" className="label">
                 Mobile number
               </label>
-              <input id="phone" value={form.phone} onChange={set('phone')} className="a-input" />
+              <input id="phone" value={form.phone} onChange={set('phone')} className="field" />
             </div>
 
             <div>
-              <label htmlFor="cityIndex" className="a-label">
+              <label htmlFor="cityIndex" className="label">
                 Operating area
               </label>
               <select
                 id="cityIndex"
                 value={form.cityIndex}
                 onChange={set('cityIndex')}
-                className="a-select w-full"
+                className="field-select w-full"
               >
                 {CITY_PRESETS.map((c, i) => (
                   <option key={c.label} value={i}>
@@ -154,25 +154,25 @@ export default function Register() {
                   </option>
                 ))}
               </select>
-              <p className="text-micro text-ink-mute mt-1">
+              <p className="text-xs text-ink-mute mt-1">
                 Used to rank resources by distance from you.
               </p>
             </div>
 
             <div>
-              <label htmlFor="address" className="a-label">
+              <label htmlFor="address" className="label">
                 Street address
               </label>
               <input
                 id="address"
                 value={form.address}
                 onChange={set('address')}
-                className="a-input"
+                className="field"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="a-label">
+              <label htmlFor="password" className="label">
                 Password
               </label>
               <input
@@ -180,35 +180,35 @@ export default function Register() {
                 type="password"
                 value={form.password}
                 onChange={set('password')}
-                className="a-input"
+                className="field"
                 autoComplete="new-password"
                 required
               />
-              <p className="text-micro text-ink-mute mt-1">At least 6 characters.</p>
+              <p className="text-xs text-ink-mute mt-1">At least 6 characters.</p>
             </div>
 
-            <button type="submit" disabled={busy} className="btn-yellow w-full">
+            <button type="submit" disabled={busy} className="btn-primary w-full">
               {busy ? 'Creating account…' : 'Create your Indulge account'}
             </button>
           </form>
 
-          <p className="text-mini text-ink-soft mt-4 leading-snug">
+          <p className="text-xs text-ink-soft mt-4 leading-snug">
             By creating an account you agree to Indulge’s Conditions of Use and Privacy Notice.
           </p>
 
-          <hr className="my-4 border-0 border-t border-bd" />
+          <hr className="my-4 border-0 border-t border-line" />
 
-          <p className="text-mini">
+          <p className="text-xs">
             Already have an account?{' '}
-            <Link to="/login" className="a-link">
+            <Link to="/login" className="link">
               Sign in ›
             </Link>
           </p>
         </div>
       </div>
 
-      <div className="border-t border-bd mt-8 pt-6 pb-10 text-center">
-        <p className="text-micro text-ink-mute">
+      <div className="border-t border-line mt-8 pt-6 pb-10 text-center">
+        <p className="text-xs text-ink-mute">
           © {new Date().getFullYear()} Indulge — B2B Hospitality Resource Exchange
         </p>
       </div>

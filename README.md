@@ -7,9 +7,9 @@ happens over WhatsApp and phone calls, so nobody knows what is free nearby, when
 for how much.
 
 **Indulge** turns that into a marketplace. Any business is both sides of it at once:
-list what you are not using, request what you are short of. Search feels like
-consumer e-commerce on purpose — filter rail, ranked results, a buy box, a cart,
-an orders page — because that is the interaction hospitality buyers already know.
+list what you are not using, request what you are short of. The interface stays
+deliberately plain — a scroll-driven intro, then white space, hairlines and one
+accent — so the ranking and the scheduling rules are what you notice.
 
 ---
 
@@ -36,6 +36,15 @@ Open **http://localhost:5173** and sign in with any seeded business:
 
 Password for all seeded accounts: **`indulge123`**
 
+### The reverse marketplace
+
+Search covers "I know what I want." The other half is "I need this, who has it?" —
+posted at `/requirements/new`, visible to every other business at
+`/requirements/board`. A provider offers one of their own listings at a price; the
+same availability rules that guard a booking guard the offer, so nobody can offer
+capacity they do not have. Accepting an offer converts it straight into an accepted
+booking with its transaction, and declines the rest.
+
 **Database.** With no `MONGO_URI` set, the server starts an in-memory MongoDB and
 seeds it automatically, so it boots on a machine with nothing installed. Data resets
 on restart, which also means every demo starts from a clean, known state. To persist
@@ -59,9 +68,10 @@ cd server && npm run verify
 ```
 
 Boots the real API against a seeded in-memory database and drives it over HTTP —
-37 checks covering auth, ranking, double-booking prevention, partial allocation,
-minimum hire periods, cart checkout, the booking lifecycle, negotiation, reviews and
-analytics. All 37 should pass.
+53 checks covering auth, ranking, double-booking prevention, partial allocation,
+minimum hire periods, availability windows, cart checkout, the booking lifecycle,
+negotiation, requirements and offers, queue prioritisation, reviews, transactions and
+analytics. All 53 should pass.
 
 ---
 
@@ -81,6 +91,11 @@ The consequence is that both cases fall out of one rule:
 
 - a hall with one confirmed booking is blocked for any overlapping request
 - 300 chairs with 180 committed still accepts a request for 100, and refuses 200
+
+Separately, a listing can declare **availability windows** — when it is offered at
+all, as opposed to what has already been taken. An off-peak kitchen offered only
+overnight refuses a midday request outright. A listing with no windows is treated as
+always bookable.
 
 Touching endpoints are not an overlap, so a hall can run 09:00–13:00 and 13:00–17:00
 on the same day. Availability is re-checked immediately before every write — cart
@@ -123,22 +138,23 @@ and left in the cart rather than failing the whole checkout.
 
 ```
 server/src/
-  models/         User, Resource, Cart, Booking, Negotiation, Review,
-                  Notification, Transaction
+  models/         User, Resource, Cart, Booking, Requirement, Negotiation,
+                  Review, Notification, Transaction
   services/       availability (conflicts) · matching (ranking) · notification
-  routes/         auth, resources, search, cart, bookings, negotiations,
-                  reviews, notifications, analytics
+  routes/         auth, resources, search, cart, bookings, requirements,
+                  negotiations, reviews, notifications, analytics
   seed/           seed.js (demo corpus) · verify.js (end-to-end checks)
 
 client/src/
   components/ui/      Button, Card, Panel, Stars, Price, badges
   components/layout/  Header, Footer, Logo
-  components/         ResourceCard, MatchBreakdown, HeroCarousel,
+  components/         ResourceCard, MatchBreakdown, ScrollSequence,
                       AvailabilityCalendar
   pages/              Home, Search, ResourceDetail, Cart, Checkout,
                       Bookings, BookingDetail, Listings, ListingForm,
                       Analytics, Account, Profile, Notifications,
-                      ProviderProfile, PostRequirement
+                      ProviderProfile, PostRequirement, MyRequirements,
+                      RequirementBoard, RequirementDetail
 ```
 
 React Query owns all server state, with a 30s poll behind the Socket.io notification
@@ -149,8 +165,7 @@ channel so a dropped connection degrades instead of breaking. Auth is a JWT in
 
 ## Demo route
 
-1. **Home** — the interface is deliberately familiar. Point at the match badge sitting
-   where a discount badge normally goes.
+1. **Home** — the scroll-driven intro plays through, then the marketplace.
 2. **Search "banquet hall"** — walk the filter rail, then open *Why this match?* on the
    top two results and explain why #1 beat #2. This is the part that is not a skin.
 3. **Cart** — add hall + chairs + AV kit, check out, watch three requests fan out to
@@ -158,8 +173,11 @@ channel so a dropped connection degrades instead of breaking. Auth is a JWT in
 4. **Switch to the provider** — live notification arrives, accept the request.
 5. **Try to book the same hall again for those dates** — refused. Then request 200 of
    the 120 remaining chairs — also refused, with the real number.
-6. **Negotiation** — counter-offer on an open request, accept the terms.
-7. **Analytics** — utilisation is low by design on some listings. That number *is* the
+6. **Negotiation** — counter-offer on an open request, or send a formal quotation as
+   the provider, then accept the terms.
+7. **The reverse side** — post a requirement, switch to a provider, offer against it
+   from the board, switch back and accept. The offer becomes a booking.
+8. **Analytics** — utilisation is low by design on some listings. That number *is* the
    pitch: the asset is idle, and this is what the exchange exists to fix.
 
 ---
@@ -169,7 +187,8 @@ channel so a dropped connection degrades instead of breaking. Auth is a JWT in
 Deliberately out of scope, and where they would go:
 
 - **Payments** are simulated. A `Transaction` is created on accept and marked
-  `simulated_paid` on confirm; no gateway is wired in.
+  `simulated_paid` on confirm, and is shown on the booking labelled as simulated; no
+  gateway is wired in.
 - **Geocoding** — businesses pick from preset city coordinates rather than an address
   lookup, so distance ranking is real but addresses are not resolved.
 - **Images** are hotlinked from Unsplash; there is no upload pipeline.

@@ -10,9 +10,9 @@ import { CATEGORIES } from '../lib/constants';
 import { toLocalInput, defaultWindow } from '../lib/format';
 
 /**
- * Dual-Mode Post Requirement:
- * 1. Broadcast open RFQ to suppliers nearby (creates Requirement in MongoDB and alerts providers).
- * 2. Or preview instant catalog matches from current active listings.
+ * The reverse side of the marketplace (RFQ):
+ * 1. Broadcasts the requirement to nearby hospitality suppliers.
+ * 2. Previews instant catalog matches from currently listed inventory.
  */
 export default function PostRequirement() {
   const navigate = useNavigate();
@@ -34,8 +34,8 @@ export default function PostRequirement() {
     end: toLocalInput(initial.end),
   });
 
-  const [broadcastBusy, setBroadcastBusy] = useState(false);
-  const [showInstantMatches, setShowInstantMatches] = useState(false);
+  const [previewed, setPreviewed] = useState(false);
+  const [posting, setPosting] = useState(false);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -55,76 +55,89 @@ export default function PostRequirement() {
     [form]
   );
 
-  const { data: searchData, isLoading: searchLoading } = useSearch(searchQuery, showInstantMatches);
-  const instantResults = searchData?.results || [];
+  const { data: searchData, isLoading } = useSearch(searchQuery, previewed);
+  const results = searchData?.results || [];
 
-  const handleBroadcast = async (e) => {
-    e.preventDefault();
+  const handlePost = async () => {
     if (!user) {
-      toast.error('Sign in to broadcast requirements.');
+      toast.error('Sign in to post requirements.');
       navigate('/login', { state: { from: '/requirements/new' } });
       return;
     }
 
     const titleToUse = form.title.trim() || `Need ${form.quantity} × ${form.category.replace('_', ' ')}`;
 
-    setBroadcastBusy(true);
+    setPosting(true);
     try {
-      await create.mutateAsync({
+      const data = await create.mutateAsync({
         title: titleToUse,
         category: form.category,
-        description: form.description,
+        description: form.description?.trim(),
         requiredQuantity: Number(form.quantity) || 1,
+        quantity: Number(form.quantity) || 1,
         unit: form.unit,
         minCapacity: form.minCapacity ? Number(form.minCapacity) : undefined,
         maxBudget: form.maxPrice ? Number(form.maxPrice) : undefined,
+        maxPrice: form.maxPrice ? Number(form.maxPrice) : undefined,
         startDateTime: new Date(form.start).toISOString(),
         endDateTime: new Date(form.end).toISOString(),
         radiusKm: Number(form.radiusKm) || 25,
         urgency: form.urgency,
       });
 
-      toast.success('Requirement broadcasted to suppliers nearby!');
-      navigate('/requirements/mine');
+      const reqId = data?.requirement?._id;
+      toast.success('Requirement posted — providers can now respond');
+      if (reqId) {
+        navigate(`/requirements/${reqId}`);
+      } else {
+        navigate('/requirements/mine');
+      }
     } catch (err) {
-      toast.error(errorMessage(err, 'Failed to post requirement.'));
+      toast.error(errorMessage(err, 'Could not post the requirement.'));
     } finally {
-      setBroadcastBusy(false);
+      setPosting(false);
     }
   };
 
   return (
-    <div className="page-shell py-4 max-w-[1100px]">
-      <div className="flex items-baseline justify-between flex-wrap gap-2 mb-2">
-        <h1 className="text-page font-normal">Post a Requirement (RFQ)</h1>
-        <Link to="/requirements/mine" className="a-link text-base">
-          View My Posted RFQs →
-        </Link>
-      </div>
+    <div className="shell pt-12 pb-20">
+      <header className="mb-10 max-w-prose">
+        <h1 className="h-page">Post a Requirement (RFQ)</h1>
+        <p className="text-base muted mt-3">
+          Describe what you need. Broadcast to suppliers nearby so providers can submit quotes, or preview what already matches right now.
+        </p>
+        <div className="flex gap-4 mt-3">
+          <Link to="/requirements/mine" className="text-sm link">
+            View your posted RFQs →
+          </Link>
+          <Link to="/requirements/board" className="text-sm link">
+            Browse open requirements board →
+          </Link>
+        </div>
+      </header>
 
-      <p className="text-base text-ink-soft mb-4">
-        Broadcast your need to hospitality suppliers nearby. Providers receive your RFQ in real time and submit competitive proposals.
-      </p>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-5">
-        {/* RFQ Form */}
-        <div className="bg-white p-5 rounded border border-bd h-fit shadow-sm">
-          <form onSubmit={handleBroadcast} className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-12">
+        <div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setPreviewed(true);
+            }}
+            className="space-y-5"
+          >
             <div>
-              <label className="a-label">Requirement Title</label>
+              <label className="label">Title</label>
               <input
-                type="text"
-                placeholder="e.g. 200 pax Banquet Space for Dealer Awards"
                 value={form.title}
                 onChange={set('title')}
-                className="a-input"
-                required
+                placeholder="e.g. 250 banquet chairs for Saturday"
+                className="field"
               />
             </div>
 
             <div>
-              <label className="a-label">Resource Category</label>
-              <select value={form.category} onChange={set('category')} className="a-select w-full">
+              <label className="label">Category</label>
+              <select value={form.category} onChange={set('category')} className="field-select w-full">
                 {CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
@@ -133,113 +146,113 @@ export default function PostRequirement() {
               </select>
             </div>
 
+            <div>
+              <label className="label">Details / Specifications</label>
+              <textarea
+                rows={3}
+                value={form.description}
+                onChange={set('description')}
+                placeholder="Anything a provider should know — access, setup, condition, delivery."
+                className="field-area"
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="a-label">Quantity Needed</label>
+                <label className="label">Quantity</label>
                 <input
                   type="number"
                   min="1"
                   value={form.quantity}
                   onChange={set('quantity')}
-                  className="a-input"
+                  className="field"
                   required
                 />
               </div>
               <div>
-                <label className="a-label">Min. Capacity</label>
+                <label className="label">Min. Capacity</label>
                 <input
                   type="number"
                   min="0"
                   value={form.minCapacity}
                   onChange={set('minCapacity')}
-                  placeholder="e.g. 200 guests"
-                  className="a-input"
+                  placeholder="Any"
+                  className="field"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="a-label">From</label>
-              <input
-                type="datetime-local"
-                value={form.start}
-                onChange={set('start')}
-                className="a-input"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="a-label">To</label>
-              <input
-                type="datetime-local"
-                value={form.end}
-                onChange={set('end')}
-                className="a-input"
-                required
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">From</label>
+                <input
+                  type="datetime-local"
+                  value={form.start}
+                  onChange={set('start')}
+                  className="field"
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">To</label>
+                <input
+                  type="datetime-local"
+                  value={form.end}
+                  onChange={set('end')}
+                  className="field"
+                  required
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="a-label">Budget Cap (₹)</label>
+                <label className="label">Budget Cap (₹)</label>
                 <input
                   type="number"
                   min="0"
                   value={form.maxPrice}
                   onChange={set('maxPrice')}
-                  placeholder="e.g. 75000"
-                  className="a-input"
+                  placeholder="Any"
+                  className="field"
                 />
               </div>
               <div>
-                <label className="a-label">Within (km)</label>
+                <label className="label">Within (km)</label>
                 <input
                   type="number"
                   min="1"
                   value={form.radiusKm}
                   onChange={set('radiusKm')}
-                  className="a-input"
+                  className="field"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="a-label">Urgency Level</label>
-              <select value={form.urgency} onChange={set('urgency')} className="a-select w-full">
+              <label className="label">Urgency</label>
+              <select value={form.urgency} onChange={set('urgency')} className="field-select w-full">
                 <option value="low">Planning ahead</option>
                 <option value="medium">Normal urgency</option>
                 <option value="high">Urgent — within 24-48 hours</option>
               </select>
             </div>
 
-            <div>
-              <label className="a-label">Special Notes / Specifications</label>
-              <textarea
-                rows={2}
-                value={form.description}
-                onChange={set('description')}
-                placeholder="Mention stage, valet, AC, catering license, or delivery details…"
-                className="a-textarea"
-              />
-            </div>
-
-            <div className="space-y-2 pt-2 border-t border-bd">
-              <button
-                type="submit"
-                disabled={broadcastBusy}
-                className="btn-yellow btn-pill w-full font-bold py-2 shadow-sm"
-              >
-                {broadcastBusy ? 'Broadcasting…' : '🚀 Broadcast RFQ to Suppliers'}
-              </button>
-
+            <div className="space-y-3 pt-4 border-t border-line">
               <button
                 type="button"
-                onClick={() => setShowInstantMatches(true)}
-                className="btn-secondary btn-pill w-full text-base py-1.5"
+                onClick={handlePost}
+                disabled={posting}
+                className="btn-primary w-full py-2.5 font-medium"
               >
-                🔍 Preview Catalog Matches Below
+                {posting ? 'Broadcasting…' : 'Broadcast RFQ to Suppliers'}
+              </button>
+              <button
+                type="submit"
+                className="btn-secondary w-full py-2"
+              >
+                Show what matches now
               </button>
             </div>
           </form>
@@ -247,56 +260,55 @@ export default function PostRequirement() {
 
         {/* Right side explanation or preview */}
         <div>
-          {!showInstantMatches ? (
-            <div className="bg-white p-8 rounded border border-bd">
-              <h2 className="text-section font-bold mb-2">How the Reverse Marketplace Works</h2>
-              <p className="text-base text-ink-soft mb-4">
+          {!previewed ? (
+            <div className="border border-line rounded p-8">
+              <h2 className="text-lg font-medium mb-2">How the Reverse Marketplace Works</h2>
+              <p className="text-base muted mb-6">
                 Instead of making dozens of phone calls or checking listings one by one, Indulge lets you broadcast your specific event requirements to qualified suppliers nearby.
               </p>
 
-              <div className="space-y-3 mb-6">
+              <div className="space-y-4 mb-6">
                 {[
                   ['1. Post Your Need', 'Define your exact dates, quantities, capacity, and budget cap.'],
-                  ['2. Instant Notification', 'Suppliers with idle capacity in your category receive real-time alerts.'],
+                  ['2. Real-Time Alert', 'Suppliers with idle capacity in your category receive notification.'],
                   ['3. Competitive Quotations', 'Suppliers propose their best rates and reserve available stock.'],
                   ['4. 1-Click Confirmation', 'Compare quotes side-by-side and accept the best offer to create an immediate confirmed booking.'],
                 ].map(([title, desc]) => (
                   <div key={title} className="flex gap-3">
-                    <span className="text-success font-bold shrink-0">✓</span>
+                    <span className="text-ink font-bold shrink-0">✓</span>
                     <div>
-                      <p className="font-bold text-ink text-base">{title}</p>
-                      <p className="text-mini text-ink-soft">{desc}</p>
+                      <p className="font-medium text-ink text-sm">{title}</p>
+                      <p className="text-xs text-ink-soft">{desc}</p>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="p-4 bg-[#FEF8E7] border border-[#E7C65C] rounded text-base">
-                💡 <strong>Pro Tip:</strong> Click <em>"Preview Catalog Matches Below"</em> if you want to inspect existing listings before broadcasting an open request.
+              <div className="p-4 bg-surface-sunk border border-line rounded text-sm text-ink-soft">
+                💡 Click <strong>"Show what matches now"</strong> if you want to inspect existing listings before broadcasting an open request.
               </div>
             </div>
-          ) : searchLoading ? (
-            <div className="bg-white p-8 rounded border border-bd">
-              <Spinner label="Searching available catalog listings" />
-            </div>
-          ) : instantResults.length === 0 ? (
-            <div className="bg-white p-8 rounded border border-bd">
+          ) : isLoading ? (
+            <Spinner label="Matching your requirement" />
+          ) : results.length === 0 ? (
+            <div className="border border-line rounded p-8">
               <Alert tone="warn">
-                No off-the-shelf listings match those exact dates and constraints. Click <strong>"Broadcast RFQ to Suppliers"</strong> so local businesses can review and make you a custom offer!
+                Nothing currently listed matches those exact constraints. Click <strong>"Broadcast RFQ to Suppliers"</strong> so local businesses can review and make you a custom offer!
               </Alert>
             </div>
           ) : (
-            <div className="bg-white rounded border border-bd overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-bd bg-[#F7F8F8] flex justify-between items-center">
-                <p className="text-body font-bold">
-                  {instantResults.length} catalog options matching your dates
+            <div className="space-y-4">
+              <div className="flex justify-between items-center pb-4 border-b border-line">
+                <p className="text-sm muted">
+                  <span className="font-medium text-ink">{results.length}</span> listing
+                  {results.length === 1 ? '' : 's'} already match — or post the requirement to reach providers with unlisted stock.
                 </p>
-                <button onClick={() => setShowInstantMatches(false)} className="a-link text-mini">
+                <button onClick={() => setPreviewed(false)} className="text-xs link">
                   Hide preview
                 </button>
               </div>
-              <div className="divide-y divide-bd">
-                {instantResults.map((r) => (
+              <div className="space-y-3">
+                {results.map((r) => (
                   <ResourceCard key={r._id} resource={r} criteria={searchData?.criteria} />
                 ))}
               </div>

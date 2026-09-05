@@ -32,9 +32,9 @@ export default function ProviderProfile() {
   });
 
   return (
-    <div className="page-shell py-4">
-      <div className="bg-white p-6 mb-4">
-        <h1 className="text-page font-normal mb-1">
+    <div className="shell pt-12 pb-20">
+      <div className="card mb-6">
+        <h1 className="h-page mb-2">
           {provider?.businessName || 'Provider'}
         </h1>
         <div className="flex items-center gap-3 flex-wrap">
@@ -52,8 +52,8 @@ export default function ProviderProfile() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
-        <div className="bg-white p-6">
-          <h2 className="text-section font-bold mb-3">
+        <div className="card">
+          <h2 className="h-section mb-5">
             Listings from this provider ({listings.length})
           </h2>
 
@@ -65,7 +65,7 @@ export default function ProviderProfile() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
               {listings.map((r) => (
                 <Link key={r._id} to={`/r/${r._id}`} className="group">
-                  <div className="aspect-square bg-[#F7F8F8] overflow-hidden mb-2 rounded">
+                  <div className="aspect-square bg-surface-sunk overflow-hidden mb-2 rounded">
                     <img
                       src={resourceImage(r)}
                       alt={r.title}
@@ -73,8 +73,8 @@ export default function ProviderProfile() {
                       className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform"
                     />
                   </div>
-                  <p className="text-base a-link line-clamp-2 leading-tight">{r.title}</p>
-                  <p className="text-mini text-ink-mute">{CATEGORY_LABELS[r.category]}</p>
+                  <p className="text-base link line-clamp-2 leading-tight">{r.title}</p>
+                  <p className="text-xs text-ink-mute">{CATEGORY_LABELS[r.category]}</p>
                   {r.ratingCount > 0 && (
                     <Stars rating={r.ratingAvg} count={r.ratingCount} size={12} className="mt-0.5" />
                   )}
@@ -90,8 +90,8 @@ export default function ProviderProfile() {
           )}
         </div>
 
-        <div className="bg-white p-6">
-          <h2 className="text-section font-bold mb-3">Customer reviews</h2>
+        <div className="card">
+          <h2 className="h-section mb-5">Customer reviews</h2>
 
           {reviews.length === 0 ? (
             <p className="text-base text-ink-soft">No reviews yet.</p>
@@ -100,9 +100,9 @@ export default function ProviderProfile() {
               <div className="space-y-1 mb-5">
                 {histogram.map((h) => (
                   <div key={h.star} className="flex items-center gap-2 text-base">
-                    <span className="w-12 shrink-0 a-link">{h.star} star</span>
-                    <div className="flex-1 h-4 bg-[#F0F2F2] border border-bd rounded-sm overflow-hidden">
-                      <div className="h-full bg-star" style={{ width: `${h.pct}%` }} />
+                    <span className="w-12 shrink-0 link">{h.star} star</span>
+                    <div className="flex-1 h-4 bg-surface-sunk border border-line rounded-sm overflow-hidden">
+                      <div className="h-full bg-ink" style={{ width: `${h.pct}%` }} />
                     </div>
                     <span className="w-9 text-right text-ink-soft">{Math.round(h.pct)}%</span>
                   </div>
@@ -111,14 +111,14 @@ export default function ProviderProfile() {
 
               <div className="space-y-4">
                 {reviews.map((rev) => (
-                  <div key={rev._id} className="border-t border-bd pt-3">
-                    <p className="text-base font-bold">{rev.reviewer?.businessName}</p>
+                  <div key={rev._id} className="border-t border-line pt-3">
+                    <p className="text-base font-semibold">{rev.reviewer?.businessName}</p>
                     <Stars rating={rev.rating} size={13} className="my-0.5" />
                     {rev.resource?.title && (
-                      <p className="text-mini text-ink-mute">on {rev.resource.title}</p>
+                      <p className="text-xs text-ink-mute">on {rev.resource.title}</p>
                     )}
                     <p className="text-base mt-1">{rev.comment}</p>
-                    <p className="text-mini text-ink-mute mt-1">{relative(rev.createdAt)}</p>
+                    <p className="text-xs text-ink-mute mt-1">{relative(rev.createdAt)}</p>
                   </div>
                 ))}
               </div>

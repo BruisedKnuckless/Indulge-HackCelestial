@@ -6,13 +6,14 @@ import { emitToUser } from '../sockets/index.js';
  * socket. The DB row is the source of truth — the socket is an accelerator, and
  * the client also polls, so a dropped connection never loses a notification.
  */
-export async function notify({ user, type, title, message, relatedBooking }) {
+export async function notify({ user, type, title, message, relatedBooking, relatedRequirement }) {
   const notification = await Notification.create({
     user,
     type,
     title,
     message,
     relatedBooking,
+    relatedRequirement,
   });
 
   emitToUser(user, 'notification', notification.toObject());

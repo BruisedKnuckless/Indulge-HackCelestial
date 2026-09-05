@@ -2,113 +2,153 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Nohemi is used for the wordmark and display headings only — one weight is
+   all the licence file provides, and Black is the wordmark's weight. */
+@font-face {
+  font-family: 'Nohemi';
+  src: url('/fonts/Nohemi-Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    @apply bg-ground text-ink font-sans text-body;
+    @apply bg-surface text-ink font-sans text-base;
   }
 
-  /* Amazon underlines links only on hover, and shifts them to burnt orange. */
   a {
     @apply text-inherit no-underline;
+  }
+
+  /* One consistent focus treatment everywhere, rather than per-control rings. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ink/25 ring-offset-2 ring-offset-surface rounded;
   }
 }
 
 @layer components {
-  /* ---- Chrome hover outline -------------------------------------------
-     Every interactive block in Amazon's header draws a 1px white outline on
-     hover rather than changing background. */
-  .nav-hover {
-    @apply border border-transparent rounded-sm hover:border-white;
+  /* ---- Type ----------------------------------------------------------- */
+  .wordmark {
+    @apply font-display tracking-tightest lowercase leading-none select-none;
+  }
+
+  .h-page {
+    @apply text-3xl font-semibold tracking-tight leading-tight;
+  }
+
+  .h-section {
+    @apply text-xl font-semibold tracking-tight;
+  }
+
+  .h-card {
+    @apply text-base font-semibold;
+  }
+
+  .muted {
+    @apply text-ink-soft;
   }
 
   /* ---- Links ---------------------------------------------------------- */
-  .a-link {
-    @apply text-link hover:text-link-hover hover:underline cursor-pointer;
+  .link {
+    @apply underline underline-offset-4 decoration-line-strong
+           hover:decoration-ink transition-colors cursor-pointer;
   }
 
-  .a-link-plain {
-    @apply hover:text-link-hover hover:underline cursor-pointer;
+  .link-quiet {
+    @apply hover:text-ink text-ink-soft transition-colors cursor-pointer;
   }
 
-  /* ---- Buttons -------------------------------------------------------- */
+  /* ---- Buttons --------------------------------------------------------
+     Flat, no shadows. Primary is near-black; everything else recedes. */
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5
-           text-base rounded-lg cursor-pointer select-none
-           border transition-colors disabled:opacity-50
-           disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 h-10
+           text-sm font-medium rounded cursor-pointer select-none
+           border transition-colors whitespace-nowrap
+           disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
-  .btn-yellow {
-    @apply btn bg-yellow border-yellow-border shadow-btn
-           hover:bg-yellow-hover text-ink;
-  }
-
-  .btn-orange {
-    @apply btn bg-orange border-orange-border shadow-btn
-           hover:bg-orange-hover text-ink;
+  .btn-primary {
+    @apply btn bg-ink border-ink text-ink-invert hover:bg-black;
   }
 
   .btn-secondary {
-    @apply btn bg-white border-bd shadow-btn hover:bg-[#F7FAFA] text-ink;
+    @apply btn bg-surface border-line-strong text-ink hover:bg-surface-sunk;
   }
 
-  .btn-pill {
-    @apply rounded-[100px];
+  .btn-ghost {
+    @apply btn bg-transparent border-transparent text-ink-soft hover:text-ink hover:bg-surface-sunk;
+  }
+
+  .btn-sm {
+    @apply h-8 px-3 text-xs;
   }
 
   /* ---- Surfaces ------------------------------------------------------- */
-  .a-card {
-    @apply bg-white rounded p-5;
+  .card {
+    @apply bg-surface border border-line rounded p-6;
   }
 
-  .a-panel {
-    @apply bg-white border border-bd rounded-lg;
+  .card-quiet {
+    @apply bg-surface-alt border border-line rounded p-6;
   }
 
   /* ---- Form controls -------------------------------------------------- */
-  .a-input {
-    @apply w-full h-[31px] px-2 text-body bg-white rounded
-           border border-[#888] shadow-[0_1px_2px_rgba(15,17,17,.15)_inset]
-           outline-none focus:border-[#007185] focus:shadow-focus;
+  .field {
+    @apply w-full h-10 px-3 text-base bg-surface rounded
+           border border-line-strong outline-none
+           placeholder:text-ink-mute
+           focus:border-ink transition-colors;
   }
 
-  .a-textarea {
-    @apply w-full px-2 py-1.5 text-body bg-white rounded
-           border border-[#888] shadow-[0_1px_2px_rgba(15,17,17,.15)_inset]
-           outline-none focus:border-[#007185] focus:shadow-focus;
+  .field-area {
+    @apply w-full px-3 py-2 text-base bg-surface rounded
+           border border-line-strong outline-none
+           placeholder:text-ink-mute
+           focus:border-ink transition-colors;
   }
 
-  /* The chevron is inlined as a data URI; written in plain CSS because
-     @apply cannot take an arbitrary url() containing spaces. */
-  .a-select {
-    @apply h-[31px] px-2 pr-7 text-base bg-[#F0F2F2] rounded
-           border border-bd cursor-pointer outline-none appearance-none;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23555' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
-    background-position: right 8px center;
+  .field-select {
+    @apply h-10 pl-3 pr-9 text-base bg-surface rounded
+           border border-line-strong cursor-pointer outline-none
+           appearance-none focus:border-ink transition-colors;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238E8E93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-position: right 12px center;
     background-repeat: no-repeat;
   }
 
-  .a-label {
-    @apply block text-base font-bold mb-0.5;
+  .label {
+    @apply block text-sm font-medium text-ink-soft mb-1.5;
   }
 
-  /* ---- Layout --------------------------------------------------------- */
-  .page-shell {
-    @apply max-w-page mx-auto px-4;
+  /* ---- Layout ----------------------------------------------------------
+     Generous gutters and a narrower page than a dense marketplace would use;
+     whitespace is doing the work that borders and boxes used to. */
+  .shell {
+    @apply max-w-page mx-auto px-6 sm:px-8;
   }
 
-  /* Section heading used above every card grid and results block. */
-  .a-h2 {
-    @apply text-section font-bold leading-tight;
+  .section {
+    @apply py-14;
+  }
+
+  /* ---- Small parts ----------------------------------------------------- */
+  .tag {
+    @apply inline-flex items-center h-6 px-2.5 text-xs rounded-full
+           border border-line text-ink-soft;
+  }
+
+  .rule {
+    @apply border-0 border-t border-line;
   }
 }
 
 @layer utilities {
-  /* Horizontal carousels keep their scrollbar hidden, as Amazon's do. */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

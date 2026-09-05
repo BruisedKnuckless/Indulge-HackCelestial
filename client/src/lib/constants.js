@@ -64,9 +64,9 @@ const PLACEHOLDER =
   'data:image/svg+xml;charset=utf-8,' +
   encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
-       <rect width="400" height="300" fill="#F0F2F2"/>
-       <text x="200" y="155" text-anchor="middle" fill="#B8BDBD"
-             font-family="Arial" font-size="17">No image</text>
+       <rect width="400" height="300" fill="#F4F4F5"/>
+       <text x="200" y="155" text-anchor="middle" fill="#8E8E93"
+             font-family="system-ui, sans-serif" font-size="17">No image</text>
      </svg>`
   );
 

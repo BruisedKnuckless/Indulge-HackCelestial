@@ -5,18 +5,25 @@ import { useSearch, useCartMutations } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../api/client';
 import ResourceCard from '../components/ResourceCard';
-import { Spinner, EmptyState, Stars } from '../components/ui';
+import { Spinner, EmptyState } from '../components/ui';
 import { CATEGORIES, CATEGORY_LABELS } from '../lib/constants';
 import { toLocalInput, defaultWindow } from '../lib/format';
 
 const RADII = [5, 10, 25, 50, 100];
-const PRICE_CAPS = [2000, 10000, 30000, 60000, 100000];
 
-/** One filter block in the left rail. */
-function FilterGroup({ title, children }) {
+const SORTS = [
+  ['', 'Best match'],
+  ['price_asc', 'Price: low to high'],
+  ['price_desc', 'Price: high to low'],
+  ['distance', 'Nearest first'],
+  ['rating', 'Highest rated'],
+];
+
+/** One labelled block in the filter rail. */
+function Filter({ label, children }) {
   return (
-    <div className="mb-4">
-      <h3 className="text-lead font-bold mb-1.5">{title}</h3>
+    <div className="py-5 border-b border-line last:border-0">
+      <h3 className="text-sm font-medium mb-3">{label}</h3>
       {children}
     </div>
   );
@@ -44,12 +51,13 @@ export default function Search() {
     return { ...o, limit: 40 };
   }, [params]);
 
-  const { data, isLoading, isFetching } = useSearch(query);
+  const { data, isLoading } = useSearch(query);
   const results = data?.results || [];
   const criteria = data?.criteria;
 
   const q = params.get('q');
   const category = params.get('category') || 'all';
+  const activeCount = [...params.keys()].filter((k) => k !== 'q' && k !== 'sort').length;
 
   const addToCart = async (resource) => {
     if (!user) {
@@ -78,248 +86,178 @@ export default function Search() {
   };
 
   return (
-    <div className="page-shell py-3">
-      <div className="flex gap-4">
-        {/* ------------------------------------------------ filter rail */}
-        <aside className="w-[240px] shrink-0 hidden lg:block">
-          <div className="bg-white p-4">
-            <FilterGroup title="Category">
-              <ul className="space-y-1">
-                <li>
-                  <button
-                    onClick={() => patch({ category: null })}
-                    className={`text-base ${category === 'all' ? 'font-bold' : 'a-link-plain'}`}
-                  >
-                    All categories
-                  </button>
-                </li>
-                {CATEGORIES.map((c) => (
-                  <li key={c.value}>
-                    <button
-                      onClick={() => patch({ category: c.value })}
-                      className={`text-base text-left ${
-                        category === c.value ? 'font-bold' : 'a-link-plain'
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </FilterGroup>
+    <div className="shell pt-12 pb-20">
+      <header className="mb-10">
+        <h1 className="h-page">
+          {q ? `“${q}”` : category !== 'all' ? CATEGORY_LABELS[category] : 'All resources'}
+        </h1>
+        <p className="text-sm muted mt-2">
+          {isLoading
+            ? 'Searching…'
+            : `${results.length} available${criteria?.start ? ' for your dates' : ''}`}
+        </p>
+      </header>
 
-            <FilterGroup title="Availability">
-              <label className="block text-mini text-ink-soft mb-0.5">From</label>
+      <div className="flex flex-col lg:flex-row gap-14">
+        {/* ------------------------------------------------ filter rail */}
+        <aside className="w-full lg:w-[220px] shrink-0">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-medium">Filters</h2>
+            {activeCount > 0 && (
+              <button onClick={() => setParams(q ? { q } : {})} className="text-xs link-quiet">
+                Clear
+              </button>
+            )}
+          </div>
+
+          <Filter label="Category">
+            <select
+              value={category}
+              onChange={(e) => patch({ category: e.target.value })}
+              className="field-select w-full"
+            >
+              <option value="all">All categories</option>
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </Filter>
+
+          <Filter label="Dates">
+            <div className="space-y-2">
               <input
                 type="datetime-local"
+                aria-label="From"
                 value={params.get('start') ? toLocalInput(params.get('start')) : ''}
                 onChange={(e) =>
                   patch({ start: e.target.value ? new Date(e.target.value).toISOString() : null })
                 }
-                className="a-input mb-2"
+                className="field text-sm"
               />
-              <label className="block text-mini text-ink-soft mb-0.5">To</label>
               <input
                 type="datetime-local"
+                aria-label="To"
                 value={params.get('end') ? toLocalInput(params.get('end')) : ''}
                 onChange={(e) =>
                   patch({ end: e.target.value ? new Date(e.target.value).toISOString() : null })
                 }
-                className="a-input"
+                className="field text-sm"
               />
-              {(params.get('start') || params.get('end')) && (
-                <button
-                  onClick={() => patch({ start: null, end: null })}
-                  className="a-link text-mini mt-1"
-                >
-                  Clear dates
-                </button>
-              )}
-            </FilterGroup>
+            </div>
+          </Filter>
 
-            <FilterGroup title="Quantity needed">
+          <Filter label="Distance">
+            <div className="flex flex-wrap gap-2">
+              {RADII.map((r) => {
+                const on = String(params.get('radiusKm')) === String(r);
+                return (
+                  <button
+                    key={r}
+                    onClick={() => patch({ radiusKm: on ? null : r })}
+                    className={`h-8 px-3 text-xs rounded-full border transition-colors ${
+                      on
+                        ? 'bg-ink border-ink text-ink-invert'
+                        : 'border-line-strong text-ink-soft hover:border-ink hover:text-ink'
+                    }`}
+                  >
+                    {r} km
+                  </button>
+                );
+              })}
+            </div>
+          </Filter>
+
+          <Filter label="Quantity & capacity">
+            <div className="space-y-2">
               <input
                 type="number"
                 min="1"
+                placeholder="Quantity needed"
                 value={params.get('quantity') || ''}
-                placeholder="Any"
                 onChange={(e) => patch({ quantity: e.target.value })}
-                className="a-input"
+                className="field text-sm"
               />
-            </FilterGroup>
-
-            <FilterGroup title="Distance">
-              <ul className="space-y-1">
-                {RADII.map((r) => (
-                  <li key={r}>
-                    <label className="flex items-center gap-2 text-base cursor-pointer">
-                      <input
-                        type="radio"
-                        name="radius"
-                        checked={String(params.get('radiusKm') || 25) === String(r)}
-                        onChange={() => patch({ radiusKm: r })}
-                      />
-                      Within {r} km
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </FilterGroup>
-
-            <FilterGroup title="Max price">
-              <ul className="space-y-1">
-                {PRICE_CAPS.map((p) => (
-                  <li key={p}>
-                    <button
-                      onClick={() => patch({ maxPrice: p })}
-                      className={`text-base ${
-                        String(params.get('maxPrice')) === String(p) ? 'font-bold' : 'a-link-plain'
-                      }`}
-                    >
-                      Up to ₹{p.toLocaleString('en-IN')}
-                    </button>
-                  </li>
-                ))}
-                {params.get('maxPrice') && (
-                  <li>
-                    <button onClick={() => patch({ maxPrice: null })} className="a-link text-mini">
-                      Clear
-                    </button>
-                  </li>
-                )}
-              </ul>
-            </FilterGroup>
-
-            <FilterGroup title="Minimum capacity">
               <input
                 type="number"
                 min="0"
+                placeholder="Min. guest capacity"
                 value={params.get('minCapacity') || ''}
-                placeholder="Any"
                 onChange={(e) => patch({ minCapacity: e.target.value })}
-                className="a-input"
+                className="field text-sm"
               />
-            </FilterGroup>
+            </div>
+          </Filter>
 
-            <FilterGroup title="Customer rating">
-              <ul className="space-y-1">
-                {[4, 3].map((r) => (
-                  <li key={r}>
-                    <button
-                      onClick={() => patch({ minRating: r })}
-                      className="flex items-center gap-1.5 group"
-                    >
-                      <Stars rating={r} size={15} />
-                      <span className="text-base a-link-plain">&amp; up</span>
-                    </button>
-                  </li>
-                ))}
-                {params.get('minRating') && (
-                  <li>
-                    <button onClick={() => patch({ minRating: null })} className="a-link text-mini">
-                      Clear
-                    </button>
-                  </li>
-                )}
-              </ul>
-            </FilterGroup>
-
-            <FilterGroup title="Urgency">
-              <select
-                value={params.get('urgency') || 'medium'}
-                onChange={(e) => patch({ urgency: e.target.value })}
-                className="a-select w-full"
-              >
-                <option value="low">Planning ahead</option>
-                <option value="medium">Normal</option>
-                <option value="high">Urgent — need it now</option>
-              </select>
-              <p className="text-micro text-ink-mute mt-1">
-                Urgent ranking favours resources with no competing requests.
-              </p>
-            </FilterGroup>
-          </div>
+          <Filter label="Max price">
+            <input
+              type="number"
+              min="0"
+              placeholder="Any"
+              value={params.get('maxPrice') || ''}
+              onChange={(e) => patch({ maxPrice: e.target.value })}
+              className="field text-sm"
+            />
+          </Filter>
         </aside>
 
-        {/* ---------------------------------------------------- results */}
+        {/* --------------------------------------------------- results */}
         <div className="flex-1 min-w-0">
-          <div className="bg-white px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 border-b border-bd">
-            <p className="text-body text-ink-soft">
-              {isLoading ? (
-                'Searching…'
-              ) : (
-                <>
-                  1–{results.length} of {results.length} results
-                  {q && (
-                    <>
-                      {' '}
-                      for <span className="text-danger font-bold">“{q}”</span>
-                    </>
-                  )}
-                  {category !== 'all' && <> in {CATEGORY_LABELS[category]}</>}
-                </>
-              )}
-            </p>
-
-            <label className="flex items-center gap-2 text-base">
-              <span className="text-ink-soft">Sort by:</span>
+          <div className="flex items-center justify-between pb-4 border-b border-line">
+            <span className="text-sm muted">
+              {results.length} result{results.length === 1 ? '' : 's'}
+            </span>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="muted">Sort</span>
               <select
-                value={params.get('sort') || 'match'}
+                value={params.get('sort') || ''}
                 onChange={(e) => patch({ sort: e.target.value })}
-                className="a-select"
+                className="field-select text-sm h-9"
               >
-                <option value="match">Best match</option>
-                <option value="price_asc">Price: low to high</option>
-                <option value="price_desc">Price: high to low</option>
-                <option value="distance">Distance: nearest</option>
-                <option value="rating">Avg. customer review</option>
+                {SORTS.map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
 
-          {criteria && !criteria.hasLocation && (
-            <div className="bg-[#FEF8E7] border-b border-[#E7C65C] px-4 py-2 text-base">
-              Showing results without distance ranking.{' '}
-              {user ? (
-                <Link to="/account/profile" className="a-link">
-                  Set your business location
-                </Link>
-              ) : (
-                <Link to="/login" className="a-link">
-                  Sign in
-                </Link>
-              )}{' '}
-              to rank by how close each resource is.
-            </div>
+          {!user && (
+            <p className="text-sm muted mt-5">
+              <Link to="/login" className="link">
+                Sign in
+              </Link>{' '}
+              to rank results by distance from your business.
+            </p>
           )}
 
-          <div className="bg-white">
-            {isLoading ? (
-              <Spinner label="Finding matching resources" />
-            ) : results.length === 0 ? (
-              <EmptyState
-                title="No resources match those filters"
-                message="Try widening the distance, clearing the date range, or raising the price cap."
-                action={
-                  <button onClick={() => setParams(new URLSearchParams())} className="btn-secondary">
-                    Clear all filters
-                  </button>
-                }
-              />
-            ) : (
-              <div className={isFetching ? 'opacity-60 transition-opacity' : ''}>
-                {results.map((r) => (
-                  <ResourceCard
-                    key={r._id}
-                    resource={r}
-                    criteria={criteria}
-                    onAddToCart={addToCart}
-                    adding={addingId === r._id}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          {isLoading ? (
+            <Spinner label="Searching" />
+          ) : results.length === 0 ? (
+            <EmptyState
+              title="Nothing matches those filters"
+              message="Try widening the distance, relaxing the budget, or shifting the dates."
+              action={
+                <button onClick={() => setParams(q ? { q } : {})} className="btn-secondary">
+                  Clear filters
+                </button>
+              }
+            />
+          ) : (
+            <div>
+              {results.map((r) => (
+                <ResourceCard
+                  key={r._id}
+                  resource={r}
+                  criteria={criteria}
+                  onAdd={addToCart}
+                  adding={addingId === r._id}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

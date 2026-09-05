@@ -12,8 +12,8 @@ import bookingRoutes from './routes/booking.routes.js';
 import negotiationRoutes from './routes/negotiation.routes.js';
 import reviewRoutes from './routes/review.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
-import analyticsRoutes from './routes/analytics.routes.js';
 import requirementRoutes from './routes/requirement.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
 
 export function createApp() {
   const app = express();
@@ -32,8 +32,8 @@ export function createApp() {
   app.use('/api/negotiations', negotiationRoutes);
   app.use('/api/reviews', reviewRoutes);
   app.use('/api/notifications', notificationRoutes);
-  app.use('/api/analytics', analyticsRoutes);
   app.use('/api/requirements', requirementRoutes);
+  app.use('/api/analytics', analyticsRoutes);
 
   app.use(notFound);
   app.use(errorHandler);

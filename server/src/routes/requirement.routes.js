@@ -13,6 +13,14 @@ import { notify } from '../services/notification.service.js';
 const router = Router();
 
 const USER_POPULATE = 'businessName businessType location ratingAvg ratingCount phone';
+const POPULATE = [
+  { path: 'seeker', select: USER_POPULATE },
+  { path: 'offers.provider', select: 'businessName location ratingAvg ratingCount' },
+  { path: 'offers.resource', select: 'title category images pricing capacity totalQuantity unit' },
+  { path: 'acceptedProposal' },
+  { path: 'resultingBooking' },
+  { path: 'fulfilledBooking' },
+];
 
 /**
  * POST /api/requirements
@@ -26,10 +34,12 @@ router.post(
       title,
       category,
       description,
-      requiredQuantity = 1,
+      requiredQuantity,
+      quantity,
       unit = 'unit',
       minCapacity,
       maxBudget,
+      maxPrice,
       startDateTime,
       endDateTime,
       radiusKm = 25,
@@ -48,9 +58,12 @@ router.post(
       throw new HttpError(400, 'End time must be after start time.');
     }
 
-    if (Number(requiredQuantity) < 1) {
+    const qty = Number(requiredQuantity || quantity || 1);
+    if (qty < 1) {
       throw new HttpError(400, 'Required quantity must be at least 1.');
     }
+
+    const budget = maxBudget != null ? Number(maxBudget) : maxPrice != null ? Number(maxPrice) : undefined;
 
     // Resolve coordinates from body or user profile
     const coords = location?.coordinates?.length
@@ -66,19 +79,23 @@ router.post(
       title: title.trim(),
       category,
       description: description?.trim(),
-      requiredQuantity: Number(requiredQuantity),
+      requiredQuantity: qty,
+      quantity: qty,
       unit,
       minCapacity: minCapacity ? Number(minCapacity) : undefined,
-      maxBudget: maxBudget ? Number(maxBudget) : undefined,
+      maxBudget: budget,
+      maxPrice: budget,
       startDateTime: start,
       endDateTime: end,
       location: {
         address: location?.address || req.user.location?.address,
         city: location?.city || req.user.location?.city,
+        pincode: location?.pincode || req.user.location?.pincode,
         coordinates: coords,
         radiusKm: Number(radiusKm) || 25,
       },
       urgency,
+      offers: [],
       status: 'open',
     });
 
@@ -125,6 +142,31 @@ router.post(
 );
 
 /**
+ * GET /api/requirements/open
+ * The provider-facing board of open requirements. Excludes the caller's own postings.
+ */
+router.get(
+  '/open',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const filter = {
+      status: 'open',
+      seeker: { $ne: req.user._id },
+      endDateTime: { $gte: new Date() },
+    };
+    if (req.query.category && req.query.category !== 'all') filter.category = req.query.category;
+
+    const requirements = await Requirement.find(filter)
+      .populate(POPULATE)
+      .sort({ urgency: -1, startDateTime: 1 })
+      .limit(Number(req.query.limit) || 50)
+      .lean();
+
+    res.json({ requirements });
+  })
+);
+
+/**
  * GET /api/requirements/mine
  * List RFQs published by the authenticated seeker.
  */
@@ -138,8 +180,7 @@ router.get(
     }
 
     const requirements = await Requirement.find(filter)
-      .populate('acceptedProposal')
-      .populate('resultingBooking')
+      .populate(POPULATE)
       .sort('-createdAt')
       .lean();
 
@@ -231,21 +272,19 @@ router.get(
 
 /**
  * GET /api/requirements/:id
- * Detailed requirement view with proposal security masking.
+ * Detailed requirement view with proposals and offers.
  */
 router.get(
   '/:id',
   requireAuth,
   asyncHandler(async (req, res) => {
     const requirement = await Requirement.findById(req.params.id)
-      .populate('seeker', USER_POPULATE)
-      .populate('acceptedProposal')
-      .populate('resultingBooking')
+      .populate(POPULATE)
       .lean();
 
     if (!requirement) throw new HttpError(404, 'Requirement not found.');
 
-    const isSeeker = String(requirement.seeker._id) === String(req.user._id);
+    const isSeeker = String(requirement.seeker?._id || requirement.seeker) === String(req.user._id);
 
     let proposals = [];
     if (isSeeker) {
@@ -268,6 +307,164 @@ router.get(
     }
 
     res.json({ requirement, proposals });
+  })
+);
+
+/**
+ * POST /api/requirements/:id/offers
+ * A provider offers one of their listings directly against a requirement.
+ */
+router.post(
+  '/:id/offers',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { resourceId, price, message } = req.body;
+
+    const requirement = await Requirement.findById(req.params.id);
+    if (!requirement) throw new HttpError(404, 'Requirement not found.');
+    if (requirement.status !== 'open') throw new HttpError(409, 'This requirement is closed.');
+    if (String(requirement.seeker) === String(req.user._id)) {
+      throw new HttpError(400, 'You cannot offer against your own requirement.');
+    }
+
+    const resource = await Resource.findById(resourceId);
+    if (!resource || resource.status !== 'active') {
+      throw new HttpError(404, 'That resource is no longer listed.');
+    }
+    if (String(resource.owner) !== String(req.user._id)) {
+      throw new HttpError(403, 'You can only offer your own listings.');
+    }
+
+    const check = await validateBookingRequest({
+      resource,
+      quantity: requirement.requiredQuantity || requirement.quantity || 1,
+      start: requirement.startDateTime,
+      end: requirement.endDateTime,
+    });
+    if (!check.ok) throw new HttpError(409, check.reason);
+
+    const existing = requirement.offers.find(
+      (o) => String(o.provider) === String(req.user._id) && String(o.resource) === String(resourceId)
+    );
+    if (existing && existing.status === 'offered') {
+      throw new HttpError(409, 'You have already offered this resource.');
+    }
+
+    requirement.offers.push({
+      provider: req.user._id,
+      resource: resourceId,
+      price: Number(price),
+      message,
+    });
+    await requirement.save();
+
+    await notify({
+      user: requirement.seeker,
+      type: 'requirement_offer',
+      title: 'New offer on your requirement',
+      message: `${req.user.businessName} offered ${resource.title}.`,
+      relatedRequirement: requirement._id,
+    });
+
+    res.status(201).json({ requirement });
+  })
+);
+
+/**
+ * POST /api/requirements/:id/offers/:offerId/accept
+ * The seeker accepts an offer. Converts the requirement into a booking.
+ */
+router.post(
+  '/:id/offers/:offerId/accept',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const requirement = await Requirement.findById(req.params.id);
+    if (!requirement) throw new HttpError(404, 'Requirement not found.');
+    if (String(requirement.seeker) !== String(req.user._id)) {
+      throw new HttpError(403, 'Only the requirement owner can accept an offer.');
+    }
+    if (requirement.status !== 'open') throw new HttpError(409, 'This requirement is closed.');
+
+    const offer = requirement.offers.id(req.params.offerId);
+    if (!offer || offer.status !== 'offered') throw new HttpError(404, 'Offer not available.');
+
+    const resource = await Resource.findById(offer.resource);
+    if (!resource || resource.status !== 'active') {
+      throw new HttpError(409, 'That resource is no longer listed.');
+    }
+
+    const qty = requirement.requiredQuantity || requirement.quantity || 1;
+    const check = await validateBookingRequest({
+      resource,
+      quantity: qty,
+      start: requirement.startDateTime,
+      end: requirement.endDateTime,
+    });
+    if (!check.ok) throw new HttpError(409, check.reason);
+
+    const booking = await Booking.create({
+      resource: resource._id,
+      provider: offer.provider,
+      seeker: req.user._id,
+      requestedQuantity: qty,
+      startDateTime: requirement.startDateTime,
+      endDateTime: requirement.endDateTime,
+      status: 'accepted',
+      quotedPrice: offer.price,
+      agreedPrice: offer.price,
+      urgency: requirement.urgency,
+      notes: `From requirement: ${requirement.title}`,
+    });
+
+    await Transaction.create({
+      booking: booking._id,
+      payer: req.user._id,
+      payee: offer.provider,
+      amount: offer.price,
+      status: 'pending',
+    });
+
+    offer.status = 'accepted';
+    requirement.offers.forEach((o) => {
+      if (String(o._id) !== String(offer._id) && o.status === 'offered') o.status = 'declined';
+    });
+    requirement.status = 'fulfilled';
+    requirement.fulfilledBooking = booking._id;
+    requirement.resultingBooking = booking._id;
+    await requirement.save();
+
+    await notify({
+      user: offer.provider,
+      type: 'booking_status_change',
+      title: 'Your offer was accepted',
+      message: `${req.user.businessName} accepted your offer on "${requirement.title}".`,
+      relatedBooking: booking._id,
+    });
+
+    res.json({ requirement, booking });
+  })
+);
+
+/**
+ * PATCH /api/requirements/:id/offers/:offerId/withdraw
+ * Provider withdraws an offer they made.
+ */
+router.patch(
+  '/:id/offers/:offerId/withdraw',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const requirement = await Requirement.findById(req.params.id);
+    if (!requirement) throw new HttpError(404, 'Requirement not found.');
+
+    const offer = requirement.offers.id(req.params.offerId);
+    if (!offer) throw new HttpError(404, 'Offer not found.');
+    if (String(offer.provider) !== String(req.user._id)) {
+      throw new HttpError(403, 'You can only withdraw your own offer.');
+    }
+
+    offer.status = 'withdrawn';
+    await requirement.save();
+    res.json({ requirement });
   })
 );
 
@@ -317,10 +514,9 @@ router.post(
     const start = proposedStart ? new Date(proposedStart) : requirement.startDateTime;
     const end = proposedEnd ? new Date(proposedEnd) : requirement.endDateTime;
 
-    // Check that provider's resource currently has inventory for the dates
     const check = await validateBookingRequest({
       resource,
-      quantity: requirement.requiredQuantity,
+      quantity: requirement.requiredQuantity || requirement.quantity || 1,
       start,
       end,
     });
@@ -421,11 +617,12 @@ router.post(
 
     const start = proposal.proposedStart || requirement.startDateTime;
     const end = proposal.proposedEnd || requirement.endDateTime;
+    const qty = requirement.requiredQuantity || requirement.quantity || 1;
 
     // Synchronous sweep-line inventory validation at commit time
     const check = await validateBookingRequest({
       resource: proposal.resource,
-      quantity: requirement.requiredQuantity,
+      quantity: qty,
       start,
       end,
     });
@@ -440,7 +637,7 @@ router.post(
       {
         start,
         end,
-        quantity: requirement.requiredQuantity,
+        quantity: qty,
         capacity: requirement.minCapacity || proposal.resource.capacity,
         urgency: requirement.urgency,
       },
@@ -452,7 +649,7 @@ router.post(
       resource: proposal.resource._id,
       provider: proposal.provider,
       seeker: req.user._id,
-      requestedQuantity: requirement.requiredQuantity,
+      requestedQuantity: qty,
       startDateTime: start,
       endDateTime: end,
       status: 'confirmed',
@@ -495,6 +692,7 @@ router.post(
     requirement.status = 'fulfilled';
     requirement.acceptedProposal = proposal._id;
     requirement.resultingBooking = booking._id;
+    requirement.fulfilledBooking = booking._id;
     await requirement.save();
 
     // 6. Notify Winning Provider
@@ -523,6 +721,26 @@ router.post(
       requirement,
       proposal,
     });
+  })
+);
+
+/**
+ * PATCH /api/requirements/:id/close
+ * Close a requirement without accepting anything.
+ */
+router.patch(
+  '/:id/close',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const requirement = await Requirement.findById(req.params.id);
+    if (!requirement) throw new HttpError(404, 'Requirement not found.');
+    if (String(requirement.seeker) !== String(req.user._id)) {
+      throw new HttpError(403, 'Only the requirement owner can close it.');
+    }
+
+    requirement.status = 'closed';
+    await requirement.save();
+    res.json({ requirement });
   })
 );
 

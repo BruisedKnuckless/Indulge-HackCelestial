@@ -6,10 +6,10 @@ import { Spinner, EmptyState } from '../components/ui';
 import { relative } from '../lib/format';
 
 const TYPE_META = {
-  booking_request: { icon: '📥', tone: 'text-link' },
+  booking_request: { icon: '📥', tone: 'text-ink' },
   booking_status_change: { icon: '🔄', tone: 'text-success' },
   negotiation_message: { icon: '💬', tone: 'text-ink' },
-  review_received: { icon: '⭐', tone: 'text-star' },
+  review_received: { icon: '⭐', tone: 'text-ink' },
 };
 
 export default function Notifications() {
@@ -30,14 +30,14 @@ export default function Notifications() {
   };
 
   return (
-    <div className="page-shell py-4 max-w-[860px]">
+    <div className="shell pt-12 pb-20 max-w-prose">
       <div className="flex items-baseline justify-between flex-wrap gap-2 mb-4">
-        <h1 className="text-page font-normal">
+        <h1 className="h-page">
           Notifications
-          {unread > 0 && <span className="text-body text-ink-soft ml-2">({unread} unread)</span>}
+          {unread > 0 && <span className="text-base text-ink-soft ml-2">({unread} unread)</span>}
         </h1>
         {unread > 0 && (
-          <button onClick={markAll} className="a-link text-base">
+          <button onClick={markAll} className="link text-base">
             Mark all as read
           </button>
         )}
@@ -51,22 +51,22 @@ export default function Notifications() {
           message="Request updates, messages and reviews will show up here as they happen."
         />
       ) : (
-        <div className="bg-white border border-bd rounded divide-y divide-bd">
+        <div className="bg-white border border-line rounded divide-y divide-line">
           {notifications.map((n) => {
             const meta = TYPE_META[n.type] || {};
             const body = (
               <div
-                className={`flex gap-3 p-4 hover:bg-[#F7FAFA] transition-colors ${
-                  n.isRead ? '' : 'bg-[#F0F7FF]'
+                className={`flex gap-3 p-4 hover:bg-surface-sunk transition-colors ${
+                  n.isRead ? '' : 'bg-surface-sunk'
                 }`}
               >
-                <span className="text-title shrink-0" aria-hidden>
+                <span className="text-lg shrink-0" aria-hidden>
                   {meta.icon || '🔔'}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-base font-bold ${meta.tone || ''}`}>{n.title}</p>
+                  <p className={`text-base font-semibold ${meta.tone || ''}`}>{n.title}</p>
                   <p className="text-base text-ink-soft">{n.message}</p>
-                  <p className="text-mini text-ink-mute mt-0.5">{relative(n.createdAt)}</p>
+                  <p className="text-xs text-ink-mute mt-0.5">{relative(n.createdAt)}</p>
                 </div>
                 {!n.isRead && (
                   <button
@@ -74,7 +74,7 @@ export default function Notifications() {
                       e.preventDefault();
                       markOne(n._id);
                     }}
-                    className="a-link text-mini shrink-0 self-start"
+                    className="link text-xs shrink-0 self-start"
                   >
                     Mark read
                   </button>

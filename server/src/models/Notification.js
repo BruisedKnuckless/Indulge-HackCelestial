@@ -14,6 +14,7 @@ const notificationSchema = new mongoose.Schema(
         'rfq_proposal_received',
         'rfq_proposal_accepted',
         'rfq_proposal_closed',
+        'requirement_offer',
       ],
       required: true,
     },
