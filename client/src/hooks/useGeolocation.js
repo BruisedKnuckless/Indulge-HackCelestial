@@ -6,6 +6,7 @@ export const DEMO_LOCATION = {
   lng: 72.9781,
   city: 'Thane, Mumbai',
   isDemo: true,
+  sourceType: 'demo',
 };
 
 /**
@@ -14,12 +15,23 @@ export const DEMO_LOCATION = {
  * Capabilities:
  * - Clear explanation & permission handling
  * - loading, granted, denied, and unavailable states
- * - In-memory ephemeral storage only (no unnecessary persistence)
+ * - Accepts optional pre-validated initialCoords (e.g. from validated sessionStorage)
+ * - Explicit location source tagging: 'current' | 'demo' | 'business'
  * - 1-click fallback to demo (Thane/Mumbai) or logged-in business location
  */
-export function useGeolocation() {
-  const [coords, setCoords] = useState(null); // { lat, lng, city, isDemo, isBusiness }
-  const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'granted' | 'denied' | 'unavailable'
+export function useGeolocation(initialCoords = null) {
+  const [coords, setCoords] = useState(() => {
+    if (
+      initialCoords &&
+      Number.isFinite(Number(initialCoords.lat)) &&
+      Number.isFinite(Number(initialCoords.lng))
+    ) {
+      return initialCoords;
+    }
+    return null;
+  });
+
+  const [status, setStatus] = useState(() => (initialCoords ? 'granted' : 'idle'));
   const [errorMessage, setErrorMessage] = useState(null);
 
   const requestLocation = useCallback(() => {
@@ -39,6 +51,8 @@ export function useGeolocation() {
           lng: position.coords.longitude,
           accuracy: position.coords.accuracy,
           isDemo: false,
+          isBusiness: false,
+          sourceType: 'current',
         });
         setStatus('granted');
       },
@@ -66,7 +80,7 @@ export function useGeolocation() {
   }, []);
 
   const useDemoLocation = useCallback(() => {
-    setCoords(DEMO_LOCATION);
+    setCoords({ ...DEMO_LOCATION });
     setStatus('granted');
     setErrorMessage(null);
   }, []);
@@ -75,12 +89,25 @@ export function useGeolocation() {
     if (userLocation?.coordinates?.length === 2) {
       const [lng, lat] = userLocation.coordinates;
       setCoords({
-        lat,
-        lng,
+        lat: Number(lat),
+        lng: Number(lng),
         city: userLocation.city || userLocation.address || 'Your Business',
         isDemo: false,
         isBusiness: true,
+        sourceType: 'business',
       });
+      setStatus('granted');
+      setErrorMessage(null);
+    }
+  }, []);
+
+  const restoreLocation = useCallback((restoredCoords) => {
+    if (
+      restoredCoords &&
+      Number.isFinite(Number(restoredCoords.lat)) &&
+      Number.isFinite(Number(restoredCoords.lng))
+    ) {
+      setCoords(restoredCoords);
       setStatus('granted');
       setErrorMessage(null);
     }
@@ -99,6 +126,7 @@ export function useGeolocation() {
     requestLocation,
     useDemoLocation,
     useBusinessLocation,
+    restoreLocation,
     clearLocation,
   };
 }

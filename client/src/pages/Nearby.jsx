@@ -1,14 +1,32 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MapPin, Map, ListFilter } from 'lucide-react';
+import {
+  MapPin,
+  Map,
+  ListFilter,
+  Navigation,
+  Compass,
+  Package,
+  ClipboardList,
+  Route,
+  Layers,
+  Building2,
+  AlertCircle,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSearch, useOpenRequirements, useCartMutations } from '../hooks/queries';
 import { useGeolocation } from '../hooks/useGeolocation';
 import GoogleMap from '../components/map/GoogleMap';
+import MapErrorBoundary from '../components/map/MapErrorBoundary';
 import NearbyCard from '../components/map/NearbyCard';
 import CategoryIcon from '../components/ui/CategoryIcon';
 import { CATEGORIES, CATEGORY_LABELS } from '../lib/constants';
 import { Spinner, EmptyState } from '../components/ui';
+import {
+  getSavedNearbySession,
+  saveNearbySession,
+  clearNearbySession,
+} from '../lib/nearbySession';
 
 const PRESET_RADII = [5, 10, 25, 50, 100];
 
@@ -23,15 +41,25 @@ export default function Nearby() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // Safely restore validated Nearby session state from sessionStorage on mount
+  const savedSession = useMemo(() => getSavedNearbySession(), []);
+
   // Mode: 'resources' | 'requirements'
-  const [mode, setMode] = useState('resources');
-  const [radiusKm, setRadiusKm] = useState(() => Number(searchParams.get('radiusKm')) || 25);
-  const [isCustomRadius, setIsCustomRadius] = useState(false);
+  const [mode, setMode] = useState(() => searchParams.get('mode') || savedSession?.mode || 'resources');
+  const [radiusKm, setRadiusKm] = useState(
+    () => Number(searchParams.get('radiusKm')) || savedSession?.radiusKm || 25
+  );
+  const [isCustomRadius, setIsCustomRadius] = useState(() => {
+    const initRadius = Number(searchParams.get('radiusKm')) || savedSession?.radiusKm || 25;
+    return !PRESET_RADII.includes(initRadius);
+  });
   const [customRadiusInput, setCustomRadiusInput] = useState('');
-  const [category, setCategory] = useState('all');
-  const [sort, setSort] = useState('distance');
+  const [category, setCategory] = useState(
+    () => searchParams.get('category') || savedSession?.category || 'all'
+  );
+  const [sort, setSort] = useState(() => searchParams.get('sort') || savedSession?.sort || 'distance');
   const [selectedItemId, setSelectedItemId] = useState(null);
-  const [mobileTab, setMobileTab] = useState('map'); // 'map' | 'list'
+  const [mobileTab, setMobileTab] = useState(() => savedSession?.mobileTab || 'map'); // 'map' | 'list'
 
   const {
     coords,
@@ -40,7 +68,8 @@ export default function Nearby() {
     requestLocation,
     useDemoLocation,
     useBusinessLocation,
-  } = useGeolocation();
+    clearLocation,
+  } = useGeolocation(savedSession?.coords || null);
 
   const { add: addToCart } = useCartMutations();
   const [addingId, setAddingId] = useState(null);
@@ -62,6 +91,26 @@ export default function Nearby() {
       setSelectedItemId(null);
     }
   };
+
+  const handleResetLocation = useCallback(() => {
+    clearNearbySession();
+    clearLocation();
+    setSelectedItemId(null);
+  }, [clearLocation]);
+
+  // Persist valid Nearby discovery state across browser refresh
+  useEffect(() => {
+    if (coords) {
+      saveNearbySession({
+        coords,
+        radiusKm,
+        mode,
+        category,
+        sort,
+        mobileTab,
+      });
+    }
+  }, [coords, radiusKm, mode, category, sort, mobileTab]);
 
   /* ── 1. Backend Data Queries ── */
   const resourceQuery = useMemo(() => {
@@ -131,78 +180,192 @@ export default function Nearby() {
     setSelectedItemId(null);
   }, [mode, category, radiusKm, sort]);
 
-  /* ── 4. Location Permission Flow Screen ── */
+  /* ── 4. Location Permission Flow Screen (Enhanced Initial Experience) ── */
   if (!coords) {
     return (
-      <div className="shell py-12">
-        <div className="p-8 md:p-10 rounded-2xl border border-line bg-surface-alt text-center max-w-lg mx-auto shadow-sm">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-accent/10 text-accent flex items-center justify-center">
-            <MapPin size={26} />
+      <div className="shell py-10 md:py-16 max-w-4xl mx-auto flex flex-col gap-10">
+        {/* Main Location Selection Card */}
+        <div className="p-8 md:p-10 rounded-2xl border border-line bg-surface-alt text-center shadow-sm relative overflow-hidden">
+          {/* Subtle top indicator bar */}
+          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-accent/20 via-accent to-accent/20" />
+
+          <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-accent/10 border border-accent/20 text-accent flex items-center justify-center shadow-2xs">
+            <Navigation size={26} className="shrink-0" />
           </div>
 
-          <h1 className="text-xl font-bold text-ink mb-2">
-            {geoStatus === 'loading'
-              ? 'Finding resources near you...'
-              : geoStatus === 'denied'
-              ? 'Location access is required to show nearby resources.'
-              : geoStatus === 'unavailable'
-              ? 'Unable to determine your location.'
-              : 'Nearby Resources & RFQs'}
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-ink mb-2">
+            Nearby Resources & RFQs
           </h1>
 
-          <p className="text-sm text-ink-soft max-w-md mx-auto mb-6 leading-relaxed">
-            {geoStatus === 'loading'
-              ? 'Querying browser geolocation for your current position…'
-              : geoStatus === 'denied'
-              ? 'Location permission was denied in your browser. You can enable it in site settings or explore with our Mumbai–Thane demo location.'
-              : geoStatus === 'unavailable'
-              ? 'Could not retrieve device coordinates. Please verify your connection or use our Mumbai–Thane demo location.'
-              : 'Indulge calculates real-time distances from your position to available commercial kitchens, banquet halls, vehicles, and equipment.'}
+          <p className="text-sm md:text-base text-ink-soft max-w-lg mx-auto mb-6 leading-relaxed">
+            Find available hospitality resources and open requirements around your operational location.
           </p>
 
           {geoError && (
-            <div className="mb-4 text-xs text-danger bg-danger/10 border border-danger/20 rounded-md p-2.5 max-w-md mx-auto">
-              {geoError}
+            <div className="mb-6 text-xs text-danger bg-danger/10 border border-danger/20 rounded-lg p-3 max-w-md mx-auto flex items-center gap-2 text-left">
+              <AlertCircle size={16} className="shrink-0" />
+              <span>{geoError}</span>
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          {/* Action CTAs: Primary is visually prominent */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-lg mx-auto">
             <button
               onClick={requestLocation}
               disabled={geoStatus === 'loading'}
-              className="btn-primary w-full sm:w-auto"
+              className="btn-primary w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 shadow-sm font-semibold"
             >
               {geoStatus === 'loading' ? (
                 <>
                   <Spinner size="sm" />
                   <span>Locating…</span>
                 </>
-              ) : geoStatus === 'denied' ? (
-                'Try again'
               ) : (
-                'Use my current location'
+                <>
+                  <Navigation size={15} className="shrink-0" />
+                  <span>Use my current location</span>
+                </>
               )}
             </button>
 
-            <button onClick={useDemoLocation} className="btn-secondary w-full sm:w-auto">
-              Explore Demo (Thane, Mumbai)
+            <button
+              onClick={useDemoLocation}
+              className="btn-secondary w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 font-medium"
+            >
+              <Compass size={15} className="shrink-0 text-ink-soft" />
+              <span>Explore Demo (Thane, Mumbai)</span>
             </button>
 
             {user?.location?.coordinates?.length === 2 && (
               <button
                 onClick={() => useBusinessLocation(user.location)}
-                className="btn-secondary w-full sm:w-auto"
+                className="btn-outline w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 font-medium"
               >
-                Use business address
+                <Building2 size={15} className="shrink-0 text-ink-soft" />
+                <span>Use business address</span>
               </button>
             )}
           </div>
+
+          {/* Compact Operational Benefits */}
+          <div className="mt-8 pt-6 border-t border-line/70 grid grid-cols-1 md:grid-cols-3 gap-3.5 text-left">
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-surface/70 border border-line/60">
+              <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/15 text-accent flex items-center justify-center shrink-0">
+                <Package size={16} />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-semibold text-ink">Nearby Resources</h4>
+                <p className="text-[11px] text-ink-soft leading-snug mt-0.5">
+                  Find available hospitality capacity around you.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-surface/70 border border-line/60">
+              <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/15 text-accent flex items-center justify-center shrink-0">
+                <ClipboardList size={16} />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-semibold text-ink">Open RFQs</h4>
+                <p className="text-[11px] text-ink-soft leading-snug mt-0.5">
+                  Discover active requirements from nearby businesses.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-surface/70 border border-line/60">
+              <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/15 text-accent flex items-center justify-center shrink-0">
+                <Route size={16} />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-semibold text-ink">Distance-Aware Results</h4>
+                <p className="text-[11px] text-ink-soft leading-snug mt-0.5">
+                  Compare availability and proximity before opening a resource.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* Section: How Nearby works */}
+        <section className="flex flex-col gap-4">
+          <div className="text-center sm:text-left">
+            <h2 className="text-base font-semibold text-ink tracking-tight">How Nearby works</h2>
+            <p className="text-xs text-ink-soft mt-0.5">
+              Rapid proximity-based asset mobilization for commercial hospitality operations.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl border border-line bg-surface flex flex-col gap-2 relative shadow-2xs">
+              <div className="flex items-center justify-between text-xs text-ink-mute font-mono">
+                <span className="w-6 h-6 rounded-md bg-surface-sunk border border-line flex items-center justify-center font-bold text-ink">
+                  1
+                </span>
+                <MapPin size={15} className="text-ink-soft" />
+              </div>
+              <h3 className="text-sm font-semibold text-ink mt-1">Set your location</h3>
+              <p className="text-xs text-ink-soft leading-relaxed">
+                Choose your current operational position, registered business venue, or test with our Mumbai demo cluster.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-line bg-surface flex flex-col gap-2 relative shadow-2xs">
+              <div className="flex items-center justify-between text-xs text-ink-mute font-mono">
+                <span className="w-6 h-6 rounded-md bg-surface-sunk border border-line flex items-center justify-center font-bold text-ink">
+                  2
+                </span>
+                <Compass size={15} className="text-ink-soft" />
+              </div>
+              <h3 className="text-sm font-semibold text-ink mt-1">Choose a radius</h3>
+              <p className="text-xs text-ink-soft leading-relaxed">
+                Search within 5 to 100+ km to match your logistics tolerances and transport constraints.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-line bg-surface flex flex-col gap-2 relative shadow-2xs">
+              <div className="flex items-center justify-between text-xs text-ink-mute font-mono">
+                <span className="w-6 h-6 rounded-md bg-surface-sunk border border-line flex items-center justify-center font-bold text-ink">
+                  3
+                </span>
+                <Layers size={15} className="text-ink-soft" />
+              </div>
+              <h3 className="text-sm font-semibold text-ink mt-1">Discover capacity</h3>
+              <p className="text-xs text-ink-soft leading-relaxed">
+                Explore nearby resources and open RFQs with real-time distance calculations and verified providers.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Section: Platform Scope / Categories Preview */}
+        <section className="p-5 rounded-xl border border-line bg-surface-alt/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-mute">
+              Operational Asset Categories
+            </h3>
+            <p className="text-xs text-ink-soft mt-0.5">
+              Available for real-time proximity discovery across the Indulge B2B network.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 sm:max-w-md sm:justify-end">
+            {CATEGORIES.map((cat) => (
+              <span
+                key={cat.value}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-surface border border-line text-[11px] text-ink-soft font-medium shadow-2xs"
+              >
+                <CategoryIcon category={cat.value} size={12} className="shrink-0 text-ink-mute" />
+                <span>{cat.short || cat.label}</span>
+              </span>
+            ))}
+          </div>
+        </section>
       </div>
     );
   }
 
-  /* ── 5. Main Two-Column Layout ── */
+  /* ── 5. Main Two-Column Layout (Nearby Discovery) ── */
   return (
     <div className="flex flex-col min-h-screen">
       {/* Page Header Area */}
@@ -220,10 +383,10 @@ export default function Nearby() {
             </p>
           </div>
 
-          {/* Location status chip with quick-switch */}
+          {/* Location status chip with quick-switch and reset */}
           <div className="flex items-center gap-2 text-xs bg-surface border border-line rounded-lg px-3 py-1.5 self-start sm:self-auto shrink-0 shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-success" />
-            <span className="font-medium truncate max-w-[200px]">
+            <span className="w-2 h-2 rounded-full bg-success shrink-0" />
+            <span className="font-medium truncate max-w-[180px]">
               {coords.isDemo
                 ? 'Demo: Thane, Mumbai'
                 : coords.isBusiness
@@ -235,7 +398,15 @@ export default function Nearby() {
               className="text-accent hover:underline font-semibold ml-1 shrink-0"
               title="Re-request browser GPS location"
             >
-              Use my current location
+              Use GPS
+            </button>
+            <span className="text-line-strong">·</span>
+            <button
+              onClick={handleResetLocation}
+              className="text-ink-mute hover:text-ink hover:underline font-medium shrink-0 transition-colors"
+              title="Change or reset discovery location"
+            >
+              Change
             </button>
           </div>
         </div>
@@ -393,13 +564,15 @@ export default function Nearby() {
             aria-label="Map discovery"
           >
             <div className="h-[48vh] lg:h-[calc(100vh-210px)] min-h-[420px] w-full rounded-xl overflow-hidden">
-              <GoogleMap
-                userCoords={coords}
-                items={activeItems}
-                radiusKm={radiusKm}
-                selectedId={selectedItemId}
-                onSelect={handleMapSelect}
-              />
+              <MapErrorBoundary>
+                <GoogleMap
+                  userCoords={coords}
+                  items={activeItems}
+                  radiusKm={radiusKm}
+                  selectedId={selectedItemId}
+                  onSelect={handleMapSelect}
+                />
+              </MapErrorBoundary>
             </div>
           </section>
 
