@@ -10,10 +10,46 @@ import { inr, dateRange, relative } from '../lib/format';
 const TABS = [
   { key: 'all', label: 'All' },
   { key: 'pending,negotiating', label: 'Open' },
-  { key: 'accepted,confirmed', label: 'Confirmed' },
+  { key: 'accepted,confirmed', label: 'Active' },
   { key: 'completed', label: 'Completed' },
   { key: 'cancelled,rejected', label: 'Cancelled' },
 ];
+
+/** Sub-status chip shown below the main status badge on the list row */
+const FULFILLMENT_LABELS = {
+  packed:           'Order packed',
+  loading:          'Loading for transport',
+  out_for_delivery: 'Out for delivery',
+  delivered:        'Delivered',
+};
+const RETURN_LABELS = {
+  return_requested:        'Return requested',
+  return_pickup_scheduled: 'Pickup scheduled',
+  return_in_transit:       'Return in transit',
+  returned_to_provider:    'Returned to provider',
+  return_completed:        'Return completed',
+};
+
+function FulfillmentChip({ booking }) {
+  const fs = booking.fulfillment?.status;
+  const rs = booking.return?.status;
+  if (!fs && !rs) return null;
+
+  const label = rs ? RETURN_LABELS[rs] : FULFILLMENT_LABELS[fs];
+  const isReturn = Boolean(rs);
+  const isDone = fs === 'delivered' || rs === 'return_completed';
+
+  return (
+    <span className={[
+      'inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border',
+      isDone ? 'text-success border-success/30 bg-success/5' :
+      isReturn ? 'text-warn border-warn/30 bg-warn/5' :
+                 'text-ink-soft border-line bg-surface-sunk',
+    ].join(' ')}>
+      {isDone ? '✓ ' : '● '}{label}
+    </span>
+  );
+}
 
 /** One request: image, what it is, where it stands, and what you can do. */
 function BookingRow({ booking, direction, actions }) {
@@ -49,31 +85,32 @@ function BookingRow({ booking, direction, actions }) {
         </Link>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap mb-2">
+          <div className="flex items-center gap-2 flex-wrap mb-2">
             <StatusBadge status={booking.status} />
+            <FulfillmentChip booking={booking} />
             {booking.urgency === 'high' && open && (
-              <span className="text-xs text-danger">Urgent</span>
+              <span className="text-xs text-danger font-medium">Urgent</span>
             )}
           </div>
 
-          <Link to={`/r/${r._id}`} className="text-lg font-medium hover:underline underline-offset-4">
+          <Link to={`/r/${r._id}`} className="text-base font-semibold hover:underline underline-offset-4">
             {r.title}
           </Link>
 
-          <p className="text-sm muted mt-1">
-            {isProvider ? 'Requested by' : 'From'} {counterparty?.businessName}
+          <p className="text-sm text-ink-soft mt-1">
+            {isProvider ? 'From' : 'Provider:'} {counterparty?.businessName}
           </p>
-          <p className="text-sm muted">
-            {dateRange(booking.startDateTime, booking.endDateTime)} · qty {booking.requestedQuantity}
-            {' · '}
-            {inr(booking.agreedPrice ?? booking.quotedPrice ?? 0)}
+          <p className="text-sm text-ink-soft">
+            {dateRange(booking.startDateTime, booking.endDateTime)}
+            {' · '}{booking.requestedQuantity} unit{booking.requestedQuantity !== 1 ? 's' : ''}
+            {' · '}{inr(booking.agreedPrice ?? booking.quotedPrice ?? 0)}
           </p>
 
           {booking.notes && (
-            <p className="text-sm muted mt-2 line-clamp-2 max-w-prose">“{booking.notes}”</p>
+            <p className="text-sm text-ink-mute mt-1 line-clamp-2 max-w-prose italic">"{booking.notes}"</p>
           )}
           {(booking.rejectionReason || booking.cancellationReason) && (
-            <p className="text-sm text-danger mt-2">
+            <p className="text-sm text-danger mt-1">
               {booking.rejectionReason || booking.cancellationReason}
             </p>
           )}
@@ -119,7 +156,9 @@ function BookingRow({ booking, direction, actions }) {
             </button>
           )}
 
-          {booking.status === 'confirmed' && (
+          {/* Only allow manual complete for non-delivery bookings (no fulfillment started).
+               Delivery-workflow bookings auto-complete via return_completed on the backend. */}
+          {booking.status === 'confirmed' && !booking.fulfillment?.status && (
             <button
               onClick={() => run('complete', actions.complete)}
               disabled={Boolean(busy)}
@@ -127,6 +166,14 @@ function BookingRow({ booking, direction, actions }) {
             >
               Mark completed
             </button>
+          )}
+
+          {/* Provider: next fulfillment action from the list */}
+          {isProvider && booking.status === 'confirmed' && booking.fulfillment?.status &&
+            booking.fulfillment.status !== 'delivered' && (
+            <Link to={`/bookings/detail/${booking._id}`} className="btn-ghost btn-sm">
+              Update delivery →
+            </Link>
           )}
 
           {booking.status === 'completed' && (

@@ -119,12 +119,18 @@ export function useBookingActions() {
       mutationFn: async (payload) => (await api.post('/bookings', payload)).data,
       onSuccess: refresh,
     }),
-    accept: useMutation(patch('accept')),
-    reject: useMutation(patch('reject')),
-    confirm: useMutation(patch('confirm')),
-    cancel: useMutation(patch('cancel')),
-    complete: useMutation(patch('complete')),
-    pay: useMutation(patch('pay')),
+    accept:      useMutation(patch('accept')),
+    reject:      useMutation(patch('reject')),
+    confirm:     useMutation(patch('confirm')),
+    cancel:      useMutation(patch('cancel')),
+    complete:    useMutation(patch('complete')),
+    pay:         useMutation(patch('pay')),
+    fulfillment: useMutation(patch('fulfillment')),
+    returnItem:  useMutation(patch('return')),
+    checkExpiry: useMutation({
+      mutationFn: async ({ id }) => (await api.post(`/bookings/${id}/check-expiry`)).data,
+      onSuccess: refresh,
+    }),
   };
 }
 

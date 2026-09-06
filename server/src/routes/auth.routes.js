@@ -2,6 +2,7 @@ import { Router } from 'express';
 import User from '../models/User.js';
 import Booking from '../models/Booking.js';
 import Resource from '../models/Resource.js';
+import Requirement from '../models/Requirement.js';
 import { signToken, requireAuth } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 
@@ -86,10 +87,13 @@ router.get(
     if (!user) throw new HttpError(404, 'Business not found.');
 
     // Derive live counts from related collections — no fabrication.
-    const [completedOrders, activeListings] = await Promise.all([
-      Booking.countDocuments({ provider: user._id, status: 'completed' }),
-      Resource.countDocuments({ owner: user._id, status: 'active' }),
-    ]);
+    const [completedOrders, seekerCompletedOrders, activeListings, postedRequirements] =
+      await Promise.all([
+        Booking.countDocuments({ provider: user._id, status: 'completed' }),
+        Booking.countDocuments({ seeker: user._id, status: 'completed' }),
+        Resource.countDocuments({ owner: user._id, status: 'active' }),
+        Requirement.countDocuments({ seeker: user._id, status: { $in: ['open', 'fulfilled'] } }),
+      ]);
 
     res.json({
       profile: {
@@ -100,7 +104,9 @@ router.get(
         ratingAvg: user.ratingAvg || 0,
         ratingCount: user.ratingCount || 0,
         completedOrders,
+        seekerCompletedOrders,
         activeListings,
+        postedRequirements,
         memberSince: user.createdAt,
       },
     });

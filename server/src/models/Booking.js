@@ -48,6 +48,46 @@ const bookingSchema = new mongoose.Schema(
 
     cancellationReason: String,
     rejectionReason: String,
+
+    // ── Fulfillment lifecycle ─────────────────────────────────────────────────
+    // Provider advances these states after booking is confirmed.
+    // All fields are optional for backward-compatibility with existing bookings.
+    fulfillment: {
+      status: {
+        type: String,
+        enum: ['packed', 'loading', 'out_for_delivery', 'delivered'],
+      },
+      packedAt:          Date,
+      loadingAt:         Date,
+      outForDeliveryAt:  Date,
+      deliveredAt:       Date,
+      notes:             String,
+    },
+
+    // ── Return lifecycle ──────────────────────────────────────────────────────
+    // Seeker initiates; provider manages logistics.
+    return: {
+      status: {
+        type: String,
+        enum: [
+          'return_requested',
+          'return_pickup_scheduled',
+          'return_in_transit',
+          'returned_to_provider',
+          'return_completed',
+        ],
+      },
+      returnRequestedAt:         Date,
+      returnPickupScheduledAt:   Date,
+      returnInTransitAt:         Date,
+      returnedAt:                Date,
+      returnCompletedAt:         Date,
+      notes:                     String,
+    },
+
+    // Set to true once the rental-expiry notification has been sent so we never
+    // send it twice even if the endpoint is called multiple times.
+    rentalExpiryNotified: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

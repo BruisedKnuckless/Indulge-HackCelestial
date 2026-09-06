@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api, { errorMessage } from '../api/client';
@@ -10,164 +10,407 @@ import {
   useBookingActions,
 } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
-import { Panel, StatusBadge, Spinner, Price, Stars, Alert } from '../components/ui';
+import { Panel, StatusBadge, Spinner, Stars, Alert } from '../components/ui';
 import MatchBreakdown from '../components/MatchBreakdown';
 import { resourceImage } from '../lib/constants';
 import { inr, dateRange, dateTime, relative, toLocalInput } from '../lib/format';
 
-/* ── 8-stage order timeline ──────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════════════════════════════════ */
 
-const TIMELINE_STAGES = [
+/** Icon: checkmark circle (completed step) */
+function IconCheck() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="9" cy="9" r="8" className="stroke-success" />
+      <path d="M5.5 9l2.5 2.5 4-4" className="stroke-success" />
+    </svg>
+  );
+}
+
+/** Vertical connector line between timeline steps */
+function Connector({ done }) {
+  return (
+    <div className={`w-px flex-1 mt-0.5 mb-0.5 mx-auto ${done ? 'bg-success' : 'bg-line'}`}
+         style={{ minHeight: 14, width: 2 }} />
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   A — ORDER TIMELINE (7 stages, "Upcoming" removed)
+   "In Progress" is now the 6th stage and is clickable to expand fulfillment.
+══════════════════════════════════════════════════════════════════════════════ */
+
+const ORDER_STAGES = [
   { key: 'requested',   label: 'Requested' },
   { key: 'negotiation', label: 'Negotiation' },
   { key: 'accepted',    label: 'Accepted' },
   { key: 'payment',     label: 'Payment' },
   { key: 'confirmed',   label: 'Confirmed' },
-  { key: 'upcoming',    label: 'Upcoming' },
   { key: 'in_progress', label: 'In Progress' },
   { key: 'completed',   label: 'Completed' },
 ];
 
 /**
- * Map a booking to its timeline position.
- * Returns -1 for terminal-error states (cancelled / rejected).
- * "Upcoming" and "In Progress" are derived from startDateTime vs now.
+ * Maps booking → ORDER_STAGES index.
+ * "confirmed" bookings move to "In Progress" (index 5) once fulfillment/return
+ * has started or startDateTime has arrived; otherwise they stay at "Confirmed" (index 4).
+ * "completed" only maps to index 6 — delivery alone never triggers this.
  */
-function timelineIndex(status, startDateTime, endDateTime) {
+function orderStageIndex(booking) {
+  if (!booking) return -1;
+  const { status, startDateTime, fulfillment, return: ret } = booking;
   const now = Date.now();
-  const start = startDateTime ? new Date(startDateTime).getTime() : null;
-  const end   = endDateTime   ? new Date(endDateTime).getTime()   : null;
-
+  const start = startDateTime ? new Date(startDateTime).getTime() : Infinity;
   switch (status) {
-    case 'pending':      return 0; // Requested
-    case 'negotiating':  return 1; // Negotiation
-    case 'accepted':     return 2; // Accepted
-    // Payment step: between accepted and confirmed — not a real status,
-    // so "accepted" already advances here. We keep index 2 for accepted,
-    // index 3 for the visual-only payment step (never a real state).
-    case 'confirmed':
-      if (start && now < start) return 5; // Upcoming
-      if (end   && now > end)   return 7; // Completed-ish (still confirmed)
-      if (start && now >= start) return 6; // In Progress
-      return 4; // Confirmed (fallback)
-    case 'completed':    return 7;
+    case 'pending':      return 0;
+    case 'negotiating':  return 1;
+    case 'accepted':     return 2;
+    case 'confirmed': {
+      // If fulfillment has started, return has started, or start date reached -> In Progress (index 5)
+      const inProgress = Boolean(fulfillment?.status) || Boolean(ret?.status) || (now >= start);
+      return inProgress ? 5 : 4;
+    }
+    case 'completed':    return 6;
     default:             return -1; // cancelled / rejected
   }
 }
 
-function ProgressTracker({ status, startDateTime, endDateTime }) {
-  const active = timelineIndex(status, startDateTime, endDateTime);
+function OrderTimeline({ booking, onClickInProgress, fulfillmentExpanded }) {
+  const activeIdx = orderStageIndex(booking);
 
-  if (active === -1) {
+  if (activeIdx === -1) {
     return (
       <Alert tone="error">
-        This request was <strong>{status}</strong>. No further action is possible.
+        This request was <strong>{booking.status}</strong>. No further action is possible.
       </Alert>
     );
   }
 
+  const isConfirmed = booking.status === 'confirmed';
+  const isCompleted = booking.status === 'completed';
+
   return (
-    <div className="w-full">
-      {/* Desktop: horizontal stepper */}
+    <>
+      {/* Desktop stepper */}
       <div className="hidden sm:flex items-start">
-        {TIMELINE_STAGES.map((stage, i) => (
-          <div key={stage.key} className="flex items-start flex-1 last:flex-none">
-            <div className="flex flex-col items-center gap-1.5 shrink-0">
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
-                  i < active
-                    ? 'bg-success text-white'
-                    : i === active
-                    ? 'bg-ink text-ink-invert'
-                    : 'bg-line text-ink-mute'
-                }`}
-              >
-                {i < active ? '✓' : i + 1}
-              </div>
-              <span
-                className={`text-[10px] text-center whitespace-nowrap leading-tight ${
-                  i <= active ? 'text-ink font-medium' : 'text-ink-mute'
-                }`}
-              >
-                {stage.label}
-              </span>
+        {ORDER_STAGES.map((stage, i) => {
+          const done    = i < activeIdx;
+          const current = i === activeIdx;
+          const isIP    = stage.key === 'in_progress';
+          // In Progress is clickable whenever booking has reached confirmed or completed
+          const clickable = isIP && (isConfirmed || isCompleted);
+
+          return (
+            <div key={stage.key} className="flex items-start flex-1 last:flex-none">
+              {clickable ? (
+                <button
+                  type="button"
+                  onClick={onClickInProgress}
+                  title={fulfillmentExpanded ? 'Collapse fulfillment detail' : 'Expand fulfillment detail'}
+                  aria-expanded={fulfillmentExpanded}
+                  className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group p-1 -m-1 rounded hover:bg-surface-subtle transition-colors"
+                >
+                  <div
+                    className={[
+                      'w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold',
+                      'transition-all duration-150',
+                      'group-hover:ring-2 group-hover:ring-ink/20 group-hover:scale-105',
+                      done    ? 'bg-success text-white' :
+                      current ? 'bg-ink text-ink-invert' :
+                                'bg-line text-ink-mute',
+                    ].join(' ')}
+                  >
+                    {done ? '✓' : i + 1}
+                  </div>
+                  <span className={[
+                    'text-[10px] text-center leading-tight whitespace-nowrap',
+                    i <= activeIdx ? 'text-ink font-medium' : 'text-ink-mute',
+                    'underline underline-offset-2 decoration-line-strong group-hover:text-ink',
+                  ].join(' ')}>
+                    {stage.label}
+                  </span>
+                  <span className="text-[9px] text-ink-mute group-hover:text-ink transition-transform">
+                    {fulfillmentExpanded ? '▲' : '▼'}
+                  </span>
+                </button>
+              ) : (
+                <div className="flex flex-col items-center gap-1 shrink-0">
+                  <div
+                    className={[
+                      'w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold',
+                      done    ? 'bg-success text-white' :
+                      current ? 'bg-ink text-ink-invert' :
+                                'bg-line text-ink-mute',
+                    ].join(' ')}
+                  >
+                    {done ? '✓' : i + 1}
+                  </div>
+                  <span className={[
+                    'text-[10px] text-center leading-tight whitespace-nowrap',
+                    i <= activeIdx ? 'text-ink font-medium' : 'text-ink-mute',
+                  ].join(' ')}>
+                    {stage.label}
+                  </span>
+                </div>
+              )}
+
+              {i < ORDER_STAGES.length - 1 && (
+                <div className={`flex-1 h-[2px] mt-3 mx-1 rounded ${i < activeIdx ? 'bg-success' : 'bg-line'}`} />
+              )}
             </div>
-            {i < TIMELINE_STAGES.length - 1 && (
-              <div
-                className={`flex-1 h-[2px] mt-3 mx-1 rounded ${
-                  i < active ? 'bg-success' : 'bg-line'
-                }`}
-              />
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Mobile: current step pill + done count */}
+      {/* Mobile: current step */}
       <div className="sm:hidden flex items-center gap-3">
         <div className="w-8 h-8 rounded-full bg-ink text-ink-invert flex items-center justify-center text-sm font-semibold shrink-0">
-          {active + 1}
+          {activeIdx + 1}
         </div>
         <div>
-          <p className="text-sm font-medium">{TIMELINE_STAGES[active]?.label}</p>
-          <p className="text-xs text-ink-mute">
-            Step {active + 1} of {TIMELINE_STAGES.length}
-          </p>
+          <p className="text-sm font-medium">{ORDER_STAGES[activeIdx]?.label}</p>
+          <p className="text-xs text-ink-mute">Step {activeIdx + 1} of {ORDER_STAGES.length}</p>
+          {(isConfirmed || isCompleted) && (
+            <button
+              type="button"
+              onClick={onClickInProgress}
+              className="text-xs text-ink underline underline-offset-2 mt-0.5 inline-flex items-center gap-1 cursor-pointer font-medium"
+            >
+              <span>{fulfillmentExpanded ? 'Hide fulfillment' : 'Show fulfillment'}</span>
+              <span>{fulfillmentExpanded ? '▲' : '▼'}</span>
+            </button>
+          )}
         </div>
       </div>
+    </>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   B — FULFILLMENT TIMELINE
+   Expandable from "In Progress" click. Provider advances; seeker views.
+══════════════════════════════════════════════════════════════════════════════ */
+
+const FULFILLMENT_STAGES = [
+  { key: 'packed',           label: 'Order Packed',          tsField: 'packedAt' },
+  { key: 'loading',          label: 'Loading for Transport', tsField: 'loadingAt' },
+  { key: 'out_for_delivery', label: 'Out for Delivery',      tsField: 'outForDeliveryAt' },
+  { key: 'delivered',        label: 'Delivered',             tsField: 'deliveredAt' },
+];
+
+const FULFILLMENT_ORDER  = FULFILLMENT_STAGES.map(s => s.key);
+const FULFILLMENT_LABELS = {
+  packed:           'Mark Order Packed',
+  loading:          'Mark Loading for Transport',
+  out_for_delivery: 'Mark Out for Delivery',
+  delivered:        'Mark Delivered',
+};
+
+function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy }) {
+  const activeIdx = FULFILLMENT_ORDER.indexOf(fulfillment?.status ?? '');
+  const nextStatus = FULFILLMENT_ORDER[activeIdx + 1];
+  const isDelivered = fulfillment?.status === 'delivered';
+
+  return (
+    <div>
+      <div className="space-y-0">
+        {FULFILLMENT_STAGES.map((stage, i) => {
+          const isDone    = i <= activeIdx;
+          const isCurrent = !isDelivered && (activeIdx === -1 ? i === 0 : i === activeIdx + 1);
+          const ts        = fulfillment?.[stage.tsField];
+
+          return (
+            <div key={stage.key} className="flex gap-3">
+              {/* Dot column */}
+              <div className="flex flex-col items-center" style={{ width: 20 }}>
+                <div className={[
+                  'w-5 h-5 rounded-full border-2 flex items-center justify-center text-[9px] font-bold shrink-0 transition-colors',
+                  isDone    ? 'bg-success border-success text-white' :
+                  isCurrent ? 'bg-ink border-ink text-ink-invert ring-2 ring-ink/20' :
+                              'bg-surface border-line text-ink-mute',
+                ].join(' ')}>
+                  {isDone ? '✓' : isCurrent ? '●' : ''}
+                </div>
+                {i < FULFILLMENT_STAGES.length - 1 && (
+                  <Connector done={isDone} />
+                )}
+              </div>
+              {/* Label */}
+              <div className="pb-3 min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className={`text-sm font-medium ${isDone ? 'text-ink' : isCurrent ? 'text-ink font-semibold' : 'text-ink-mute'}`}>
+                    {stage.label}
+                  </p>
+                  {isCurrent && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-ink/10 text-ink font-medium">
+                      Next Step
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-ink-mute">
+                  {ts ? dateTime(ts) : isCurrent ? (isProvider ? 'Ready to advance' : 'Waiting for provider') : 'Pending'}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Provider next action */}
+      {isProvider && nextStatus && (
+        <div className="mt-3 pt-3 border-t border-line flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-ink-soft">
+            Ready to update delivery status:
+          </p>
+          <button
+            type="button"
+            onClick={() => onAdvance(nextStatus)}
+            disabled={Boolean(busy)}
+            className="btn-primary btn-sm"
+            id={`ff-btn-${nextStatus}`}
+          >
+            {busy ? 'Updating…' : FULFILLMENT_LABELS[nextStatus]}
+          </button>
+        </div>
+      )}
+
+      {/* Delivered confirmation chip */}
+      {isDelivered && (
+        <div className="mt-3 p-2.5 rounded-lg bg-success/10 border border-success/20 flex items-center gap-2 text-success text-xs font-medium">
+          <IconCheck />
+          <span>Item delivered — rental period is now active</span>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ── Get Directions button ───────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════════════
+   C — RENTAL PERIOD
+══════════════════════════════════════════════════════════════════════════════ */
 
-function buildMapsUrl(resource, provider) {
-  // Prefer resource coordinates, then resource address, then provider city.
-  const coords = resource?.location?.coordinates; // [lng, lat]
-  if (coords && coords.length === 2) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${coords[1]},${coords[0]}`;
-  }
-  const addr = resource?.location?.address || resource?.location?.city;
-  if (addr) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
-  }
-  const city = provider?.location?.city;
-  if (city) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(city)}`;
-  }
-  return null;
-}
+function RentalPeriod({ booking }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
-function GetDirections({ booking, isProvider }) {
-  if (isProvider) return null; // directions are for the seeker going TO the resource
-  if (booking.status !== 'confirmed' && booking.status !== 'completed') return null;
-
-  const url = buildMapsUrl(booking.resource, booking.provider);
-  if (!url) return null;
-
-  const locationLabel =
-    booking.resource?.location?.city ||
-    booking.provider?.location?.city ||
-    'the resource location';
+  const end = booking.endDateTime ? new Date(booking.endDateTime).getTime() : null;
+  const expired = end ? now > end : false;
+  const hoursLeft = end ? Math.max(0, Math.floor((end - now) / 3_600_000)) : null;
 
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 btn-secondary w-full justify-center"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="3 11 22 2 13 21 11 13 3 11" />
-      </svg>
-      Get Directions
-      <span className="text-xs text-ink-mute normal-case font-normal">
-        ({locationLabel})
-      </span>
-    </a>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm text-ink-soft">Period</span>
+        <span className={[
+          'text-xs font-semibold px-2 py-0.5 rounded-full border',
+          expired ? 'bg-danger/10 text-danger border-danger/30' : 'bg-success/10 text-success border-success/30',
+        ].join(' ')}>
+          {expired ? 'Expired' : 'Active'}
+        </span>
+      </div>
+
+      <p className="text-sm">{dateRange(booking.startDateTime, booking.endDateTime)}</p>
+
+      {!expired && hoursLeft !== null && (
+        <p className="text-xs text-ink-mute">
+          {hoursLeft > 0 ? `${hoursLeft}h remaining` : 'Ending soon'}
+        </p>
+      )}
+      {expired && (
+        <p className="text-xs text-danger">
+          Rental has ended. Please initiate the return process.
+        </p>
+      )}
+    </div>
   );
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   D — RETURN TIMELINE
+══════════════════════════════════════════════════════════════════════════════ */
+
+const RETURN_STAGES = [
+  { key: 'return_requested',        label: 'Return Requested',        tsField: 'returnRequestedAt' },
+  { key: 'return_pickup_scheduled', label: 'Return Pickup Scheduled', tsField: 'returnPickupScheduledAt' },
+  { key: 'return_in_transit',       label: 'Return In Transit',       tsField: 'returnInTransitAt' },
+  { key: 'returned_to_provider',    label: 'Returned to Provider',    tsField: 'returnedAt' },
+  { key: 'return_completed',        label: 'Return Completed',        tsField: 'returnCompletedAt' },
+];
+
+const RETURN_ORDER = RETURN_STAGES.map(s => s.key);
+const RETURN_LABELS = {
+  return_pickup_scheduled: 'Schedule Pickup',
+  return_in_transit:       'Mark In Transit',
+  returned_to_provider:    'Mark Returned to Provider',
+  return_completed:        'Complete Return',
+};
+
+function ReturnTimeline({ returnData, isProvider, onAdvance, busy }) {
+  const activeIdx = RETURN_ORDER.indexOf(returnData?.status ?? '');
+  const nextStatus = RETURN_ORDER[activeIdx + 1];
+  const isComplete = returnData?.status === 'return_completed';
+
+  return (
+    <div>
+      <div className="space-y-0">
+        {RETURN_STAGES.map((stage, i) => {
+          const done = i <= activeIdx;
+          const ts   = returnData?.[stage.tsField];
+          return (
+            <div key={stage.key} className="flex gap-3">
+              <div className="flex flex-col items-center" style={{ width: 20 }}>
+                <div className={[
+                  'w-5 h-5 rounded-full border-2 flex items-center justify-center text-[9px] font-bold shrink-0',
+                  done ? 'bg-success border-success text-white' : 'bg-surface border-line text-ink-mute',
+                ].join(' ')}>
+                  {done ? '✓' : ''}
+                </div>
+                {i < RETURN_STAGES.length - 1 && <Connector done={done} />}
+              </div>
+              <div className="pb-3 min-w-0">
+                <p className={`text-sm font-medium ${done ? 'text-ink' : 'text-ink-mute'}`}>
+                  {stage.label}
+                </p>
+                <p className="text-xs text-ink-mute">{ts ? dateTime(ts) : 'Pending'}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Provider advance action */}
+      {isProvider && nextStatus && RETURN_LABELS[nextStatus] && !isComplete && (
+        <div className="mt-3 pt-3 border-t border-line">
+          <button
+            onClick={() => onAdvance(nextStatus)}
+            disabled={Boolean(busy)}
+            className="btn-secondary btn-sm"
+            id={`ret-btn-${nextStatus}`}
+          >
+            {busy ? 'Updating…' : RETURN_LABELS[nextStatus]}
+          </button>
+        </div>
+      )}
+
+      {isComplete && (
+        <div className="mt-3 flex items-center gap-2 text-success text-xs font-medium">
+          <IconCheck />
+          Return completed — booking fully closed
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   NEGOTIATION THREAD
+══════════════════════════════════════════════════════════════════════════════ */
 
 function NegotiationThread({ bookingId, booking, me, isProvider }) {
   const { data, isLoading } = useNegotiation(bookingId);
@@ -175,8 +418,6 @@ function NegotiationThread({ bookingId, booking, me, isProvider }) {
   const qc = useQueryClient();
 
   const [message, setMessage] = useState('');
-  // 'message' | 'counter_offer' | 'quotation'. A quotation is the provider
-  // stating a formal price; a counter-offer is either side proposing new terms.
   const [mode, setMode] = useState('message');
   const [price, setPrice] = useState(booking.quotedPrice || '');
   const [start, setStart] = useState(toLocalInput(booking.startDateTime));
@@ -222,35 +463,30 @@ function NegotiationThread({ bookingId, booking, me, isProvider }) {
 
   return (
     <div>
-      <h2 className="h-section mb-5">Messages & offers</h2>
-
+      <h2 className="h-section mb-4">Messages &amp; offers</h2>
       {isLoading ? (
         <Spinner label="Loading conversation" />
       ) : (
         <div className="space-y-3 mb-4">
           {messages.length === 0 && (
-            <p className="text-base text-ink-soft">
+            <p className="text-sm text-ink-soft">
               No messages yet. Use this thread to agree terms before accepting.
             </p>
           )}
-
           {messages.map((m) => {
             const mine = String(m.sender?._id) === String(me._id);
             return (
               <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[75%] border rounded-lg px-3 py-2 ${
-                    mine ? 'bg-surface-sunk border-line' : 'bg-surface-alt border-line'
-                  }`}
-                >
+                <div className={`max-w-[75%] border rounded-lg px-3 py-2 ${
+                  mine ? 'bg-surface-sunk border-line' : 'bg-surface-alt border-line'
+                }`}>
                   <p className="text-xs font-semibold mb-0.5">
                     {m.sender?.businessName}
                     <span className="font-normal text-ink-mute"> · {relative(m.createdAt)}</span>
                   </p>
-
                   {m.type === 'counter_offer' || m.type === 'quotation' ? (
                     <>
-                      <p className="text-base font-semibold text-ink mb-0.5">
+                      <p className="text-sm font-semibold text-ink mb-0.5">
                         {m.type === 'quotation' ? 'Quotation' : 'Counter-offer'}: {inr(m.proposedPrice)}
                       </p>
                       {m.proposedStart && (
@@ -258,18 +494,16 @@ function NegotiationThread({ bookingId, booking, me, isProvider }) {
                           {dateRange(m.proposedStart, m.proposedEnd)}
                         </p>
                       )}
-                      {m.message && <p className="text-base mb-1">{m.message}</p>}
+                      {m.message && <p className="text-sm mb-1">{m.message}</p>}
                       {!mine && !closed && (
-                        <button
-                          onClick={() => acceptOffer(m._id)}
-                          className="btn-primary text-xs px-3 py-1 mt-1"
-                        >
+                        <button onClick={() => acceptOffer(m._id)}
+                          className="btn-primary btn-sm mt-1">
                           Accept these terms
                         </button>
                       )}
                     </>
                   ) : (
-                    <p className="text-base">{m.message}</p>
+                    <p className="text-sm">{m.message}</p>
                   )}
                 </div>
               </div>
@@ -286,82 +520,92 @@ function NegotiationThread({ bookingId, booking, me, isProvider }) {
                 <label className="label">
                   {mode === 'quotation' ? 'Quoted price (₹)' : 'Proposed price (₹)'}
                 </label>
-                <input
-                  type="number"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="field"
-                  required
-                />
+                <input type="number" value={price} onChange={e => setPrice(e.target.value)}
+                  className="field" required />
               </div>
               <div>
                 <label className="label">From</label>
-                <input
-                  type="datetime-local"
-                  value={start}
-                  onChange={(e) => setStart(e.target.value)}
-                  className="field"
-                />
+                <input type="datetime-local" value={start}
+                  onChange={e => setStart(e.target.value)} className="field" />
               </div>
               <div>
                 <label className="label">To</label>
-                <input
-                  type="datetime-local"
-                  value={end}
-                  onChange={(e) => setEnd(e.target.value)}
-                  className="field"
-                />
+                <input type="datetime-local" value={end}
+                  onChange={e => setEnd(e.target.value)} className="field" />
               </div>
             </div>
           )}
-
-          <textarea
-            rows={2}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={
-              mode === 'message' ? 'Write a message…' : 'Add a note (optional)'
-            }
-            className="field-area mb-2"
-          />
-
+          <textarea rows={2} value={message} onChange={e => setMessage(e.target.value)}
+            placeholder={mode === 'message' ? 'Write a message…' : 'Add a note (optional)'}
+            className="field-area mb-2" />
           <div className="flex flex-wrap gap-2">
             <button type="submit" disabled={send.isPending} className="btn-primary">
-              {mode === 'message'
-                ? 'Send message'
-                : mode === 'quotation'
-                  ? 'Send quotation'
-                  : 'Send counter-offer'}
+              {mode === 'message' ? 'Send message'
+                : mode === 'quotation' ? 'Send quotation'
+                : 'Send counter-offer'}
             </button>
-
             {mode === 'message' ? (
               <>
-                <button
-                  type="button"
-                  onClick={() => setMode('counter_offer')}
-                  className="btn-secondary"
-                >
-                  Make a counter-offer
-                </button>
-                {/* Only the side supplying the resource can quote a price for it. */}
+                <button type="button" onClick={() => setMode('counter_offer')}
+                  className="btn-secondary">Make a counter-offer</button>
                 {isProvider && (
-                  <button
-                    type="button"
-                    onClick={() => setMode('quotation')}
-                    className="btn-secondary"
-                  >
-                    Send a quotation
-                  </button>
+                  <button type="button" onClick={() => setMode('quotation')}
+                    className="btn-secondary">Send a quotation</button>
                 )}
               </>
             ) : (
-              <button type="button" onClick={() => setMode('message')} className="btn-ghost">
-                Cancel
-              </button>
+              <button type="button" onClick={() => setMode('message')}
+                className="btn-ghost">Cancel</button>
             )}
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   REVIEW FORM — fully theme-aware, dark-mode safe
+   Stars use CSS custom properties; no hard-coded hex colours.
+══════════════════════════════════════════════════════════════════════════════ */
+
+function StarRating({ rating, onSelect, disabled }) {
+  const [hovered, setHovered] = useState(0);
+  const display = disabled ? rating : (hovered || rating);
+
+  return (
+    <div
+      className="flex items-center gap-1"
+      onMouseLeave={() => !disabled && setHovered(0)}
+      role="group"
+      aria-label="Star rating"
+    >
+      {[1, 2, 3, 4, 5].map(n => (
+        <button
+          key={n}
+          type="button"
+          disabled={disabled}
+          onClick={() => !disabled && onSelect(n)}
+          onMouseEnter={() => !disabled && setHovered(n)}
+          aria-label={`${n} star${n > 1 ? 's' : ''}`}
+          className={[
+            'p-0.5 rounded transition-transform duration-100',
+            !disabled ? 'cursor-pointer hover:scale-110' : 'cursor-default',
+          ].join(' ')}
+        >
+          {/* Use currentColor so the star responds to Tailwind text-* classes */}
+          <svg
+            width="28" height="28"
+            viewBox="0 0 20 20"
+            fill={n <= display ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            strokeWidth="1"
+            className={n <= display ? 'text-ink' : 'text-line-strong'}
+          >
+            <path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z" />
+          </svg>
+        </button>
+      ))}
     </div>
   );
 }
@@ -391,37 +635,22 @@ function ReviewForm({ booking, me }) {
   if (done) return <Alert tone="success">Your review has been posted.</Alert>;
 
   return (
-    <form onSubmit={submit} id="review">
+    <form onSubmit={submit}>
       <h2 className="h-section mb-4">Write a review</h2>
 
-      <div className="flex items-center gap-2 mb-2">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => setRating(n)}
-            aria-label={`${n} star${n > 1 ? 's' : ''}`}
-            className="p-0.5"
-          >
-            <svg
-              width="26"
-              height="26"
-              viewBox="0 0 20 20"
-              fill={n <= rating ? '#141416' : '#E4E4E7'}
-            >
-              <path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z" />
-            </svg>
-          </button>
-        ))}
-        <span className="text-base text-ink-soft ml-1">{rating} out of 5</span>
+      <div className="mb-3">
+        <StarRating rating={rating} onSelect={setRating} disabled={false} />
+        <p className="text-sm text-ink-soft mt-1.5">
+          <span className="font-semibold text-ink">{rating}</span> out of 5
+        </p>
       </div>
 
       <textarea
         rows={3}
         value={comment}
-        onChange={(e) => setComment(e.target.value)}
+        onChange={e => setComment(e.target.value)}
         placeholder="How did it go? Condition, punctuality, communication…"
-        className="field-area mb-2"
+        className="field-area w-full mb-3"
       />
 
       <button type="submit" disabled={busy} className="btn-primary">
@@ -431,28 +660,125 @@ function ReviewForm({ booking, me }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   DIRECTIONS
+══════════════════════════════════════════════════════════════════════════════ */
+
+function buildMapsUrl(resource, provider) {
+  const coords = resource?.location?.coordinates;
+  if (coords?.length === 2) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${coords[1]},${coords[0]}`;
+  }
+  const addr = resource?.location?.address || resource?.location?.city;
+  if (addr) return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
+  const city = provider?.location?.city;
+  if (city) return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(city)}`;
+  return null;
+}
+
+function GetDirections({ booking, isProvider }) {
+  if (isProvider) return null;
+  if (!['confirmed', 'completed'].includes(booking.status)) return null;
+  const url = buildMapsUrl(booking.resource, booking.provider);
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="btn-secondary w-full justify-center">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <polygon points="3 11 22 2 13 21 11 13 3 11" />
+      </svg>
+      Get Directions
+    </a>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   SECTION WRAPPER — collapsible with header chevron
+══════════════════════════════════════════════════════════════════════════════ */
+
+function Section({ title, badge, defaultOpen = true, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="card">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 group"
+      >
+        <h2 className="h-section text-left">{title}</h2>
+        <div className="flex items-center gap-2 shrink-0">
+          {badge}
+          <svg
+            width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className={`text-ink-mute transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+            aria-hidden
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </div>
+      </button>
+
+      {open && <div className="mt-4">{children}</div>}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MAIN PAGE
+══════════════════════════════════════════════════════════════════════════════ */
+
 export default function BookingDetail() {
   const { id } = useParams();
   const { user } = useAuth();
   const { data, isLoading } = useBooking(id);
   const actions = useBookingActions();
   const [busy, setBusy] = useState('');
+  const [fulfillmentExpanded, setFulfillmentExpanded] = useState(true);
+
+  // Fire rental-expiry check on load (idempotent server-side)
+  useEffect(() => {
+    if (!data?.booking || !user) return;
+    const b = data.booking;
+    const parties = [String(b.provider?._id), String(b.seeker?._id)];
+    if (!parties.includes(String(user._id))) return;
+    if (b.status !== 'confirmed' || b.fulfillment?.status !== 'delivered') return;
+    if (b.rentalExpiryNotified) return;
+    const expired = b.endDateTime && Date.now() > new Date(b.endDateTime).getTime();
+    if (!expired) return;
+    actions.checkExpiry.mutate({ id: b._id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.booking?._id, data?.booking?.status, data?.booking?.fulfillment?.status]);
 
   if (isLoading) return <Spinner label="Loading request" />;
 
   const booking = data?.booking;
-  if (!booking) return <div className="shell pt-12 pb-20">Request not found.</div>;
+  if (!booking) {
+    return (
+      <div className="shell pt-12 pb-20 text-center">
+        <p className="text-ink-soft">Request not found.</p>
+        <Link to="/bookings/sent" className="btn-secondary mt-4 inline-flex">Back</Link>
+      </div>
+    );
+  }
 
-  const transaction = data?.transaction;
-  const r = booking.resource || {};
-  const isProvider = String(booking.provider?._id) === String(user._id);
+  const transaction  = data?.transaction;
+  const r            = booking.resource || {};
+  const isProvider   = String(booking.provider?._id) === String(user._id);
   const counterparty = isProvider ? booking.seeker : booking.provider;
+
+  // Key state flags
+  const isConfirmed  = booking.status === 'confirmed';
+  const isCompleted  = booking.status === 'completed';
+  const hasAnyFulfillment = Boolean(booking.fulfillment?.status);
+  const isDelivered  = booking.fulfillment?.status === 'delivered';
+  const hasReturn    = Boolean(booking.return?.status);
+  const rentalEnded  = booking.endDateTime && Date.now() > new Date(booking.endDateTime).getTime();
 
   const run = async (verb, mutation, extra = {}) => {
     setBusy(verb);
     try {
       await mutation.mutateAsync({ id: booking._id, ...extra });
-      toast.success(`Request ${verb}ed`);
     } catch (err) {
       toast.error(errorMessage(err, `Could not ${verb}.`));
     } finally {
@@ -460,30 +786,63 @@ export default function BookingDetail() {
     }
   };
 
+  const advanceFulfillment = (status) => run('fulfillment', actions.fulfillment, { status });
+  const advanceReturn      = (status) => run('returnItem', actions.returnItem, { status });
+
   return (
-    <div className="shell pt-12 pb-20">
-      <p className="text-xs text-ink-soft mb-3">
+    <div className="shell pt-10 pb-20">
+      {/* Breadcrumb */}
+      <p className="text-xs text-ink-soft mb-4">
         <Link to={isProvider ? '/bookings/received' : '/bookings/sent'} className="link">
           {isProvider ? 'Incoming requests' : 'Your requests'}
         </Link>
         {' › '}
-        <span>Request #{booking._id.slice(-10).toUpperCase()}</span>
+        <span>Request #{String(booking._id).slice(-10).toUpperCase()}</span>
       </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
+        {/* ── LEFT ──────────────────────────────────────────────────────── */}
         <div className="space-y-4">
+
+          {/* ═══ A — ORDER TIMELINE ═══ */}
           <div className="card">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-5">
               <h1 className="h-section">Order timeline</h1>
               <StatusBadge status={booking.status} />
             </div>
-            <ProgressTracker
-              status={booking.status}
-              startDateTime={booking.startDateTime}
-              endDateTime={booking.endDateTime}
+
+            <OrderTimeline
+              booking={booking}
+              onClickInProgress={() => setFulfillmentExpanded(e => !e)}
+              fulfillmentExpanded={fulfillmentExpanded}
             />
 
-            {/* Cancellation / rejection reason */}
+            {/* Inline fulfillment expansion (connected to In Progress) */}
+            {fulfillmentExpanded && (isConfirmed || isCompleted) && (
+              <div className="mt-5 pt-4 border-t border-line">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-ink-mute uppercase tracking-wide">
+                    Fulfillment detail
+                  </p>
+                  {isDelivered ? (
+                    <span className="text-xs text-success font-medium">Delivered ✓</span>
+                  ) : hasAnyFulfillment ? (
+                    <span className="text-xs text-ink-mute font-medium">In Progress</span>
+                  ) : (
+                    <span className="text-xs text-ink-mute">Awaiting Start</span>
+                  )}
+                </div>
+
+                <FulfillmentTimeline
+                  fulfillment={booking.fulfillment}
+                  isProvider={isProvider && isConfirmed}
+                  onAdvance={advanceFulfillment}
+                  busy={busy === 'fulfillment' ? busy : ''}
+                />
+              </div>
+            )}
+
+            {/* Rejection / cancellation reason */}
             {(booking.cancellationReason || booking.rejectionReason) && (
               <div className="mt-4 p-3 rounded-lg bg-danger/5 border border-danger/20 text-sm text-danger">
                 <span className="font-medium">Reason: </span>
@@ -492,38 +851,34 @@ export default function BookingDetail() {
             )}
           </div>
 
+          {/* ═══ Resource details ═══ */}
           <div className="card">
-            <h2 className="h-section mb-5">Resource</h2>
+            <h2 className="h-section mb-4">Resource</h2>
             <div className="flex gap-4">
               <Link to={`/r/${r._id}`} className="shrink-0">
                 <img
-                  src={resourceImage(r)}
-                  alt={r.title}
-                  className="w-[120px] h-[120px] object-cover rounded"
+                  src={resourceImage(r)} alt={r.title}
+                  className="w-24 h-24 object-cover rounded border border-line"
                 />
               </Link>
               <div className="flex-1 min-w-0">
-                <Link to={`/r/${r._id}`} className="text-lg link block">
+                <Link to={`/r/${r._id}`} className="text-base font-semibold link block">
                   {r.title}
                 </Link>
-                <p className="text-base text-ink-soft mt-1">
+                <p className="text-sm text-ink-soft mt-1">
                   {dateRange(booking.startDateTime, booking.endDateTime)}
                 </p>
-                <p className="text-base text-ink-soft">Quantity: {booking.requestedQuantity}</p>
-                <p className="text-base text-ink-soft">
-                  Logistics:{' '}
-                  {booking.logistics === 'provider_transport'
-                    ? 'Provider arranges transport'
-                    : 'Self pickup'}
+                <p className="text-sm text-ink-soft">Qty: {booking.requestedQuantity}</p>
+                <p className="text-sm text-ink-soft">
+                  {booking.logistics === 'provider_transport' ? 'Provider transport' : 'Self pickup'}
                 </p>
                 {booking.notes && (
-                  <p className="text-base mt-2 border-l-2 border-line pl-2 text-ink-soft">
-                    “{booking.notes}”
+                  <p className="text-sm mt-2 border-l-2 border-line pl-2 text-ink-soft italic">
+                    "{booking.notes}"
                   </p>
                 )}
               </div>
             </div>
-
             {booking.matchBreakdown && (
               <div className="mt-4 pt-4 border-t border-line">
                 <MatchBreakdown
@@ -535,6 +890,7 @@ export default function BookingDetail() {
             )}
           </div>
 
+          {/* ═══ Negotiation ═══ */}
           <div className="card">
             <NegotiationThread
               bookingId={booking._id}
@@ -544,17 +900,93 @@ export default function BookingDetail() {
             />
           </div>
 
-          {booking.status === 'completed' && (
+          {/* ═══ B — FULFILLMENT (standalone card, shown when confirmed) ═══ */}
+          {(isConfirmed || isCompleted) && (
+            <Section
+              title="Fulfillment"
+              defaultOpen={hasAnyFulfillment || isConfirmed}
+              badge={
+                isDelivered
+                  ? <span className="text-xs text-success font-medium">Delivered ✓</span>
+                  : hasAnyFulfillment
+                  ? <span className="text-xs text-ink-mute">In progress</span>
+                  : <span className="text-xs text-ink-mute">Awaiting start</span>
+              }
+            >
+              <FulfillmentTimeline
+                fulfillment={booking.fulfillment}
+                isProvider={isProvider && isConfirmed}
+                onAdvance={advanceFulfillment}
+                busy={busy === 'fulfillment' ? busy : ''}
+              />
+            </Section>
+          )}
+
+          {/* ═══ C — RENTAL PERIOD (only after delivered) ═══ */}
+          {isDelivered && (
+            <Section title="Rental period" defaultOpen badge={
+              rentalEnded
+                ? <span className="text-xs text-danger font-medium">Expired</span>
+                : <span className="text-xs text-success font-medium">Active</span>
+            }>
+              <RentalPeriod booking={booking} />
+            </Section>
+          )}
+
+          {/* ═══ D — RETURN (only after delivered + rental ended or return started) ═══ */}
+          {isDelivered && (rentalEnded || hasReturn) && (
+            <Section
+              title="Return"
+              defaultOpen={hasReturn}
+              badge={
+                booking.return?.status === 'return_completed'
+                  ? <span className="text-xs text-success font-medium">Completed ✓</span>
+                  : hasReturn
+                  ? <span className="text-xs text-ink-mute">In progress</span>
+                  : null
+              }
+            >
+              {!hasReturn ? (
+                <div>
+                  <p className="text-sm text-ink-soft mb-3">
+                    The rental period has ended. Please initiate the return process.
+                  </p>
+                  {!isProvider && isConfirmed && (
+                    <button
+                      onClick={() => run('returnItem', actions.returnItem, { status: 'return_requested' })}
+                      disabled={Boolean(busy)}
+                      className="btn-primary"
+                      id="start-return-btn"
+                    >
+                      {busy === 'returnItem' ? 'Processing…' : 'Start Return'}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <ReturnTimeline
+                  returnData={booking.return}
+                  isProvider={isProvider && isConfirmed}
+                  onAdvance={advanceReturn}
+                  busy={busy === 'returnItem' ? busy : ''}
+                />
+              )}
+            </Section>
+          )}
+
+          {/* ═══ Review (only after full completion) ═══ */}
+          {isCompleted && (
             <div className="card">
               <ReviewForm booking={booking} me={user} />
             </div>
           )}
         </div>
 
+        {/* ── RIGHT COLUMN ──────────────────────────────────────────────── */}
         <div className="space-y-4">
+          {/* Summary panel */}
           <Panel className="p-4">
-            <h2 className="text-base font-semibold mb-2">Summary</h2>
-            <dl className="text-base space-y-1.5">
+            <h2 className="text-base font-semibold mb-3">Summary</h2>
+            <dl className="text-sm space-y-1.5">
               <div className="flex justify-between gap-2">
                 <dt className="text-ink-soft">Quoted</dt>
                 <dd>{inr(booking.quotedPrice || 0)}</dd>
@@ -571,19 +1003,17 @@ export default function BookingDetail() {
               </div>
               <div className="flex justify-between gap-2">
                 <dt className="text-ink-soft">Requested</dt>
-                <dd>{dateTime(booking.createdAt)}</dd>
+                <dd className="text-right">{dateTime(booking.createdAt)}</dd>
               </div>
             </dl>
 
-            {/* The money trail. Payments are simulated, and the copy says so
-                rather than implying a real settlement has happened. */}
             {transaction && (
               <>
-                <hr className="border-0 border-t border-line my-3" />
-                <h3 className="text-base font-semibold mb-2">Transaction</h3>
-                <dl className="text-base space-y-1.5">
+                <hr className="rule my-3" />
+                <h3 className="text-sm font-semibold mb-2">Transaction</h3>
+                <dl className="text-sm space-y-1.5">
                   <div className="flex justify-between gap-2">
-                    <dt className="text-ink-soft">Reference</dt>
+                    <dt className="text-ink-soft">Ref</dt>
                     <dd className="font-mono text-xs">
                       {String(transaction._id).slice(-10).toUpperCase()}
                     </dd>
@@ -594,43 +1024,30 @@ export default function BookingDetail() {
                   </div>
                   <div className="flex justify-between gap-2">
                     <dt className="text-ink-soft">Status</dt>
-                    <dd
-                      className={
-                        transaction.status === 'simulated_paid' ? 'text-success' : 'text-ink-soft'
-                      }
-                    >
-                      {transaction.status === 'simulated_paid'
-                        ? 'Paid (simulated)'
-                        : transaction.status === 'refunded'
-                          ? 'Refunded'
-                          : 'Pending'}
+                    <dd className={transaction.status === 'simulated_paid' ? 'text-success' : 'text-ink-soft'}>
+                      {transaction.status === 'simulated_paid' ? 'Paid (demo)' : transaction.status}
                     </dd>
                   </div>
                   {transaction.paidAt && (
                     <div className="flex justify-between gap-2">
                       <dt className="text-ink-soft">Settled</dt>
-                      <dd>{dateTime(transaction.paidAt)}</dd>
+                      <dd className="text-right">{dateTime(transaction.paidAt)}</dd>
                     </div>
                   )}
                 </dl>
               </>
             )}
 
-            <hr className="border-0 border-t border-line my-3" />
-
-            <h3 className="text-base font-semibold mb-1">
+            <hr className="rule my-3" />
+            <h3 className="text-sm font-semibold mb-1">
               {isProvider ? 'Requesting business' : 'Provider'}
             </h3>
-            <Link to={`/provider/${counterparty?._id}`} className="link text-base block">
+            <Link to={`/provider/${counterparty?._id}`} className="link text-sm block">
               {counterparty?.businessName}
             </Link>
             {counterparty?.ratingCount > 0 && (
-              <Stars
-                rating={counterparty.ratingAvg}
-                count={counterparty.ratingCount}
-                size={13}
-                className="mt-0.5"
-              />
+              <Stars rating={counterparty.ratingAvg} count={counterparty.ratingCount}
+                     size={12} className="mt-1" />
             )}
             <p className="text-xs text-ink-soft mt-1">
               {counterparty?.location?.city}
@@ -638,9 +1055,11 @@ export default function BookingDetail() {
             </p>
           </Panel>
 
+          {/* Actions panel */}
           <Panel className="p-4 space-y-2">
-            <h2 className="text-base font-semibold">Actions</h2>
+            <h2 className="text-sm font-semibold mb-1">Actions</h2>
 
+            {/* Provider: accept / decline */}
             {isProvider && ['pending', 'negotiating'].includes(booking.status) && (
               <>
                 <button
@@ -652,7 +1071,7 @@ export default function BookingDetail() {
                 </button>
                 <button
                   onClick={() => {
-                    const reason = window.prompt('Why are you declining? (optional)') ?? '';
+                    const reason = window.prompt('Reason for declining? (optional)') ?? '';
                     run('reject', actions.reject, { reason });
                   }}
                   disabled={Boolean(busy)}
@@ -663,16 +1082,15 @@ export default function BookingDetail() {
               </>
             )}
 
+            {/* Seeker: proceed to payment */}
             {!isProvider && booking.status === 'accepted' && (
-              <Link
-                to={`/payment/${booking._id}`}
-                className="btn-primary w-full justify-center"
-              >
+              <Link to={`/payment/${booking._id}`} className="btn-primary w-full justify-center">
                 Proceed to Payment →
               </Link>
             )}
 
-            {booking.status === 'confirmed' && (
+            {/* Non-physical complete (service bookings — no fulfillment) */}
+            {booking.status === 'confirmed' && !hasAnyFulfillment && (
               <button
                 onClick={() => run('complete', actions.complete)}
                 disabled={Boolean(busy)}
@@ -682,9 +1100,9 @@ export default function BookingDetail() {
               </button>
             )}
 
-            {/* Get Directions — visible to seeker on confirmed/completed bookings */}
             <GetDirections booking={booking} isProvider={isProvider} />
 
+            {/* Cancel */}
             {['pending', 'negotiating', 'accepted', 'confirmed'].includes(booking.status) && (
               <button
                 onClick={() => {
@@ -699,8 +1117,8 @@ export default function BookingDetail() {
             )}
 
             {['completed', 'cancelled', 'rejected'].includes(booking.status) && (
-              <p className="text-base text-ink-soft">
-                This request is closed. Nothing further to do.
+              <p className="text-xs text-ink-soft text-center py-1">
+                This request is closed.
               </p>
             )}
           </Panel>

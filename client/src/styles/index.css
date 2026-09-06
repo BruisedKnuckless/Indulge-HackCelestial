@@ -29,8 +29,8 @@
   --color-surface-alt:  255 255 255;   /* #FFFFFF  — card surface            */
   --color-surface-sunk: 242 241 237;   /* #F2F1ED — inputs / sunken areas    */
 
-  /* Navigation bar — white with subtle separation in light mode */
-  --color-nav:          255 255 255;   /* #FFFFFF */
+  /* Navigation bar — #A0A0A2 in light mode */
+  --color-nav:          160 160 162;   /* #A0A0A2 */
   --color-nav-soft:     248 247 244;   /* #F8F7F4 — hover tint matches page */
 
   /* Text */

@@ -62,6 +62,7 @@ export function DealBadge({ children, className = '' }) {
 }
 
 export const STATUS_LABELS = {
+  // Booking lifecycle
   pending: 'Awaiting provider',
   negotiating: 'In negotiation',
   accepted: 'Accepted — confirm to book',
@@ -69,6 +70,17 @@ export const STATUS_LABELS = {
   confirmed: 'Confirmed',
   cancelled: 'Cancelled',
   completed: 'Completed',
+  // Fulfillment
+  packed:           'Order packed',
+  loading:          'Loading for transport',
+  out_for_delivery: 'Out for delivery',
+  delivered:        'Delivered',
+  // Return
+  return_requested:        'Return requested',
+  return_pickup_scheduled: 'Pickup scheduled',
+  return_in_transit:       'Return in transit',
+  returned_to_provider:    'Returned to provider',
+  return_completed:        'Return completed',
 };
 
 const STATUS_TONE = {
@@ -79,6 +91,17 @@ const STATUS_TONE = {
   completed: 'border-line-strong text-ink-soft',
   rejected: 'border-danger/40 text-danger',
   cancelled: 'border-danger/40 text-danger',
+  // Fulfillment — neutral progression
+  packed:           'border-line text-ink-soft',
+  loading:          'border-line text-ink-soft',
+  out_for_delivery: 'border-warn/40 text-warn',
+  delivered:        'border-success/40 text-success',
+  // Return
+  return_requested:        'border-warn/40 text-warn',
+  return_pickup_scheduled: 'border-warn/40 text-warn',
+  return_in_transit:       'border-warn/40 text-warn',
+  returned_to_provider:    'border-success/40 text-success',
+  return_completed:        'border-success/40 text-success',
 };
 
 export function StatusBadge({ status, className = '' }) {

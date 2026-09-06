@@ -373,6 +373,20 @@ router.patch(
       throw new HttpError(400, 'Only confirmed bookings can be completed.');
     }
 
+    // If fulfillment has been started (physical delivery workflow), the booking
+    // can only reach "completed" via the return workflow (PATCH /return with
+    // status: return_completed). Preventing early completion here ensures
+    // DELIVERED ≠ COMPLETED.
+    if (booking.fulfillment?.status) {
+      throw new HttpError(
+        400,
+        'This booking uses the delivery/return workflow. ' +
+        'It will be completed automatically when the return is confirmed.'
+      );
+    }
+
+    // Non-physical/service bookings (no fulfillment started) may be completed
+    // directly by either party.
     booking.status = 'completed';
     await booking.save();
 
@@ -380,4 +394,217 @@ router.patch(
   })
 );
 
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FULFILLMENT
+   Provider advances: packed → loading → out_for_delivery → delivered
+   Only the provider of a confirmed booking may call this.
+───────────────────────────────────────────────────────────────────────────── */
+
+const FULFILLMENT_ORDER = ['packed', 'loading', 'out_for_delivery', 'delivered'];
+const FULFILLMENT_TS_FIELD = {
+  packed:            'packedAt',
+  loading:           'loadingAt',
+  out_for_delivery:  'outForDeliveryAt',
+  delivered:         'deliveredAt',
+};
+
+router.patch(
+  '/:id/fulfillment',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const booking = await Booking.findById(req.params.id).populate('resource');
+    if (!booking) throw new HttpError(404, 'Request not found.');
+
+    // Only the provider may update fulfillment.
+    if (String(booking.provider) !== String(req.user._id)) {
+      throw new HttpError(403, 'Only the provider can update fulfillment status.');
+    }
+    if (booking.status !== 'confirmed') {
+      throw new HttpError(400, 'Fulfillment can only be updated for confirmed bookings.');
+    }
+
+    const { status, notes } = req.body;
+    if (!FULFILLMENT_ORDER.includes(status)) {
+      throw new HttpError(400, `Invalid fulfillment status: ${status}`);
+    }
+
+    // Enforce forward-only transitions.
+    const currentIdx = FULFILLMENT_ORDER.indexOf(booking.fulfillment?.status ?? '');
+    const newIdx = FULFILLMENT_ORDER.indexOf(status);
+    if (newIdx <= currentIdx) {
+      throw new HttpError(400, `Cannot go from ${booking.fulfillment?.status} to ${status}.`);
+    }
+
+    // Set status + timestamp.
+    if (!booking.fulfillment) booking.fulfillment = {};
+    booking.fulfillment.status = status;
+    booking.fulfillment[FULFILLMENT_TS_FIELD[status]] = new Date();
+    if (notes) booking.fulfillment.notes = notes;
+    booking.markModified('fulfillment');
+    await booking.save();
+
+    // Notify the seeker.
+    const FULFILLMENT_LABELS = {
+      packed:           'Order packed',
+      loading:          'Loading for transport',
+      out_for_delivery: 'Out for delivery',
+      delivered:        'Delivered',
+    };
+    await notify({
+      user: booking.seeker,
+      type: 'fulfillment_update',
+      title: FULFILLMENT_LABELS[status],
+      message: `Your booking for ${booking.resource.title} is now: ${FULFILLMENT_LABELS[status]}`,
+      relatedBooking: booking._id,
+    });
+
+    res.json({ booking: await booking.populate(POPULATE) });
+  })
+);
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   RETURN
+   Seeker initiates (return_requested).
+   Subsequent states can be advanced by either party (provider manages logistics).
+   State machine: return_requested → return_pickup_scheduled → return_in_transit
+                  → returned_to_provider → return_completed
+───────────────────────────────────────────────────────────────────────────── */
+
+const RETURN_ORDER = [
+  'return_requested',
+  'return_pickup_scheduled',
+  'return_in_transit',
+  'returned_to_provider',
+  'return_completed',
+];
+const RETURN_TS_FIELD = {
+  return_requested:          'returnRequestedAt',
+  return_pickup_scheduled:   'returnPickupScheduledAt',
+  return_in_transit:         'returnInTransitAt',
+  returned_to_provider:      'returnedAt',
+  return_completed:          'returnCompletedAt',
+};
+
+router.patch(
+  '/:id/return',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const booking = await Booking.findById(req.params.id).populate('resource');
+    if (!booking) throw new HttpError(404, 'Request not found.');
+
+    const parties = [String(booking.provider), String(booking.seeker)];
+    if (!parties.includes(String(req.user._id))) {
+      throw new HttpError(403, 'You are not a party to this request.');
+    }
+    if (booking.status !== 'confirmed') {
+      throw new HttpError(400, 'Returns can only be initiated for confirmed bookings.');
+    }
+
+    const { status, notes } = req.body;
+    if (!RETURN_ORDER.includes(status)) {
+      throw new HttpError(400, `Invalid return status: ${status}`);
+    }
+
+    // First transition (return_requested) must come from the seeker.
+    if (status === 'return_requested' && String(booking.seeker) !== String(req.user._id)) {
+      throw new HttpError(403, 'Only the seeker can initiate a return.');
+    }
+
+    // Enforce forward-only transitions.
+    const currentIdx = RETURN_ORDER.indexOf(booking.return?.status ?? '');
+    const newIdx = RETURN_ORDER.indexOf(status);
+    if (newIdx <= currentIdx) {
+      throw new HttpError(400, `Cannot go from ${booking.return?.status} to ${status}.`);
+    }
+
+    if (!booking.return) booking.return = {};
+    booking.return.status = status;
+    booking.return[RETURN_TS_FIELD[status]] = new Date();
+    if (notes) booking.return.notes = notes;
+    booking.markModified('return');
+
+    // When return is fully completed, mark the booking as completed.
+    if (status === 'return_completed') {
+      booking.status = 'completed';
+    }
+
+    await booking.save();
+
+    const RETURN_LABELS = {
+      return_requested:        'Return requested',
+      return_pickup_scheduled: 'Return pickup scheduled',
+      return_in_transit:       'Return in transit',
+      returned_to_provider:    'Returned to provider',
+      return_completed:        'Return completed',
+    };
+
+    // Notify the other party.
+    const otherParty =
+      String(req.user._id) === String(booking.seeker) ? booking.provider : booking.seeker;
+    await notify({
+      user: otherParty,
+      type: 'return_update',
+      title: RETURN_LABELS[status],
+      message: `Return update for ${booking.resource.title}: ${RETURN_LABELS[status]}`,
+      relatedBooking: booking._id,
+    });
+
+    res.json({ booking: await booking.populate(POPULATE) });
+  })
+);
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CHECK EXPIRY
+   Idempotent: fires a rental-expiry notification to the seeker if:
+   - booking is confirmed
+   - item has been delivered
+   - rental endDateTime has passed
+   - notification not yet sent (rentalExpiryNotified === false)
+───────────────────────────────────────────────────────────────────────────── */
+
+router.post(
+  '/:id/check-expiry',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const booking = await Booking.findById(req.params.id).populate('resource');
+    if (!booking) throw new HttpError(404, 'Request not found.');
+
+    const parties = [String(booking.provider), String(booking.seeker)];
+    if (!parties.includes(String(req.user._id))) {
+      throw new HttpError(403, 'You are not a party to this request.');
+    }
+
+    const now = new Date();
+    const rentalEnded = booking.endDateTime && now > new Date(booking.endDateTime);
+    const delivered = booking.fulfillment?.status === 'delivered';
+    const returnDone =
+      booking.return?.status === 'return_completed' || booking.status === 'completed';
+
+    if (
+      booking.status === 'confirmed' &&
+      delivered &&
+      rentalEnded &&
+      !returnDone &&
+      !booking.rentalExpiryNotified
+    ) {
+      booking.rentalExpiryNotified = true;
+      await booking.save();
+
+      await notify({
+        user: booking.seeker,
+        type: 'rental_expiry',
+        title: 'Rental period ended',
+        message: `Your rental for ${booking.resource.title} has ended. Please initiate the return.`,
+        relatedBooking: booking._id,
+      });
+
+      return res.json({ notified: true });
+    }
+
+    res.json({ notified: false });
+  })
+);
+
 export default router;
+

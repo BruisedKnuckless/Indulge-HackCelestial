@@ -69,7 +69,7 @@ const PATHS = {
     "M18 16v-5a6 6 0 10-12 0v5l-1.5 2h15zM10 21h4",
   user:
     "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z",
-  menu:  "M4 7h16M4 12h16M4 17h16",
+  menu: "M4 7h16M4 12h16M4 17h16",
   close: "M6 6l12 12M18 6L6 18",
 };
 
@@ -131,7 +131,7 @@ function NavLink({ to, label }) {
           ? "font-medium text-ink bg-surface-sunk dark:bg-white/20"
           : "text-ink/65",
         !active &&
-          "hover:text-ink hover:bg-surface-sunk dark:hover:bg-white/15",
+        "hover:text-ink hover:bg-surface-sunk dark:hover:bg-white/15",
       ]
         .filter(Boolean)
         .join(" ")}

@@ -156,7 +156,15 @@ export default function RequirementsFeed() {
                   </div>
 
                   <div className="flex items-center gap-2 text-xs text-ink-soft">
-                    <span>Seeker: <strong className="text-ink">{seeker.businessName || 'Verified Seeker'}</strong></span>
+                    <span>
+                      Seeker:{' '}
+                      <Link
+                        to={`/provider/${seeker._id}`}
+                        className="font-semibold text-ink hover:text-accent transition-colors"
+                      >
+                        {seeker.businessName || 'Verified Seeker'}
+                      </Link>
+                    </span>
                     {seeker.ratingCount > 0 && (
                       <Stars rating={seeker.ratingAvg} count={seeker.ratingCount} size={12} />
                     )}
