@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import User from '../models/User.js';
+import Booking from '../models/Booking.js';
+import Resource from '../models/Resource.js';
 import { signToken, requireAuth } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 
@@ -67,6 +69,41 @@ router.patch(
     }
     await req.user.save();
     res.json({ user: req.user });
+  })
+);
+
+/**
+ * Public business profile — safe for unauthenticated access.
+ * Never exposes: email, phone, passwordHash, gstNumber, preferences.
+ */
+router.get(
+  '/users/:id/public',
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.params.id)
+      .select('businessName businessType location ratingAvg ratingCount createdAt')
+      .lean();
+
+    if (!user) throw new HttpError(404, 'Business not found.');
+
+    // Derive live counts from related collections — no fabrication.
+    const [completedOrders, activeListings] = await Promise.all([
+      Booking.countDocuments({ provider: user._id, status: 'completed' }),
+      Resource.countDocuments({ owner: user._id, status: 'active' }),
+    ]);
+
+    res.json({
+      profile: {
+        _id: user._id,
+        businessName: user.businessName,
+        businessType: user.businessType || 'other',
+        city: user.location?.city || null,
+        ratingAvg: user.ratingAvg || 0,
+        ratingCount: user.ratingCount || 0,
+        completedOrders,
+        activeListings,
+        memberSince: user.createdAt,
+      },
+    });
   })
 );
 

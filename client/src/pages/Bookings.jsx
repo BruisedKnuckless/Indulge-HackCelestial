@@ -94,13 +94,12 @@ function BookingRow({ booking, direction, actions }) {
           )}
 
           {!isProvider && booking.status === 'accepted' && (
-            <button
-              onClick={() => run('confirm', actions.confirm)}
-              disabled={Boolean(busy)}
+            <Link
+              to={`/payment/${booking._id}`}
               className="btn-primary btn-sm"
             >
-              Confirm booking
-            </button>
+              Pay now →
+            </Link>
           )}
 
           <Link to={`/bookings/detail/${booking._id}`} className="btn-secondary btn-sm">

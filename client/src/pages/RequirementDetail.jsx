@@ -62,11 +62,11 @@ export default function RequirementDetail() {
 
   return (
     <div className="shell pt-12 pb-20 max-w-[900px]">
-      <p className="text-sm muted mb-6">
+      <p className="text-xs text-ink-soft mb-3">
         <Link to={isOwner ? '/requirements' : '/requirements/board'} className="link">
           {isOwner ? 'Your requirements' : 'Open requirements'}
         </Link>
-        {' / '}
+        {' › '}
         <span>{r.title}</span>
       </p>
 
@@ -93,7 +93,11 @@ export default function RequirementDetail() {
               </p>
             )}
             <p className="text-sm muted mt-1">
-              Posted by {r.seeker?.businessName} · {relative(r.createdAt)}
+              Posted by{' '}
+              <Link to={`/provider/${r.seeker?._id}`} className="link-quiet font-medium hover:text-ink">
+                {r.seeker?.businessName}
+              </Link>
+              {' '}· {relative(r.createdAt)}
             </p>
           </div>
 

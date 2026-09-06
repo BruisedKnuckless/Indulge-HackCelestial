@@ -263,6 +263,69 @@ router.patch(
   })
 );
 
+/**
+ * PATCH /bookings/:id/pay — demo payment gateway.
+ *
+ * Validates ownership, status and idempotency before advancing the booking
+ * to confirmed and recording the simulated payment.  A real gateway would
+ * verify a payment-provider token here instead of trusting the client.
+ */
+router.patch(
+  '/:id/pay',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const booking = await Booking.findById(req.params.id).populate('resource');
+    if (!booking) throw new HttpError(404, 'Request not found.');
+
+    // Only the seeker (the paying party) may initiate payment.
+    if (String(booking.seeker) !== String(req.user._id)) {
+      throw new HttpError(403, 'Only the requesting business can pay.');
+    }
+
+    // Idempotency guard — if already paid, return current state idempotently
+    const existing = await Transaction.findOne({ booking: booking._id });
+    if (existing && existing.status === 'simulated_paid') {
+      return res.json({ booking: await booking.populate(POPULATE), transaction: existing });
+    }
+
+    // Booking must be accepted (provider has agreed & set the price).
+    if (booking.status !== 'accepted') {
+      throw new HttpError(400, `Payment is only possible for accepted requests (current: ${booking.status}).`);
+    }
+
+    const { paymentMethod = 'upi' } = req.body;
+    const ALLOWED_METHODS = ['upi', 'card', 'netbanking', 'wallet'];
+    if (!ALLOWED_METHODS.includes(paymentMethod)) {
+      throw new HttpError(400, 'Invalid payment method.');
+    }
+
+    // Advance booking to confirmed.
+    booking.status = 'confirmed';
+    await booking.save();
+
+    // Settle the transaction.
+    const transaction = await Transaction.findOneAndUpdate(
+      { booking: booking._id },
+      {
+        status: 'simulated_paid',
+        paidAt: new Date(),
+        paymentMethod,
+      },
+      { new: true, upsert: true }
+    );
+
+    await notify({
+      user: booking.provider,
+      type: 'booking_status_change',
+      title: 'Payment received — booking confirmed',
+      message: `${req.user.businessName} paid and confirmed the booking for ${booking.resource.title}`,
+      relatedBooking: booking._id,
+    });
+
+    res.json({ booking: await booking.populate(POPULATE), transaction });
+  })
+);
+
 router.patch(
   '/:id/cancel',
   requireAuth,

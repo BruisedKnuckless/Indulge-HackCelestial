@@ -232,8 +232,43 @@ async function main() {
     notifs.body.notifications.some((n) => n.type === 'booking_status_change')
   );
 
-  const confirm = await api('PATCH', `/api/bookings/${target._id}/confirm`, { token: kalpataru });
-  check('seeker can confirm', confirm.status === 200 && confirm.body.booking.status === 'confirmed');
+  // ---- payment gateway & idempotency ----
+  const wrongPay = await api('PATCH', `/api/bookings/${target._id}/pay`, {
+    token: seasons,
+    body: { paymentMethod: 'upi' },
+  });
+  check('unrelated business cannot pay for booking', wrongPay.status === 403);
+
+  const payRes = await api('PATCH', `/api/bookings/${target._id}/pay`, {
+    token: kalpataru,
+    body: { paymentMethod: 'upi' },
+  });
+  check(
+    'seeker payment confirms booking and settles transaction',
+    payRes.status === 200 &&
+      payRes.body.booking?.status === 'confirmed' &&
+      payRes.body.transaction?.status === 'simulated_paid'
+  );
+
+  const idempotentPay = await api('PATCH', `/api/bookings/${target._id}/pay`, {
+    token: kalpataru,
+    body: { paymentMethod: 'upi' },
+  });
+  check(
+    'duplicate payment on confirmed booking is idempotent',
+    idempotentPay.status === 200 && idempotentPay.body.transaction?.status === 'simulated_paid'
+  );
+
+  // ---- public business profile ----
+  const pubProfile = await api('GET', `/api/auth/users/${target.provider._id}/public`);
+  check(
+    'public business profile returns safe fields without private credentials',
+    pubProfile.status === 200 &&
+      Boolean(pubProfile.body.profile?.businessName) &&
+      pubProfile.body.profile?.email === undefined &&
+      pubProfile.body.profile?.passwordHash === undefined &&
+      pubProfile.body.profile?.phone === undefined
+  );
 
   const wrongParty = await api('PATCH', `/api/bookings/${target._id}/cancel`, { token: seasons });
   check('an unrelated business cannot touch the booking', wrongParty.status === 403);

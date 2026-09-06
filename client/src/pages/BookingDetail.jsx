@@ -15,66 +15,157 @@ import MatchBreakdown from '../components/MatchBreakdown';
 import { resourceImage } from '../lib/constants';
 import { inr, dateRange, dateTime, relative, toLocalInput } from '../lib/format';
 
-const STEPS = ['Requested', 'Accepted', 'Confirmed', 'In use', 'Completed'];
+/* ── 8-stage order timeline ──────────────────────────────────────────────── */
 
-/** Which tracker step a status corresponds to; -1 means the flow ended early. */
-function stepIndex(status) {
+const TIMELINE_STAGES = [
+  { key: 'requested',   label: 'Requested' },
+  { key: 'negotiation', label: 'Negotiation' },
+  { key: 'accepted',    label: 'Accepted' },
+  { key: 'payment',     label: 'Payment' },
+  { key: 'confirmed',   label: 'Confirmed' },
+  { key: 'upcoming',    label: 'Upcoming' },
+  { key: 'in_progress', label: 'In Progress' },
+  { key: 'completed',   label: 'Completed' },
+];
+
+/**
+ * Map a booking to its timeline position.
+ * Returns -1 for terminal-error states (cancelled / rejected).
+ * "Upcoming" and "In Progress" are derived from startDateTime vs now.
+ */
+function timelineIndex(status, startDateTime, endDateTime) {
+  const now = Date.now();
+  const start = startDateTime ? new Date(startDateTime).getTime() : null;
+  const end   = endDateTime   ? new Date(endDateTime).getTime()   : null;
+
   switch (status) {
-    case 'pending':
-    case 'negotiating':
-      return 0;
-    case 'accepted':
-      return 1;
+    case 'pending':      return 0; // Requested
+    case 'negotiating':  return 1; // Negotiation
+    case 'accepted':     return 2; // Accepted
+    // Payment step: between accepted and confirmed — not a real status,
+    // so "accepted" already advances here. We keep index 2 for accepted,
+    // index 3 for the visual-only payment step (never a real state).
     case 'confirmed':
-      return 2;
-    case 'completed':
-      return 4;
-    default:
-      return -1;
+      if (start && now < start) return 5; // Upcoming
+      if (end   && now > end)   return 7; // Completed-ish (still confirmed)
+      if (start && now >= start) return 6; // In Progress
+      return 4; // Confirmed (fallback)
+    case 'completed':    return 7;
+    default:             return -1; // cancelled / rejected
   }
 }
 
-function ProgressTracker({ status }) {
-  const active = stepIndex(status);
+function ProgressTracker({ status, startDateTime, endDateTime }) {
+  const active = timelineIndex(status, startDateTime, endDateTime);
 
   if (active === -1) {
     return (
       <Alert tone="error">
-        This request was {status}. No further action is possible.
+        This request was <strong>{status}</strong>. No further action is possible.
       </Alert>
     );
   }
 
   return (
-    <div className="flex items-center">
-      {STEPS.map((label, i) => (
-        <div key={label} className="flex items-center flex-1 last:flex-none">
-          <div className="flex flex-col items-center gap-1 shrink-0">
-            <div
-              className={`w-6 h-6 rounded-full grid place-items-center text-xs font-semibold ${
-                i <= active ? 'bg-success text-white' : 'bg-line text-ink-mute'
-              }`}
-            >
-              {i < active ? '✓' : i + 1}
+    <div className="w-full">
+      {/* Desktop: horizontal stepper */}
+      <div className="hidden sm:flex items-start">
+        {TIMELINE_STAGES.map((stage, i) => (
+          <div key={stage.key} className="flex items-start flex-1 last:flex-none">
+            <div className="flex flex-col items-center gap-1.5 shrink-0">
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
+                  i < active
+                    ? 'bg-success text-white'
+                    : i === active
+                    ? 'bg-ink text-ink-invert'
+                    : 'bg-line text-ink-mute'
+                }`}
+              >
+                {i < active ? '✓' : i + 1}
+              </div>
+              <span
+                className={`text-[10px] text-center whitespace-nowrap leading-tight ${
+                  i <= active ? 'text-ink font-medium' : 'text-ink-mute'
+                }`}
+              >
+                {stage.label}
+              </span>
             </div>
-            <span
-              className={`text-xs whitespace-nowrap ${
-                i <= active ? 'text-ink font-semibold' : 'text-ink-mute'
-              }`}
-            >
-              {label}
-            </span>
+            {i < TIMELINE_STAGES.length - 1 && (
+              <div
+                className={`flex-1 h-[2px] mt-3 mx-1 rounded ${
+                  i < active ? 'bg-success' : 'bg-line'
+                }`}
+              />
+            )}
           </div>
-          {i < STEPS.length - 1 && (
-            <div
-              className={`flex-1 h-[3px] mx-1 mb-4 rounded ${
-                i < active ? 'bg-success' : 'bg-line'
-              }`}
-            />
-          )}
+        ))}
+      </div>
+
+      {/* Mobile: current step pill + done count */}
+      <div className="sm:hidden flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-ink text-ink-invert flex items-center justify-center text-sm font-semibold shrink-0">
+          {active + 1}
         </div>
-      ))}
+        <div>
+          <p className="text-sm font-medium">{TIMELINE_STAGES[active]?.label}</p>
+          <p className="text-xs text-ink-mute">
+            Step {active + 1} of {TIMELINE_STAGES.length}
+          </p>
+        </div>
+      </div>
     </div>
+  );
+}
+
+/* ── Get Directions button ───────────────────────────────────────────────── */
+
+function buildMapsUrl(resource, provider) {
+  // Prefer resource coordinates, then resource address, then provider city.
+  const coords = resource?.location?.coordinates; // [lng, lat]
+  if (coords && coords.length === 2) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${coords[1]},${coords[0]}`;
+  }
+  const addr = resource?.location?.address || resource?.location?.city;
+  if (addr) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`;
+  }
+  const city = provider?.location?.city;
+  if (city) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(city)}`;
+  }
+  return null;
+}
+
+function GetDirections({ booking, isProvider }) {
+  if (isProvider) return null; // directions are for the seeker going TO the resource
+  if (booking.status !== 'confirmed' && booking.status !== 'completed') return null;
+
+  const url = buildMapsUrl(booking.resource, booking.provider);
+  if (!url) return null;
+
+  const locationLabel =
+    booking.resource?.location?.city ||
+    booking.provider?.location?.city ||
+    'the resource location';
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 btn-secondary w-full justify-center"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="3 11 22 2 13 21 11 13 3 11" />
+      </svg>
+      Get Directions
+      <span className="text-xs text-ink-mute normal-case font-normal">
+        ({locationLabel})
+      </span>
+    </a>
   );
 }
 
@@ -382,11 +473,23 @@ export default function BookingDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
         <div className="space-y-4">
           <div className="card">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-              <h1 className="h-section">Request status</h1>
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-5">
+              <h1 className="h-section">Order timeline</h1>
               <StatusBadge status={booking.status} />
             </div>
-            <ProgressTracker status={booking.status} />
+            <ProgressTracker
+              status={booking.status}
+              startDateTime={booking.startDateTime}
+              endDateTime={booking.endDateTime}
+            />
+
+            {/* Cancellation / rejection reason */}
+            {(booking.cancellationReason || booking.rejectionReason) && (
+              <div className="mt-4 p-3 rounded-lg bg-danger/5 border border-danger/20 text-sm text-danger">
+                <span className="font-medium">Reason: </span>
+                {booking.cancellationReason || booking.rejectionReason}
+              </div>
+            )}
           </div>
 
           <div className="card">
@@ -561,13 +664,12 @@ export default function BookingDetail() {
             )}
 
             {!isProvider && booking.status === 'accepted' && (
-              <button
-                onClick={() => run('confirm', actions.confirm)}
-                disabled={Boolean(busy)}
-                className="btn-primary w-full"
+              <Link
+                to={`/payment/${booking._id}`}
+                className="btn-primary w-full justify-center"
               >
-                Confirm booking
-              </button>
+                Proceed to Payment →
+              </Link>
             )}
 
             {booking.status === 'confirmed' && (
@@ -579,6 +681,9 @@ export default function BookingDetail() {
                 Mark as completed
               </button>
             )}
+
+            {/* Get Directions — visible to seeker on confirmed/completed bookings */}
+            <GetDirections booking={booking} isProvider={isProvider} />
 
             {['pending', 'negotiating', 'accepted', 'confirmed'].includes(booking.status) && (
               <button

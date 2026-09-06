@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useMyRequirements, useRequirement, useRequirementActions } from '../hooks/queries';
 import { errorMessage } from '../api/client';
-import { Spinner, EmptyState, Stars, Price } from '../components/ui';
+import { Spinner, EmptyState, Stars } from '../components/ui';
 import { CATEGORY_LABELS } from '../lib/constants';
 import { inr, dateRange, relative } from '../lib/format';
 
@@ -43,15 +43,15 @@ function ProposalsDrawer({ requirementId }) {
 
   if (proposals.length === 0) {
     return (
-      <div className="p-6 text-center text-ink-soft bg-[#F7F8F8] rounded-b border-t border-bd text-base">
+      <div className="p-6 text-center text-ink-soft bg-surface-sunk/60 rounded-b-xl border-t border-line text-xs">
         No proposals received yet. We have broadcasted your requirement to suppliers nearby.
       </div>
     );
   }
 
   return (
-    <div className="p-4 bg-[#F7F8F8] rounded-b border-t border-bd space-y-3">
-      <h3 className="text-lead font-bold text-ink">
+    <div className="p-4 bg-surface-sunk/50 rounded-b-xl border-t border-line space-y-3">
+      <h3 className="text-sm font-semibold text-ink">
         Submitted Quotations ({proposals.length})
       </h3>
 
@@ -65,64 +65,64 @@ function ProposalsDrawer({ requirementId }) {
           return (
             <div
               key={p._id}
-              className={`p-4 rounded border bg-white flex flex-col justify-between ${
+              className={`p-4 rounded-xl border bg-surface-alt flex flex-col justify-between ${
                 isWinner
                   ? 'border-success ring-1 ring-success'
                   : isRejected
-                  ? 'opacity-60 border-bd'
-                  : 'border-bd hover:border-[#007185]'
+                  ? 'opacity-60 border-line'
+                  : 'border-line hover:border-ink/40'
               }`}
             >
               <div>
                 <div className="flex items-baseline justify-between mb-1">
-                  <h4 className="text-title font-bold text-ink">{provider.businessName}</h4>
-                  <span className="text-lead font-bold text-deal">{inr(p.quotedPrice)}</span>
+                  <h4 className="text-sm font-semibold text-ink">{provider.businessName}</h4>
+                  <span className="text-base font-semibold text-ink">{inr(p.quotedPrice)}</span>
                 </div>
 
                 <div className="flex items-center gap-2 mb-2">
                   {provider.ratingCount > 0 ? (
                     <Stars rating={provider.ratingAvg} count={provider.ratingCount} size={12} />
                   ) : (
-                    <span className="text-mini text-ink-soft">New Supplier</span>
+                    <span className="text-[11px] text-ink-soft">New Supplier</span>
                   )}
                   {provider.location?.city && (
-                    <span className="text-mini text-ink-soft">· {provider.location.city}</span>
+                    <span className="text-[11px] text-ink-soft">· {provider.location.city}</span>
                   )}
                 </div>
 
-                <div className="p-2 bg-[#F7FAFA] rounded border border-bd text-base mb-2">
-                  <span className="text-mini text-ink-soft block font-bold">Committed Resource:</span>
-                  <Link to={`/r/${resource._id}`} className="a-link font-bold">
+                <div className="p-2.5 bg-surface-sunk rounded-lg border border-line text-xs mb-2">
+                  <span className="text-[11px] text-ink-mute block font-medium">Committed Resource:</span>
+                  <Link to={`/r/${resource._id}`} className="font-semibold text-ink hover:underline">
                     {resource.title}
                   </Link>
                   {resource.capacity && (
-                    <span className="text-micro text-ink-mute block">Capacity: {resource.capacity}</span>
+                    <span className="text-[11px] text-ink-mute block">Capacity: {resource.capacity}</span>
                   )}
                 </div>
 
                 {p.notes && (
-                  <p className="text-base text-ink-soft italic mb-3">
+                  <p className="text-xs text-ink-soft italic mb-3">
                     “{p.notes}”
                   </p>
                 )}
               </div>
 
-              <div className="pt-2 border-t border-bd flex items-center justify-between">
-                <span className="text-mini text-ink-mute">
+              <div className="pt-2.5 border-t border-line flex items-center justify-between">
+                <span className="text-[11px] text-ink-mute">
                   Quoted {relative(p.createdAt)}
                 </span>
 
                 {isWinner ? (
-                  <span className="text-mini font-bold bg-[#E8F5E9] text-success px-2.5 py-1 rounded">
+                  <span className="text-xs font-semibold bg-success/10 border border-success/30 text-success px-2.5 py-1 rounded-md">
                     ✓ Accepted & Booked
                   </span>
                 ) : isRejected ? (
-                  <span className="text-mini text-ink-mute font-bold">Declined</span>
+                  <span className="text-xs text-ink-mute font-medium">Declined</span>
                 ) : req.status === 'open' ? (
                   <button
                     onClick={() => handleAccept(p._id)}
                     disabled={acceptingId === p._id}
-                    className="btn-yellow btn-pill text-base font-bold px-4 py-1"
+                    className="btn-primary btn-sm"
                   >
                     {acceptingId === p._id ? 'Booking…' : 'Accept & Book'}
                   </button>
@@ -144,28 +144,28 @@ export default function MyRFQs() {
   const requirements = data?.requirements || [];
 
   return (
-    <div className="page-shell py-4 max-w-[1000px]">
-      <div className="flex items-baseline justify-between flex-wrap gap-2 mb-4">
+    <div className="shell pt-12 pb-20 max-w-[1000px]">
+      <div className="flex items-baseline justify-between flex-wrap gap-4 mb-6">
         <div>
-          <h1 className="text-page font-normal">My Requirements (RFQs)</h1>
-          <p className="text-base text-ink-soft">
+          <h1 className="h-page">My Requirements (RFQs)</h1>
+          <p className="text-sm muted mt-1">
             Track resource requests you have broadcasted to suppliers, review competitive quotations, and confirm bookings.
           </p>
         </div>
-        <Link to="/requirements/new" className="btn-yellow btn-pill">
+        <Link to="/requirements/new" className="btn-primary">
           Post New Requirement
         </Link>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-bd mb-4 text-base">
+      <div className="flex border-b border-line mb-6 text-sm">
         {['all', 'open', 'fulfilled'].map((tab) => (
           <button
             key={tab}
             onClick={() => setStatusFilter(tab)}
-            className={`px-4 py-2 capitalize font-bold border-b-2 -mb-px transition-colors ${
+            className={`px-4 py-2 capitalize font-medium border-b-2 -mb-px transition-colors ${
               statusFilter === tab
-                ? 'border-orange text-ink'
+                ? 'border-ink text-ink font-semibold'
                 : 'border-transparent text-ink-soft hover:text-ink'
             }`}
           >
@@ -181,7 +181,7 @@ export default function MyRFQs() {
           title="No requirements posted"
           message="Post what you need and let qualified hospitality suppliers nearby bid with their best rates."
           action={
-            <Link to="/requirements/new" className="btn-yellow btn-pill">
+            <Link to="/requirements/new" className="btn-primary">
               Post your first RFQ
             </Link>
           }
@@ -193,36 +193,38 @@ export default function MyRFQs() {
             const isFulfilled = rfq.status === 'fulfilled';
 
             return (
-              <div key={rfq._id} className="bg-white border border-bd rounded-lg overflow-hidden">
+              <div key={rfq._id} className="card p-0 overflow-hidden">
                 <div className="p-5 flex flex-col md:flex-row gap-4 justify-between items-start">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-micro font-bold bg-[#E7F3F5] text-[#007185] px-2 py-0.5 rounded">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="inline-flex items-center h-5 px-2 rounded-full border border-line text-[11px] font-medium bg-surface-sunk text-ink-soft">
                         {CATEGORY_LABELS[rfq.category]}
                       </span>
                       <span
-                        className={`text-micro font-bold px-2 py-0.5 rounded capitalize ${
-                          isFulfilled ? 'bg-[#E8F5E9] text-success' : 'bg-[#FEF8E7] text-ink'
+                        className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-medium border capitalize ${
+                          isFulfilled
+                            ? 'bg-success/10 border-success/30 text-success'
+                            : 'bg-surface-sunk border-line text-ink'
                         }`}
                       >
                         {rfq.status}
                       </span>
-                      <span className="text-mini text-ink-mute">
+                      <span className="text-xs text-ink-mute">
                         Posted {relative(rfq.createdAt)}
                       </span>
                     </div>
 
-                    <h2 className="text-title font-bold text-ink leading-snug mb-1">
+                    <h2 className="text-lg font-semibold text-ink leading-snug mb-1">
                       {rfq.title}
                     </h2>
 
                     {rfq.description && (
-                      <p className="text-base text-ink-soft mb-2">{rfq.description}</p>
+                      <p className="text-sm muted mb-2">{rfq.description}</p>
                     )}
 
-                    <div className="flex flex-wrap gap-4 text-base text-ink-soft mt-2">
-                      <span>Quantity: <strong>{rfq.requiredQuantity} {rfq.unit}</strong></span>
-                      <span>Dates: <strong>{dateRange(rfq.startDateTime, rfq.endDateTime)}</strong></span>
+                    <div className="flex flex-wrap gap-4 text-xs text-ink-soft mt-3">
+                      <span>Quantity: <strong className="text-ink">{rfq.requiredQuantity} {rfq.unit}</strong></span>
+                      <span>Dates: <strong className="text-ink">{dateRange(rfq.startDateTime, rfq.endDateTime)}</strong></span>
                       {rfq.maxBudget && (
                         <span>Budget Cap: <strong className="text-success">{inr(rfq.maxBudget)}</strong></span>
                       )}
@@ -232,7 +234,7 @@ export default function MyRFQs() {
                   <div className="shrink-0 flex flex-col items-end gap-2 w-full md:w-auto">
                     <button
                       onClick={() => setOpenDrawerId(isOpen ? null : rfq._id)}
-                      className="btn-secondary btn-pill text-base w-full md:w-auto"
+                      className="btn-secondary btn-sm w-full md:w-auto"
                     >
                       {isOpen ? 'Hide Quotes' : `View Quotes (${rfq.proposalCount || 0})`}
                     </button>
@@ -240,7 +242,7 @@ export default function MyRFQs() {
                     {isFulfilled && rfq.resultingBooking && (
                       <Link
                         to={`/bookings/detail/${rfq.resultingBooking._id || rfq.resultingBooking}`}
-                        className="a-link text-mini"
+                        className="text-xs link"
                       >
                         View Confirmed Booking →
                       </Link>

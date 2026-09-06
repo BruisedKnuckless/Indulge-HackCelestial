@@ -11,25 +11,18 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
 
   const matchingResources = useMemo(() => {
     const list = listingsData?.resources || [];
-    return list.filter((r) => r.category === requirement.category && r.status === 'active');
-  }, [listingsData, requirement.category]);
+    return list.filter((r) => r.category === requirement?.category && r.status === 'active');
+  }, [listingsData, requirement?.category]);
 
   const [resourceId, setResourceId] = useState('');
-  const [quotedPrice, setQuotedPrice] = useState(requirement.maxBudget || '');
+  const [quotedPrice, setQuotedPrice] = useState(requirement?.maxBudget || '');
   const [customDates, setCustomDates] = useState(false);
-  const [start, setStart] = useState(toLocalInput(requirement.startDateTime));
-  const [end, setEnd] = useState(toLocalInput(requirement.endDateTime));
+  const [start, setStart] = useState(requirement?.startDateTime ? toLocalInput(requirement.startDateTime) : '');
+  const [end, setEnd] = useState(requirement?.endDateTime ? toLocalInput(requirement.endDateTime) : '');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Set default resource once listings load
-  useState(() => {
-    if (matchingResources.length > 0 && !resourceId) {
-      setResourceId(matchingResources[0]._id);
-    }
-  });
-
-  if (!isOpen) return null;
+  if (!isOpen || !requirement) return null;
 
   const selectedResId = resourceId || matchingResources[0]?._id;
   const selectedResource = matchingResources.find((r) => r._id === selectedResId);
@@ -62,16 +55,17 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden border border-bd">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-bd bg-[#F7F8F8]">
-          <div>
-            <h3 className="text-title font-bold leading-tight">Submit Quotation</h3>
-            <p className="text-mini text-ink-soft mt-0.5 line-clamp-1">{requirement.title}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+      <div className="bg-surface-alt text-ink rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-line">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-surface-sunk/40">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-ink leading-tight">Submit Quotation</h3>
+            <p className="text-xs text-ink-soft mt-0.5 truncate">{requirement.title}</p>
           </div>
           <button
             onClick={onClose}
-            className="text-ink-mute hover:text-ink text-lead font-bold px-2 py-1"
+            className="text-ink-mute hover:text-ink text-sm font-semibold p-1.5 rounded-md hover:bg-surface-sunk transition-colors"
+            aria-label="Close dialog"
           >
             ✕
           </button>
@@ -79,13 +73,13 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="a-label">
+            <label className="label">
               Select Your Listed Resource ({CATEGORY_LABELS[requirement.category]})
             </label>
             {listingsLoading ? (
-              <p className="text-mini text-ink-soft">Loading your listings…</p>
+              <p className="text-xs text-ink-soft">Loading your listings…</p>
             ) : matchingResources.length === 0 ? (
-              <div className="p-3 bg-[#FDECEA] border border-[#E8A9A2] rounded text-danger text-base">
+              <div className="p-3 bg-danger/10 border border-danger/25 rounded-lg text-danger text-xs leading-relaxed">
                 You do not have any active listings in <strong>{CATEGORY_LABELS[requirement.category]}</strong>.
                 Please list a resource in this category before quoting.
               </div>
@@ -93,7 +87,7 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
               <select
                 value={selectedResId}
                 onChange={(e) => setResourceId(e.target.value)}
-                className="a-select w-full"
+                className="field-select w-full text-sm"
                 required
               >
                 {matchingResources.map((r) => (
@@ -104,7 +98,7 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
               </select>
             )}
             {selectedResource && (
-              <p className="text-micro text-ink-mute mt-1">
+              <p className="text-[11px] text-ink-mute mt-1.5">
                 Capacity: {selectedResource.capacity || 'N/A'} · Min Hire: {selectedResource.pricing?.minRentalPeriodHours || 1}h
               </p>
             )}
@@ -112,52 +106,53 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="a-label">Quoted Price (₹)</label>
+              <label className="label">Quoted Price (₹)</label>
               <input
                 type="number"
                 min="1"
                 value={quotedPrice}
                 onChange={(e) => setQuotedPrice(e.target.value)}
-                className="a-input"
+                className="field text-sm"
                 required
               />
               {requirement.maxBudget && (
-                <p className="text-micro text-ink-soft mt-1">
+                <p className="text-[11px] text-ink-soft mt-1">
                   Seeker Budget: {inr(requirement.maxBudget)}
                 </p>
               )}
             </div>
             <div className="flex flex-col justify-end">
-              <label className="flex items-center gap-2 text-base text-ink-soft cursor-pointer mb-2">
+              <label className="flex items-center gap-2 text-xs text-ink-soft cursor-pointer mb-2.5 select-none">
                 <input
                   type="checkbox"
                   checked={customDates}
                   onChange={(e) => setCustomDates(e.target.checked)}
+                  className="rounded border-line-strong text-ink focus:ring-ink"
                 />
-                Propose adjusted hours
+                <span>Propose adjusted hours</span>
               </label>
             </div>
           </div>
 
           {customDates && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-[#F7FAFA] border border-bd rounded">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-surface-sunk border border-line rounded-lg">
               <div>
-                <label className="a-label text-mini">Proposed Start</label>
+                <label className="label text-[11px]">Proposed Start</label>
                 <input
                   type="datetime-local"
                   value={start}
                   onChange={(e) => setStart(e.target.value)}
-                  className="a-input"
+                  className="field text-xs"
                   required={customDates}
                 />
               </div>
               <div>
-                <label className="a-label text-mini">Proposed End</label>
+                <label className="label text-[11px]">Proposed End</label>
                 <input
                   type="datetime-local"
                   value={end}
                   onChange={(e) => setEnd(e.target.value)}
-                  className="a-input"
+                  className="field text-xs"
                   required={customDates}
                 />
               </div>
@@ -165,29 +160,29 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
           )}
 
           <div>
-            <label className="a-label">Proposal Notes / Inclusions</label>
+            <label className="label">Proposal Notes / Inclusions</label>
             <textarea
               rows={3}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Includes green room, 2 sound technicians, and setup from 8am."
-              className="a-textarea"
+              className="field-area text-sm"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-bd">
+          <div className="flex justify-end gap-2 pt-3 border-t border-line">
             <button
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="btn-secondary btn-pill"
+              className="btn-secondary btn-sm"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={busy || matchingResources.length === 0}
-              className="btn-yellow btn-pill"
+              className="btn-primary btn-sm"
             >
               {busy ? 'Submitting…' : 'Submit Proposal'}
             </button>

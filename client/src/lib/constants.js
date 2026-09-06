@@ -71,18 +71,17 @@ export const CATEGORY_ICONS = {
   other: '📦',
 };
 
-/* Placeholder image — uses CSS custom properties so it adapts to the theme. */
+/* Placeholder image — uses neutral translucent fills so it adapts seamlessly to both light and dark themes without bright flashes. */
 const PLACEHOLDER =
   'data:image/svg+xml;charset=utf-8,' +
   encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" role="img" aria-label="No image">
-       <rect width="400" height="300" fill="rgb(244 244 245)"/>
-       <rect x="156" y="100" width="88" height="68" rx="6" fill="rgb(228 228 231)"/>
-       <circle cx="174" cy="120" r="10" fill="rgb(208 208 212)"/>
-       <polygon points="152,168 200,120 248,168" fill="rgb(208 208 212)"/>
-       <polygon points="196,168 228,136 260,168" fill="rgb(228 228 231)"/>
-       <text x="200" y="196" text-anchor="middle" fill="rgb(142 142 147)"
-             font-family="system-ui, -apple-system, sans-serif" font-size="12" letter-spacing="0.04em">NO IMAGE</text>
+       <rect width="400" height="300" fill="rgba(128, 128, 128, 0.12)"/>
+       <rect x="156" y="96" width="88" height="68" rx="8" fill="none" stroke="rgba(128, 128, 128, 0.3)" stroke-width="2"/>
+       <circle cx="174" cy="116" r="8" fill="rgba(128, 128, 128, 0.3)"/>
+       <polygon points="162,156 195,124 220,146 232,136 242,156" fill="rgba(128, 128, 128, 0.3)"/>
+       <text x="200" y="194" text-anchor="middle" fill="rgba(128, 128, 128, 0.55)"
+             font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" letter-spacing="0.08em">INDULGE</text>
      </svg>`
   );
 

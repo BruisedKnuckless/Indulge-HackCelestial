@@ -51,17 +51,15 @@ function CategoryBadge({ category }) {
 /* ── Shared Match Badge ────────────────────────────────────────────────── */
 function MatchBadge({ match, className = '' }) {
   if (match == null) return null;
+  const tier =
+    match >= 90 ? 'bg-emerald-700 text-white' :
+    match >= 75 ? 'bg-slate-700 text-white' :
+                  'bg-amber-700 text-white';
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold tracking-tight shadow-sm backdrop-blur-md ${
-        match >= 90
-          ? 'bg-emerald-600/90 text-white'
-          : match >= 75
-          ? 'bg-indigo-600/90 text-white'
-          : 'bg-amber-600/90 text-white'
-      } ${className}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold tracking-tight ${tier} ${className}`}
     >
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
       </svg>
       {match}% Match

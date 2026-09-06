@@ -31,6 +31,8 @@ import MyRFQs from './pages/MyRFQs';
 import MyRequirements from './pages/MyRequirements';
 import RequirementBoard from './pages/RequirementBoard';
 import RequirementDetail from './pages/RequirementDetail';
+import Payment from './pages/Payment';
+import HowItWorks from './pages/HowItWorks';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -89,6 +91,7 @@ export default function App() {
                 <Route path="/nearby" element={<Nearby />} />
                 <Route path="/r/:id" element={<ResourceDetail />} />
                 <Route path="/provider/:id" element={<ProviderProfile />} />
+                <Route path="/how-it-works" element={<HowItWorks />} />
 
                 <Route
                   path="/cart"
@@ -127,6 +130,14 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <BookingDetail />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/payment/:bookingId"
+                  element={
+                    <RequireAuth>
+                      <Payment />
                     </RequireAuth>
                   }
                 />

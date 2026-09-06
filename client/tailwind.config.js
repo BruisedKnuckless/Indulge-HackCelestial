@@ -61,6 +61,12 @@ export default {
       },
       borderRadius: {
         DEFAULT: "6px",
+        sm:    "4px",
+        md:    "8px",
+        lg:    "10px",
+        xl:    "12px",
+        "2xl": "16px",
+        full:  "9999px",
       },
     },
   },

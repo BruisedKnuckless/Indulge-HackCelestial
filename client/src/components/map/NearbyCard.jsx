@@ -115,7 +115,7 @@ export default function NearbyCard({ resource: r, selected, onClick, onAdd, addi
           <Link
             to={`/r/${r._id}`}
             onClick={(e) => e.stopPropagation()}
-            className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-md border border-line bg-surface hover:border-accent hover:text-accent transition-all duration-150 whitespace-nowrap shadow-2xs"
+            className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-md border border-line bg-surface hover:border-accent hover:text-accent transition-all duration-150 whitespace-nowrap shadow-sm"
           >
             Details
           </Link>

@@ -124,6 +124,7 @@ export function useBookingActions() {
     confirm: useMutation(patch('confirm')),
     cancel: useMutation(patch('cancel')),
     complete: useMutation(patch('complete')),
+    pay: useMutation(patch('pay')),
   };
 }
 
@@ -181,6 +182,15 @@ export function useUserReviews(userId) {
     queryKey: ['reviews', userId],
     queryFn: async () => (await api.get(`/reviews/user/${userId}`)).data,
     enabled: Boolean(userId),
+  });
+}
+
+export function useProviderProfile(userId) {
+  return useQuery({
+    queryKey: ['provider-profile', userId],
+    queryFn: async () => (await api.get(`/auth/users/${userId}/public`)).data,
+    enabled: Boolean(userId),
+    staleTime: 60_000, // profile stats don't need to refresh every second
   });
 }
 

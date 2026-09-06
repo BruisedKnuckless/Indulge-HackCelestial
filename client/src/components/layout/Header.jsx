@@ -102,6 +102,7 @@ const ACCOUNT_LINKS = [
   { to: '/listings', label: 'Your listings' },
   { to: '/analytics', label: 'Analytics' },
   { to: '/notifications', label: 'Notifications' },
+  { to: '/how-it-works', label: 'How Indulge works' },
 ];
 
 /* ── NavLink — knows its own active state ────────────────────────────────── */
@@ -124,13 +125,13 @@ function NavLink({ to, label }) {
     <Link
       to={to}
       className={[
-        "relative px-2.5 py-1.5 text-sm rounded",
+        "relative px-2.5 py-1.5 text-sm rounded-md",
         "transition-colors duration-200 whitespace-nowrap",
         active
-          ? "font-medium text-ink bg-white/20"
+          ? "font-medium text-ink bg-surface-sunk dark:bg-white/20"
           : "text-ink/65",
         !active &&
-          "hover:text-ink hover:bg-white/15",
+          "hover:text-ink hover:bg-surface-sunk dark:hover:bg-white/15",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -140,7 +141,7 @@ function NavLink({ to, label }) {
       {active && (
         <span
           aria-hidden
-          className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-ink/40"
+          className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-ink/30"
         />
       )}
     </Link>
@@ -150,9 +151,9 @@ function NavLink({ to, label }) {
 /* ── Shared icon-button class ────────────────────────────────────────────── */
 
 const ICON_BTN =
-  "grid place-items-center w-9 h-9 rounded " +
+  "grid place-items-center w-9 h-9 rounded-md " +
   "text-ink " +
-  "hover:bg-white/20 dark:hover:bg-white/10 " +
+  "hover:bg-surface-sunk dark:hover:bg-white/10 " +
   "transition-colors duration-200";
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
@@ -199,7 +200,7 @@ export default function Header() {
   const unread = notifs?.unreadCount ?? 0;
 
   return (
-    <header className="sticky top-0 z-40 bg-nav">
+    <header className="sticky top-0 z-40 bg-nav border-b border-line shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-none">
       <div className="shell">
         <div className="h-16 flex items-center gap-2">
 
@@ -307,9 +308,9 @@ export default function Header() {
             <button
               onClick={() => setMenuOpen((v) => !v)}
               className={[
-                "flex items-center gap-2 h-9 px-2 rounded",
+                "flex items-center gap-2 h-9 px-2 rounded-md",
                 "text-ink",
-                "hover:bg-white/20 dark:hover:bg-white/10",
+                "hover:bg-surface-sunk dark:hover:bg-white/10",
                 "transition-colors duration-200",
               ].join(" ")}
               aria-label="Account menu"
@@ -404,12 +405,13 @@ export default function Header() {
                 <Link
                   key={n.to}
                   to={n.to}
+                  onClick={() => setMobileOpen(false)}
                   className={[
                     "py-2 px-3 text-sm rounded",
                     "transition-colors duration-150",
                     active
-                      ? "font-medium text-ink bg-white/15"
-                      : "text-ink/70 hover:text-ink hover:bg-white/10",
+                      ? "font-medium text-ink bg-surface-sunk dark:bg-white/15"
+                      : "text-ink/70 hover:text-ink hover:bg-surface-sunk dark:hover:bg-white/10",
                   ].join(" ")}
                 >
                   {n.label}
@@ -417,12 +419,34 @@ export default function Header() {
               );
             })}
 
+            <Link
+              to="/how-it-works"
+              onClick={() => setMobileOpen(false)}
+              className={[
+                "py-2 px-3 text-sm rounded",
+                "transition-colors duration-150",
+                pathname === "/how-it-works"
+                  ? "font-medium text-ink bg-surface-sunk dark:bg-white/15"
+                  : "text-ink/70 hover:text-ink hover:bg-surface-sunk dark:hover:bg-white/10",
+              ].join(" ")}
+            >
+              How it works
+            </Link>
+
             {!user && (
               <div className="mt-3 pt-3 border-t border-black/10 dark:border-white/8 flex gap-2">
-                <Link to="/login" className="btn-primary flex-1 justify-center">
+                <Link
+                  to="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="btn-primary flex-1 justify-center"
+                >
                   Sign in
                 </Link>
-                <Link to="/register" className="btn-secondary flex-1 justify-center">
+                <Link
+                  to="/register"
+                  onClick={() => setMobileOpen(false)}
+                  className="btn-secondary flex-1 justify-center"
+                >
                   Register
                 </Link>
               </div>
