@@ -59,16 +59,16 @@ export const FACTOR_WEIGHTS = {
   urgencyFit: 10,
 };
 
-/** Per-category icon glyphs for card badges and map markers. */
+/** Per-category identifiers for card badges and map markers. */
 export const CATEGORY_ICONS = {
-  banquet_space: '🏛️',
-  parking: '🅿️',
-  vehicle: '🚐',
-  kitchen_capacity: '👨‍🍳',
-  furniture: '🪑',
-  av_equipment: '🎙️',
-  staff: '👤',
-  other: '📦',
+  banquet_space: 'banquet_space',
+  parking: 'parking',
+  vehicle: 'vehicle',
+  kitchen_capacity: 'kitchen_capacity',
+  furniture: 'furniture',
+  av_equipment: 'av_equipment',
+  staff: 'staff',
+  other: 'other',
 };
 
 /* Placeholder image — uses neutral translucent fills so it adapts seamlessly to both light and dark themes without bright flashes. */

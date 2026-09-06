@@ -36,7 +36,7 @@ export default function useNotificationSocket() {
     const socket = io(socketUrl(), { auth: { token } });
 
     socket.on('notification', (n) => {
-      toast(n.message || n.title, { icon: '🔔', duration: 5000 });
+      toast(n.message || n.title, { duration: 5000 });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
     });

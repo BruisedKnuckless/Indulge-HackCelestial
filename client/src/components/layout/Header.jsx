@@ -81,13 +81,14 @@ const PATHS = {
  * both sides of the marketplace.
  */
 const NAV = [
+  { to: '/', label: 'Home' },
   { to: '/s', label: 'Browse' },
   { to: '/nearby', label: 'Nearby' },
   { to: '/requirements/board', label: 'Requirements' },
   { to: '/requirements/feed', label: 'RFQ Feed' },
   { to: '/listings', label: 'Your Listings' },
   { to: '/bookings/received', label: 'Requests' },
-  { to: '/analytics', label: 'Analysis' },
+  { to: '/analytics', label: 'Analytics' },
 ];
 
 const ACCOUNT_LINKS = [
@@ -112,6 +113,7 @@ const ACCOUNT_LINKS = [
  * Bookings are treated as one section regardless of sent / received direction.
  */
 function resolveActive(to, pathname) {
+  if (to === "/") return pathname === "/";
   if (to === "/s") return pathname === "/s";
   if (to === "/bookings/received") return pathname.startsWith("/bookings");
   return pathname === to || pathname.startsWith(to + "/");
@@ -204,8 +206,12 @@ export default function Header() {
       <div className="shell">
         <div className="h-16 flex items-center gap-2">
 
-          {/* ── Logo — left-anchored ───────────────────────────────── */}
-          <Link to="/" aria-label="Indulge home" className="shrink-0 mr-4">
+          <Link
+            to="/"
+            aria-label="Indulge Home"
+            title="Indulge — Home"
+            className="shrink-0 mr-4 transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 rounded"
+          >
             <Logo size={22} className="text-ink" />
           </Link>
 

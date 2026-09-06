@@ -153,9 +153,19 @@
            active:bg-surface-sunk;
   }
 
+  .btn-outline {
+    @apply btn bg-transparent border-line-strong text-ink
+           hover:bg-surface-sunk active:bg-surface-sunk;
+  }
+
   .btn-ghost {
     @apply btn bg-transparent border-transparent text-ink-soft
            hover:text-ink hover:bg-surface-sunk;
+  }
+
+  .btn-danger {
+    @apply btn bg-danger/10 border-danger/30 text-danger
+           hover:bg-danger/20 active:bg-danger/25;
   }
 
   .btn-sm {

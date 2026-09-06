@@ -1,15 +1,16 @@
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { Inbox, RefreshCw, MessageSquare, Star, Bell } from 'lucide-react';
 import api from '../api/client';
 import { useNotifications } from '../hooks/queries';
 import { Spinner, EmptyState } from '../components/ui';
 import { relative } from '../lib/format';
 
 const TYPE_META = {
-  booking_request: { icon: '📥', tone: 'text-ink' },
-  booking_status_change: { icon: '🔄', tone: 'text-success' },
-  negotiation_message: { icon: '💬', tone: 'text-ink' },
-  review_received: { icon: '⭐', tone: 'text-ink' },
+  booking_request: { Icon: Inbox, tone: 'text-ink' },
+  booking_status_change: { Icon: RefreshCw, tone: 'text-success' },
+  negotiation_message: { Icon: MessageSquare, tone: 'text-ink' },
+  review_received: { Icon: Star, tone: 'text-amber-500' },
 };
 
 export default function Notifications() {
@@ -53,16 +54,17 @@ export default function Notifications() {
       ) : (
         <div className="bg-surface-alt border border-line rounded divide-y divide-line">
           {notifications.map((n) => {
-            const meta = TYPE_META[n.type] || {};
+            const meta = TYPE_META[n.type] || { Icon: Bell, tone: 'text-ink-soft' };
+            const IconComponent = meta.Icon || Bell;
             const body = (
               <div
-                className={`flex gap-3 p-4 hover:bg-surface-sunk transition-colors ${
-                  n.isRead ? '' : 'bg-surface-sunk'
+                className={`flex items-start gap-3.5 p-4 hover:bg-surface-sunk transition-colors ${
+                  n.isRead ? '' : 'bg-surface-sunk/60'
                 }`}
               >
-                <span className="text-lg shrink-0" aria-hidden>
-                  {meta.icon || '🔔'}
-                </span>
+                <div className="w-8 h-8 rounded-lg bg-surface-sunk border border-line flex items-center justify-center text-ink-soft shrink-0">
+                  <IconComponent size={16} className={meta.tone || 'text-ink-soft'} />
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className={`text-base font-semibold ${meta.tone || ''}`}>{n.title}</p>
                   <p className="text-base text-ink-soft">{n.message}</p>

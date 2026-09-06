@@ -1,4 +1,18 @@
 import { Link, useParams } from 'react-router-dom';
+import {
+  Building2,
+  Utensils,
+  ChefHat,
+  Landmark,
+  Palmtree,
+  PartyPopper,
+  Star,
+  CheckCircle2,
+  ListChecks,
+  Handshake,
+  Megaphone,
+  Calendar,
+} from 'lucide-react';
 import { useProviderProfile, useUserReviews, useSearch } from '../hooks/queries';
 import { Stars, Spinner, Price, EmptyState } from '../components/ui';
 import {
@@ -11,13 +25,13 @@ import { relative } from '../lib/format';
 
 /* ── Business-type metadata ───────────────────────────────────────────────── */
 const BIZ_META = {
-  hotel:           { label: 'Hotel',          icon: '🏨', color: 'bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-900 dark:text-blue-400' },
-  restaurant:      { label: 'Restaurant',     icon: '🍽️', color: 'bg-orange-500/10 text-orange-600 border-orange-200 dark:border-orange-900 dark:text-orange-400' },
-  caterer:         { label: 'Caterer',        icon: '👨‍🍳', color: 'bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-900 dark:text-amber-400' },
-  banquet_venue:   { label: 'Banquet Venue',  icon: '🏛️', color: 'bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-900 dark:text-purple-400' },
-  resort:          { label: 'Resort',         icon: '🌴', color: 'bg-green-500/10 text-green-600 border-green-200 dark:border-green-900 dark:text-green-400' },
-  event_organizer: { label: 'Event Organizer',icon: '🎪', color: 'bg-pink-500/10 text-pink-600 border-pink-200 dark:border-pink-900 dark:text-pink-400' },
-  other:           { label: 'Business',       icon: '🏢', color: 'bg-surface-sunk text-ink-soft border-line' },
+  hotel:           { label: 'Hotel',          Icon: Building2,   color: 'bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-900 dark:text-blue-400' },
+  restaurant:      { label: 'Restaurant',     Icon: Utensils,    color: 'bg-orange-500/10 text-orange-600 border-orange-200 dark:border-orange-900 dark:text-orange-400' },
+  caterer:         { label: 'Caterer',        Icon: ChefHat,     color: 'bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-900 dark:text-amber-400' },
+  banquet_venue:   { label: 'Banquet Venue',  Icon: Landmark,    color: 'bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-900 dark:text-purple-400' },
+  resort:          { label: 'Resort',         Icon: Palmtree,    color: 'bg-green-500/10 text-green-600 border-green-200 dark:border-green-900 dark:text-green-400' },
+  event_organizer: { label: 'Event Organizer',Icon: PartyPopper, color: 'bg-pink-500/10 text-pink-600 border-pink-200 dark:border-pink-900 dark:text-pink-400' },
+  other:           { label: 'Business',       Icon: Building2,   color: 'bg-surface-sunk text-ink-soft border-line' },
 };
 
 function getBizMeta(type) {
@@ -31,10 +45,10 @@ function memberYear(isoDate) {
 }
 
 /* ── Primary stat tile ────────────────────────────────────────────────────── */
-function StatTile({ value, label, tone, icon, sublabel }) {
+function StatTile({ value, label, tone, icon: IconComp, sublabel }) {
   return (
     <div className="card p-4 flex flex-col items-center text-center gap-1">
-      {icon && <span className="text-xl mb-0.5" aria-hidden>{icon}</span>}
+      {IconComp && <IconComp size={18} className="text-ink-soft mb-0.5" aria-hidden="true" />}
       <p
         className={`text-2xl font-bold leading-none tabular-nums ${
           tone === 'success' ? 'text-success' :
@@ -50,11 +64,11 @@ function StatTile({ value, label, tone, icon, sublabel }) {
 }
 
 /* ── Secondary info pill ─────────────────────────────────────────────────── */
-function InfoPill({ icon, label, value }) {
+function InfoPill({ icon: IconComp, label, value }) {
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="w-7 h-7 rounded-full bg-surface-sunk flex items-center justify-center text-base shrink-0" aria-hidden>
-        {icon}
+    <div className="flex items-center gap-2.5 text-sm">
+      <span className="w-8 h-8 rounded-lg bg-surface-sunk border border-line flex items-center justify-center text-ink-soft shrink-0" aria-hidden="true">
+        {IconComp && <IconComp size={15} />}
       </span>
       <div className="min-w-0">
         <span className="text-ink-mute text-xs block">{label}</span>
@@ -68,8 +82,9 @@ function InfoPill({ icon, label, value }) {
 function RatingBar({ star, count, pct }) {
   return (
     <div className="flex items-center gap-2.5 text-sm">
-      <span className="w-12 shrink-0 text-xs text-ink-soft text-right tabular-nums">
-        {star} <span className="text-amber-400">★</span>
+      <span className="w-12 shrink-0 text-xs text-ink-soft text-right tabular-nums flex items-center justify-end gap-1">
+        <span>{star}</span>
+        <Star size={11} className="text-amber-400 fill-amber-400 shrink-0" />
       </span>
       <div className="flex-1 h-2 bg-surface-sunk rounded-full overflow-hidden">
         <div
@@ -196,7 +211,7 @@ export default function ProviderProfile() {
                 <span
                   className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full border text-xs font-semibold ${biz.color}`}
                 >
-                  <span aria-hidden>{biz.icon}</span>
+                  <biz.Icon size={12} className="shrink-0" />
                   {biz.label}
                 </span>
 
@@ -241,27 +256,27 @@ export default function ProviderProfile() {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatTile
-              icon="⭐"
+              icon={Star}
               value={ratingCount > 0 ? ratingAvg.toFixed(1) : '—'}
               label="Rating"
               tone={ratingCount > 0 ? 'success' : undefined}
               sublabel={ratingCount > 0 ? `from ${ratingCount} review${ratingCount === 1 ? '' : 's'}` : 'No reviews yet'}
             />
             <StatTile
-              icon="✅"
+              icon={CheckCircle2}
               value={profile.completedOrders ?? 0}
               label="Orders fulfilled"
               tone={profile.completedOrders > 0 ? 'success' : undefined}
               sublabel="As provider"
             />
             <StatTile
-              icon="📋"
+              icon={ListChecks}
               value={profile.activeListings ?? 0}
               label="Active listings"
               tone={profile.activeListings > 0 ? 'accent' : undefined}
             />
             <StatTile
-              icon="🤝"
+              icon={Handshake}
               value={profile.seekerCompletedOrders ?? 0}
               label="Orders placed"
               sublabel="As buyer"
@@ -271,8 +286,8 @@ export default function ProviderProfile() {
           {/* Secondary row */}
           {(profile.postedRequirements > 0) && (
             <div className="mt-3 flex flex-wrap gap-4 p-4 card">
-              <InfoPill icon="📣" label="Requirements posted" value={profile.postedRequirements} />
-              <InfoPill icon="🗓️" label="Member since" value={memberYear(profile.memberSince)} />
+              <InfoPill icon={Megaphone} label="Requirements posted" value={profile.postedRequirements} />
+              <InfoPill icon={Calendar} label="Member since" value={memberYear(profile.memberSince)} />
             </div>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Check, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSearch, useRequirementActions } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
@@ -287,7 +288,7 @@ export default function PostRequirement() {
                   ['4. 1-Click Confirmation', 'Compare quotes side-by-side and accept the best offer to create an immediate confirmed booking.'],
                 ].map(([title, desc]) => (
                   <div key={title} className="flex gap-3">
-                    <span className="text-ink font-bold shrink-0">✓</span>
+                    <Check size={14} className="text-ink font-bold shrink-0 mt-0.5" strokeWidth={2.5} />
                     <div>
                       <p className="font-medium text-ink text-sm">{title}</p>
                       <p className="text-xs text-ink-soft">{desc}</p>
@@ -296,8 +297,11 @@ export default function PostRequirement() {
                 ))}
               </div>
 
-              <div className="p-4 bg-surface-sunk border border-line rounded text-sm text-ink-soft">
-                💡 Click <strong>"Show what matches now"</strong> if you want to inspect existing listings before broadcasting an open request.
+              <div className="p-4 bg-surface-sunk border border-line rounded text-sm text-ink-soft flex items-start gap-2.5">
+                <Info size={16} className="text-ink-soft shrink-0 mt-0.5" />
+                <span>
+                  Click <strong>"Show what matches now"</strong> if you want to inspect existing listings before broadcasting an open request.
+                </span>
               </div>
             </div>
           ) : isLoading ? (

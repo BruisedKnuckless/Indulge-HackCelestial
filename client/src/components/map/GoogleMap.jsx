@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { Map, AlertTriangle, X, MapPin } from 'lucide-react';
 import { Price } from '../ui';
-import { CATEGORY_ICONS, CATEGORY_LABELS, resourceImage, PLACEHOLDER } from '../../lib/constants';
+import CategoryIcon from '../ui/CategoryIcon';
+import { CATEGORY_LABELS, resourceImage, PLACEHOLDER } from '../../lib/constants';
 
 // Subtle marker category colors
 const CATEGORY_COLORS = {
@@ -113,8 +115,8 @@ function NoMapKeyFallback({ userCoords, radiusKm, isAuthError }) {
       </div>
 
       <div className="relative z-10 text-center max-w-sm">
-        <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-surface border border-line flex items-center justify-center text-2xl shadow-sm">
-          🗺️
+        <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-surface border border-line flex items-center justify-center shadow-sm">
+          <Map size={26} className="text-ink-soft" />
         </div>
 
         <h3 className="text-base font-semibold text-ink mb-1.5">
@@ -338,7 +340,7 @@ export default function GoogleMap({
       {authError && showAuthWarning && (
         <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-amber-600/90 text-white text-xs font-medium backdrop-blur-sm shadow-md animate-fade-in">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span>⚠️</span>
+            <AlertTriangle size={14} className="shrink-0" />
             <span className="truncate">
               API Key active in dev mode — enable <strong>Maps JavaScript API</strong> in Google Cloud Console
             </span>
@@ -354,10 +356,10 @@ export default function GoogleMap({
             </a>
             <button
               onClick={() => setShowAuthWarning(false)}
-              className="text-white/80 hover:text-white text-sm ml-1"
+              className="text-white/80 hover:text-white p-0.5 ml-1 inline-flex items-center justify-center"
               aria-label="Dismiss warning"
             >
-              ✕
+              <X size={14} />
             </button>
           </div>
         </div>
@@ -377,8 +379,8 @@ export default function GoogleMap({
       {activePreview && (
         <div className="absolute bottom-4 left-4 right-4 sm:left-4 sm:right-auto sm:w-80 z-30 bg-surface/98 backdrop-blur-md border border-line rounded-xl p-3.5 shadow-xl text-ink">
           <div className="flex items-start justify-between gap-2 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-mute flex items-center gap-1">
-              <span>{CATEGORY_ICONS[activePreview.category] || '📦'}</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-mute flex items-center gap-1.5">
+              <CategoryIcon category={activePreview.category} size={13} className="shrink-0" />
               <span>{CATEGORY_LABELS[activePreview.category] || activePreview.category}</span>
             </span>
             <button
@@ -386,10 +388,10 @@ export default function GoogleMap({
                 setActivePreview(null);
                 if (onSelect) onSelect(null);
               }}
-              className="text-ink-mute hover:text-ink text-sm p-0.5 rounded transition-colors"
+              className="text-ink-mute hover:text-ink p-0.5 rounded transition-colors inline-flex items-center justify-center"
               aria-label="Close preview"
             >
-              ✕
+              <X size={14} />
             </button>
           </div>
 
@@ -415,8 +417,9 @@ export default function GoogleMap({
                   'Verified Partner'}
               </p>
               <div className="flex items-center gap-2 mt-1.5 text-xs flex-wrap">
-                <span className="font-semibold text-accent">
-                  📍 {(activePreview.distanceKm ?? 0).toFixed(1)} km
+                <span className="font-semibold text-accent inline-flex items-center gap-1">
+                  <MapPin size={11} className="shrink-0" />
+                  <span>{(activePreview.distanceKm ?? 0).toFixed(1)} km</span>
                 </span>
                 {activePreview.pricing?.basePrice != null && (
                   <Price amount={activePreview.pricing.basePrice} size="sm" />

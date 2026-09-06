@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useBookings, useBookingActions } from '../hooks/queries';
 import { errorMessage } from '../api/client';
@@ -41,12 +42,17 @@ function FulfillmentChip({ booking }) {
 
   return (
     <span className={[
-      'inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border',
+      'inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border',
       isDone ? 'text-success border-success/30 bg-success/5' :
       isReturn ? 'text-warn border-warn/30 bg-warn/5' :
                  'text-ink-soft border-line bg-surface-sunk',
     ].join(' ')}>
-      {isDone ? '✓ ' : '● '}{label}
+      {isDone ? (
+        <Check size={11} strokeWidth={2.5} className="shrink-0" />
+      ) : (
+        <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+      )}
+      <span>{label}</span>
     </span>
   );
 }

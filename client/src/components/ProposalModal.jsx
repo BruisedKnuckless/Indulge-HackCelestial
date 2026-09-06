@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMyListings, useRequirementActions } from '../hooks/queries';
 import { errorMessage } from '../api/client';
@@ -55,8 +56,8 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-      <div className="bg-surface-alt text-ink rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-line">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs">
+      <div className="card w-full max-w-lg bg-surface border border-line shadow-2xl overflow-hidden animate-fade-in">
         <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-surface-sunk/40">
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-ink leading-tight">Submit Quotation</h3>
@@ -64,10 +65,10 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
           </div>
           <button
             onClick={onClose}
-            className="text-ink-mute hover:text-ink text-sm font-semibold p-1.5 rounded-md hover:bg-surface-sunk transition-colors"
+            className="text-ink-mute hover:text-ink p-1.5 rounded-md hover:bg-surface-sunk transition-colors inline-flex items-center justify-center"
             aria-label="Close dialog"
           >
-            ✕
+            <X size={16} />
           </button>
         </div>
 

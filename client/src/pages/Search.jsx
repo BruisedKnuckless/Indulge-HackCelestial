@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSearch, useCartMutations, useMyRequirements } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
@@ -36,7 +37,7 @@ function filterLabel(key, value) {
   if (key === 'maxPrice')    return `Max ₹${value}`;
   if (key === 'quantity')    return `Qty ${value}`;
   if (key === 'minCapacity') return `Cap ≥ ${value}`;
-  if (key === 'minRating')   return `★ ${value}+`;
+  if (key === 'minRating')   return `${value}+ Stars`;
   if (key === 'start')       return `From ${new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
   if (key === 'end')         return `Until ${new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
   return `${key}: ${value}`;
@@ -242,7 +243,10 @@ function FilterPanel({ params, patch, onClearAll }) {
               active={minRating === String(r)}
               onClick={(v) => patch({ minRating: v })}
             >
-              ★ {r}+
+              <span className="inline-flex items-center gap-1">
+                <Star size={11} className="fill-current" />
+                <span>{r}+</span>
+              </span>
             </PillToggle>
           ))}
         </div>

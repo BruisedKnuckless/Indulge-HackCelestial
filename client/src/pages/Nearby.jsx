@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { MapPin, Map, ListFilter } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSearch, useOpenRequirements, useCartMutations } from '../hooks/queries';
 import { useGeolocation } from '../hooks/useGeolocation';
 import GoogleMap from '../components/map/GoogleMap';
 import NearbyCard from '../components/map/NearbyCard';
-import { CATEGORIES, CATEGORY_ICONS, CATEGORY_LABELS } from '../lib/constants';
+import CategoryIcon from '../components/ui/CategoryIcon';
+import { CATEGORIES, CATEGORY_LABELS } from '../lib/constants';
 import { Spinner, EmptyState } from '../components/ui';
 
 const PRESET_RADII = [5, 10, 25, 50, 100];
@@ -134,8 +136,8 @@ export default function Nearby() {
     return (
       <div className="shell py-12">
         <div className="p-8 md:p-10 rounded-2xl border border-line bg-surface-alt text-center max-w-lg mx-auto shadow-sm">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-accent/10 text-accent flex items-center justify-center text-2xl">
-            📍
+          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-accent/10 text-accent flex items-center justify-center">
+            <MapPin size={26} />
           </div>
 
           <h1 className="text-xl font-bold text-ink mb-2">
@@ -363,19 +365,21 @@ export default function Nearby() {
         <div className="flex lg:hidden items-center gap-1 p-0.5 bg-surface-sunk rounded-lg border border-line mt-3 w-fit">
           <button
             onClick={() => setMobileTab('map')}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all inline-flex items-center gap-1.5 ${
               mobileTab === 'map' ? 'bg-surface text-ink shadow-2xs' : 'text-ink-soft'
             }`}
           >
-            🗺 Map
+            <Map size={13} />
+            <span>Map</span>
           </button>
           <button
             onClick={() => setMobileTab('list')}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all inline-flex items-center gap-1.5 ${
               mobileTab === 'list' ? 'bg-surface text-ink shadow-2xs' : 'text-ink-soft'
             }`}
           >
-            📋 Listings ({activeItems.length})
+            <ListFilter size={13} />
+            <span>Listings ({activeItems.length})</span>
           </button>
         </div>
       </header>
@@ -468,8 +472,8 @@ export default function Nearby() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent uppercase tracking-wider">
-                          <span>{CATEGORY_ICONS[req.category] || '📋'}</span>
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-accent uppercase tracking-wider">
+                          <CategoryIcon category={req.category} size={13} className="shrink-0" />
                           <span>{CATEGORY_LABELS[req.category] || req.category}</span>
                         </span>
                         <h3 className="text-sm font-semibold text-ink mt-0.5 leading-snug line-clamp-1">
@@ -502,8 +506,9 @@ export default function Nearby() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-soft mt-2 pt-2 border-t border-line/60">
-                      <span className="font-semibold text-accent">
-                        📍 {(req.distanceKm ?? 0).toFixed(1)} km
+                      <span className="font-semibold text-accent inline-flex items-center gap-1">
+                        <MapPin size={12} className="shrink-0" />
+                        <span>{(req.distanceKm ?? 0).toFixed(1)} km</span>
                       </span>
                       {req.location?.city && <span>· {req.location.city}</span>}
                       {req.maxPrice != null && (

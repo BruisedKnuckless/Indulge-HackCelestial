@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMyRequirements, useRequirement, useRequirementActions } from '../hooks/queries';
 import { errorMessage } from '../api/client';
@@ -113,8 +114,9 @@ function ProposalsDrawer({ requirementId }) {
                 </span>
 
                 {isWinner ? (
-                  <span className="text-xs font-semibold bg-success/10 border border-success/30 text-success px-2.5 py-1 rounded-md">
-                    ✓ Accepted & Booked
+                  <span className="text-xs font-semibold bg-success/10 border border-success/30 text-success px-2.5 py-1 rounded-md inline-flex items-center gap-1.5">
+                    <CheckCircle2 size={13} className="shrink-0" />
+                    <span>Accepted & Booked</span>
                   </span>
                 ) : isRejected ? (
                   <span className="text-xs text-ink-mute font-medium">Declined</span>

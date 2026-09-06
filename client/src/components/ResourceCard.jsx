@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import { Price, Stars, DealBadge } from './ui';
+import CategoryIcon from './ui/CategoryIcon';
 import MatchBreakdown from './MatchBreakdown';
 import {
   CATEGORY_LABELS,
-  CATEGORY_ICONS,
   PRICE_UNIT_LABELS,
   resourceImage,
+  PLACEHOLDER,
 } from '../lib/constants';
 
 /* ── Availability pill ─────────────────────────────────────────────────── */
@@ -38,12 +40,11 @@ function AvailBadge({ resource: r }) {
 
 /* ── Category badge ────────────────────────────────────────────────────── */
 function CategoryBadge({ category }) {
-  const icon = CATEGORY_ICONS[category] || '📦';
   const label = CATEGORY_LABELS[category] || category;
   return (
-    <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full border border-line text-[11px] text-ink-soft bg-surface-sunk">
-      <span aria-hidden className="text-[10px]">{icon}</span>
-      {label}
+    <span className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full border border-line text-[11px] text-ink-soft bg-surface-sunk">
+      <CategoryIcon category={category} size={11} className="shrink-0" />
+      <span>{label}</span>
     </span>
   );
 }
@@ -202,8 +203,12 @@ export default function ResourceCard({
                       h.ok ? 'text-success font-medium' : 'text-ink-soft'
                     }`}
                   >
-                    <span className="font-bold text-[10px] leading-none">
-                      {h.ok ? '✓' : '•'}
+                    <span className="shrink-0">
+                      {h.ok ? (
+                        <Check size={11} className="text-success inline" strokeWidth={2.5} />
+                      ) : (
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-ink-mute" />
+                      )}
                     </span>
                     <span>{h.label}</span>
                   </span>
@@ -358,8 +363,12 @@ export default function ResourceCard({
                   h.ok ? 'text-success font-medium' : 'text-ink-soft'
                 }`}
               >
-                <span className="font-bold text-[11px] leading-none shrink-0">
-                  {h.ok ? '✓' : '•'}
+                <span className="shrink-0">
+                  {h.ok ? (
+                    <Check size={12} className="text-success inline" strokeWidth={2.5} />
+                  ) : (
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-ink-mute" />
+                  )}
                 </span>
                 <span className="truncate leading-tight">{h.label}</span>
               </div>

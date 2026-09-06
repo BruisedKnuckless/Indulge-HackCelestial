@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Star, Check } from 'lucide-react';
 import { FACTOR_LABELS, FACTOR_WEIGHTS } from '../lib/constants';
 
 /**
@@ -65,8 +66,8 @@ export default function MatchBreakdown({ score, breakdown, reasons = [], default
           </div>
 
           {Boolean(breakdown.preferenceBonus) && (
-            <p className="text-xs text-success mt-2.5 flex items-center gap-1 font-medium">
-              <span>★</span>
+            <p className="text-xs text-success mt-2.5 flex items-center gap-1.5 font-medium">
+              <Star size={12} className="fill-success text-success shrink-0" />
               <span>+5% preferred provider bonus</span>
             </p>
           )}
@@ -88,12 +89,16 @@ export default function MatchBreakdown({ score, breakdown, reasons = [], default
                   return (
                     <li
                       key={i}
-                      className={`text-xs flex items-start gap-1.5 leading-relaxed ${
+                      className={`text-xs flex items-start gap-2 leading-relaxed ${
                         isNegative ? 'text-ink-soft' : 'text-ink'
                       }`}
                     >
-                      <span className={`font-bold shrink-0 text-xs ${isNegative ? 'text-warn' : 'text-success'}`}>
-                        {isNegative ? '•' : '✓'}
+                      <span className={`shrink-0 ${isNegative ? 'text-warn' : 'text-success'} mt-0.5`}>
+                        {isNegative ? (
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn" />
+                        ) : (
+                          <Check size={12} strokeWidth={2.5} />
+                        )}
                       </span>
                       <span>{r}</span>
                     </li>

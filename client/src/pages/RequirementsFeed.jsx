@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
 import { useRequirementsFeed } from '../hooks/queries';
 import ProposalModal from '../components/ProposalModal';
 import { Spinner, EmptyState, Stars } from '../components/ui';
@@ -111,8 +112,9 @@ export default function RequirementsFeed() {
                       </span>
                     )}
                     {rfq.distanceKm != null && (
-                      <span className="text-xs text-ink-soft">
-                        📍 {rfq.distanceKm.toFixed(1)} km away ({rfq.location?.city || seeker.location?.city})
+                      <span className="text-xs text-ink-soft inline-flex items-center gap-1">
+                        <MapPin size={11} className="shrink-0 text-ink-mute" />
+                        <span>{rfq.distanceKm.toFixed(1)} km away ({rfq.location?.city || seeker.location?.city})</span>
                       </span>
                     )}
                     <span className="text-xs text-ink-mute">· posted {relative(rfq.createdAt)}</span>

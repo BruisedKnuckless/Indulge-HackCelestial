@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
+import CategoryIcon from '../ui/CategoryIcon';
 import {
-  CATEGORY_ICONS,
   CATEGORY_LABELS,
   PRICE_UNIT_LABELS,
   resourceImage,
@@ -19,7 +20,6 @@ export default function NearbyCard({ resource: r, selected, onClick, onAdd, addi
   const avail = r.availableQuantity ?? r.totalQuantity;
   const isAvail = avail == null || avail > 0;
   const category = CATEGORY_LABELS[r.category] || r.category || '';
-  const icon = CATEGORY_ICONS[r.category] || '📦';
   const match = r.matchScore != null ? Math.round(r.matchScore * 100) : null;
 
   return (
@@ -81,8 +81,8 @@ export default function NearbyCard({ resource: r, selected, onClick, onAdd, addi
 
         {/* Category & Availability row */}
         <div className="flex items-center gap-2 flex-wrap text-[11px]">
-          <span className="inline-flex items-center gap-1 text-ink-mute">
-            <span>{icon}</span>
+          <span className="inline-flex items-center gap-1.5 text-ink-mute">
+            <CategoryIcon category={r.category} size={12} className="shrink-0 text-ink-soft" />
             <span>{category}</span>
           </span>
           <span className="text-ink-mute">•</span>
@@ -100,8 +100,9 @@ export default function NearbyCard({ resource: r, selected, onClick, onAdd, addi
         <div className="flex items-center justify-between gap-2 pt-1 border-t border-line/60">
           <div className="flex items-center gap-2 text-xs min-w-0 flex-wrap">
             {distKm && (
-              <span className="font-semibold text-accent whitespace-nowrap">
-                📍 {distKm} km
+              <span className="font-semibold text-accent whitespace-nowrap inline-flex items-center gap-1">
+                <MapPin size={11} className="shrink-0" />
+                <span>{distKm} km</span>
               </span>
             )}
             {price != null && (

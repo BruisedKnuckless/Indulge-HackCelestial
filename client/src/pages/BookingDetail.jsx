@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { errorMessage } from '../api/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -123,7 +124,7 @@ function OrderTimeline({ booking, onClickInProgress, fulfillmentExpanded }) {
                                 'bg-line text-ink-mute',
                     ].join(' ')}
                   >
-                    {done ? '✓' : i + 1}
+                    {done ? <Check size={13} strokeWidth={2.5} /> : i + 1}
                   </div>
                   <span className={[
                     'text-[10px] text-center leading-tight whitespace-nowrap',
@@ -146,7 +147,7 @@ function OrderTimeline({ booking, onClickInProgress, fulfillmentExpanded }) {
                                 'bg-line text-ink-mute',
                     ].join(' ')}
                   >
-                    {done ? '✓' : i + 1}
+                    {done ? <Check size={13} strokeWidth={2.5} /> : i + 1}
                   </div>
                   <span className={[
                     'text-[10px] text-center leading-tight whitespace-nowrap',
@@ -232,7 +233,7 @@ function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy }) {
                   isCurrent ? 'bg-ink border-ink text-ink-invert ring-2 ring-ink/20' :
                               'bg-surface border-line text-ink-mute',
                 ].join(' ')}>
-                  {isDone ? '✓' : isCurrent ? '●' : ''}
+                  {isDone ? <Check size={11} strokeWidth={2.5} /> : isCurrent ? <span className="w-1.5 h-1.5 rounded-full bg-current" /> : null}
                 </div>
                 {i < FULFILLMENT_STAGES.length - 1 && (
                   <Connector done={isDone} />
@@ -369,7 +370,7 @@ function ReturnTimeline({ returnData, isProvider, onAdvance, busy }) {
                   'w-5 h-5 rounded-full border-2 flex items-center justify-center text-[9px] font-bold shrink-0',
                   done ? 'bg-success border-success text-white' : 'bg-surface border-line text-ink-mute',
                 ].join(' ')}>
-                  {done ? '✓' : ''}
+                  {done ? <Check size={11} strokeWidth={2.5} /> : null}
                 </div>
                 {i < RETURN_STAGES.length - 1 && <Connector done={done} />}
               </div>
@@ -825,7 +826,9 @@ export default function BookingDetail() {
                     Fulfillment detail
                   </p>
                   {isDelivered ? (
-                    <span className="text-xs text-success font-medium">Delivered ✓</span>
+                    <span className="text-xs text-success font-medium inline-flex items-center gap-1">
+                      <Check size={12} strokeWidth={2.5} /> Delivered
+                    </span>
                   ) : hasAnyFulfillment ? (
                     <span className="text-xs text-ink-mute font-medium">In Progress</span>
                   ) : (
@@ -907,7 +910,7 @@ export default function BookingDetail() {
               defaultOpen={hasAnyFulfillment || isConfirmed}
               badge={
                 isDelivered
-                  ? <span className="text-xs text-success font-medium">Delivered ✓</span>
+                  ? <span className="text-xs text-success font-medium inline-flex items-center gap-1"><Check size={12} strokeWidth={2.5} /> Delivered</span>
                   : hasAnyFulfillment
                   ? <span className="text-xs text-ink-mute">In progress</span>
                   : <span className="text-xs text-ink-mute">Awaiting start</span>
@@ -940,7 +943,7 @@ export default function BookingDetail() {
               defaultOpen={hasReturn}
               badge={
                 booking.return?.status === 'return_completed'
-                  ? <span className="text-xs text-success font-medium">Completed ✓</span>
+                  ? <span className="text-xs text-success font-medium inline-flex items-center gap-1"><Check size={12} strokeWidth={2.5} /> Completed</span>
                   : hasReturn
                   ? <span className="text-xs text-ink-mute">In progress</span>
                   : null

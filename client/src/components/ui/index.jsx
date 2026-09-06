@@ -1,4 +1,14 @@
 import { Link } from 'react-router-dom';
+import {
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Truck,
+  Package,
+  RefreshCw,
+  AlertCircle,
+  CreditCard,
+} from 'lucide-react';
 import { inr } from '../../lib/format';
 
 /* ------------------------------------------------------------------ price */
@@ -66,8 +76,11 @@ export const STATUS_LABELS = {
   pending: 'Awaiting provider',
   negotiating: 'In negotiation',
   accepted: 'Accepted — confirm to book',
-  rejected: 'Declined',
+  payment_pending: 'Payment pending',
   confirmed: 'Confirmed',
+  upcoming: 'Upcoming',
+  in_progress: 'In progress',
+  rejected: 'Declined',
   cancelled: 'Cancelled',
   completed: 'Completed',
   // Fulfillment
@@ -83,34 +96,44 @@ export const STATUS_LABELS = {
   return_completed:        'Return completed',
 };
 
-const STATUS_TONE = {
-  pending: 'border-warn/40 text-warn',
-  negotiating: 'border-warn/40 text-warn',
-  accepted: 'border-success/40 text-success',
-  confirmed: 'border-success/40 text-success',
-  completed: 'border-line-strong text-ink-soft',
-  rejected: 'border-danger/40 text-danger',
-  cancelled: 'border-danger/40 text-danger',
-  // Fulfillment — neutral progression
-  packed:           'border-line text-ink-soft',
-  loading:          'border-line text-ink-soft',
-  out_for_delivery: 'border-warn/40 text-warn',
-  delivered:        'border-success/40 text-success',
+const STATUS_CONFIG = {
+  pending: { tone: 'bg-warn/10 border-warn/30 text-warn', icon: Clock },
+  negotiating: { tone: 'bg-warn/10 border-warn/30 text-warn', icon: RefreshCw },
+  accepted: { tone: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400', icon: CheckCircle2 },
+  payment_pending: { tone: 'bg-warn/10 border-warn/30 text-warn', icon: CreditCard },
+  confirmed: { tone: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400', icon: CheckCircle2 },
+  upcoming: { tone: 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400', icon: Clock },
+  in_progress: { tone: 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400', icon: RefreshCw },
+  completed: { tone: 'bg-surface-sunk border-line-strong text-ink-soft', icon: CheckCircle2 },
+  rejected: { tone: 'bg-danger/10 border-danger/30 text-danger', icon: XCircle },
+  cancelled: { tone: 'bg-danger/10 border-danger/30 text-danger', icon: XCircle },
+  // Fulfillment
+  packed:           { tone: 'bg-surface-sunk border-line text-ink-soft', icon: Package },
+  loading:          { tone: 'bg-surface-sunk border-line text-ink-soft', icon: Package },
+  out_for_delivery: { tone: 'bg-warn/10 border-warn/30 text-warn', icon: Truck },
+  delivered:        { tone: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400', icon: CheckCircle2 },
   // Return
-  return_requested:        'border-warn/40 text-warn',
-  return_pickup_scheduled: 'border-warn/40 text-warn',
-  return_in_transit:       'border-warn/40 text-warn',
-  returned_to_provider:    'border-success/40 text-success',
-  return_completed:        'border-success/40 text-success',
+  return_requested:        { tone: 'bg-warn/10 border-warn/30 text-warn', icon: Clock },
+  return_pickup_scheduled: { tone: 'bg-warn/10 border-warn/30 text-warn', icon: Clock },
+  return_in_transit:       { tone: 'bg-warn/10 border-warn/30 text-warn', icon: Truck },
+  returned_to_provider:    { tone: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400', icon: CheckCircle2 },
+  return_completed:        { tone: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400', icon: CheckCircle2 },
 };
 
-export function StatusBadge({ status, className = '' }) {
+export function StatusBadge({ status, className = '', showIcon = true }) {
+  const config = STATUS_CONFIG[status] || {
+    tone: 'bg-surface-sunk border-line-strong text-ink-soft',
+    icon: AlertCircle,
+  };
+  const IconComponent = config.icon;
+
   return (
     <span
-      className={`inline-flex items-center h-6 px-2.5 rounded-full border text-xs font-medium
-                  ${STATUS_TONE[status] || 'border-line-strong text-ink-soft'} ${className}`}
+      className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full border text-xs font-medium
+                  ${config.tone} ${className}`}
     >
-      {STATUS_LABELS[status] || status}
+      {showIcon && IconComponent && <IconComponent size={12} strokeWidth={2} className="shrink-0" />}
+      <span>{STATUS_LABELS[status] || status}</span>
     </span>
   );
 }
@@ -144,7 +167,9 @@ export function GridCard({ title, footerLabel, footerTo, children, className = '
 const VARIANTS = {
   primary: 'btn-primary',
   secondary: 'btn-secondary',
+  outline: 'btn-outline',
   ghost: 'btn-ghost',
+  danger: 'btn-danger',
   // Kept so older call sites keep rendering something sensible.
   yellow: 'btn-primary',
   orange: 'btn-primary',
