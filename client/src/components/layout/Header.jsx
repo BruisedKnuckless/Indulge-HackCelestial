@@ -35,6 +35,7 @@ const PATHS = {
    behind the account menu rather than competing for space up here. */
 const NAV = [
   { to: '/s', label: 'Browse' },
+  { to: '/nearby', label: 'Nearby' },
   { to: '/requirements/board', label: 'Requirements' },
   { to: '/requirements/feed', label: 'RFQ Feed' },
   { to: '/listings', label: 'Your listings' },
@@ -43,6 +44,7 @@ const NAV = [
 
 const ACCOUNT_LINKS = [
   { to: '/account', label: 'Account' },
+  { to: '/nearby', label: 'Nearby Map' },
   { to: '/bookings/sent', label: 'Requests you sent' },
   { to: '/bookings/received', label: 'Requests received' },
   { to: '/requirements/mine', label: 'My RFQs' },

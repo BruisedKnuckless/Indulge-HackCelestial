@@ -12,6 +12,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Search from './pages/Search';
+import Nearby from './pages/Nearby';
 import ResourceDetail from './pages/ResourceDetail';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
@@ -82,6 +83,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/s" element={<Search />} />
+                <Route path="/nearby" element={<Nearby />} />
                 <Route path="/r/:id" element={<ResourceDetail />} />
                 <Route path="/provider/:id" element={<ProviderProfile />} />
 

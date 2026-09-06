@@ -60,6 +60,18 @@ export const FACTOR_WEIGHTS = {
   urgencyFit: 10,
 };
 
+/** Per-category icon glyphs for card badges and map markers. */
+export const CATEGORY_ICONS = {
+  banquet_space: '🏛️',
+  parking: '🅿️',
+  vehicle: '🚐',
+  kitchen_capacity: '👨‍🍳',
+  furniture: '🪑',
+  av_equipment: '🎙️',
+  staff: '👤',
+  other: '📦',
+};
+
 const PLACEHOLDER =
   'data:image/svg+xml;charset=utf-8,' +
   encodeURIComponent(

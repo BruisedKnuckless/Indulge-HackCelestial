@@ -198,12 +198,12 @@ export function useRequirementsFeed(params) {
 }
 
 /** The provider-facing board of open requirements from other businesses. */
-export function useOpenRequirements(params) {
+export function useOpenRequirements(params, enabled = true) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ['requirements', 'open', params],
     queryFn: async () => (await api.get('/requirements/open', { params })).data,
-    enabled: Boolean(user),
+    enabled: Boolean(user && enabled),
   });
 }
 
