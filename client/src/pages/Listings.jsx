@@ -59,7 +59,7 @@ export default function Listings() {
           {listings.map((r) => {
             const stats = utilByResource[String(r._id)];
             return (
-              <div key={r._id} className="bg-white border border-line rounded p-4 flex gap-4">
+              <div key={r._id} className="bg-surface-alt border border-line rounded p-4 flex gap-4">
                 <Link to={`/r/${r._id}`} className="shrink-0">
                   <img
                     src={resourceImage(r)}

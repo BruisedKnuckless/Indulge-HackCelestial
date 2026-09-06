@@ -1,82 +1,227 @@
 import { Link } from 'react-router-dom';
 import { Price, Stars, DealBadge } from './ui';
 import MatchBreakdown from './MatchBreakdown';
-import { CATEGORY_LABELS, PRICE_UNIT_LABELS, resourceImage } from '../lib/constants';
+import {
+  CATEGORY_LABELS,
+  CATEGORY_ICONS,
+  PRICE_UNIT_LABELS,
+  resourceImage,
+} from '../lib/constants';
 
+/* ── Availability pill ─────────────────────────────────────────────────── */
+function AvailBadge({ resource: r }) {
+  if (r.availableQuantity == null) {
+    /* No date filter active — just show total stock */
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-ink-soft">
+        <span className="w-1.5 h-1.5 rounded-full bg-ink-mute" />
+        {r.totalQuantity} {r.unit || 'unit'}{r.totalQuantity !== 1 ? 's' : ''}
+      </span>
+    );
+  }
+  const avail = r.availableQuantity;
+  const total = r.totalQuantity;
+  const ok = avail > 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-medium ${
+        ok ? 'text-success' : 'text-danger'
+      }`}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-success' : 'bg-danger'}`}
+      />
+      {ok ? `${avail} / ${total} available` : 'Unavailable'}
+    </span>
+  );
+}
+
+/* ── Category badge ────────────────────────────────────────────────────── */
+function CategoryBadge({ category }) {
+  const icon = CATEGORY_ICONS[category] || '📦';
+  const label = CATEGORY_LABELS[category] || category;
+  return (
+    <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full border border-line text-[11px] text-ink-soft bg-surface-sunk">
+      <span aria-hidden className="text-[10px]">{icon}</span>
+      {label}
+    </span>
+  );
+}
+
+/* ── Shared Match Badge ────────────────────────────────────────────────── */
+function MatchBadge({ match, className = '' }) {
+  if (match == null) return null;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold tracking-tight shadow-sm backdrop-blur-md ${
+        match >= 90
+          ? 'bg-emerald-600/90 text-white'
+          : match >= 75
+          ? 'bg-indigo-600/90 text-white'
+          : 'bg-amber-600/90 text-white'
+      } ${className}`}
+    >
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+      </svg>
+      {match}% Match
+    </span>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ResourceCard — B2B resource card supporting both Grid and List layouts.
+   ════════════════════════════════════════════════════════════════════════ */
 /**
- * One search result. A single row of information with plenty of air: image,
- * what it is, what it costs, and one action. Secondary detail is a single
- * subdued meta line rather than a stack of badges.
+ * @param {object}   props
+ * @param {object}   props.resource   — search result object
+ * @param {object}   [props.criteria] — active search criteria (for match breakdown)
+ * @param {function} [props.onAdd]    — add-to-cart callback
+ * @param {boolean}  [props.adding]   — loading state for this card's add button
+ * @param {'grid'|'list'} [props.layout] — 'grid' or 'list' layout mode
  */
-export default function ResourceCard({ resource: r, criteria, onAdd, adding }) {
+export default function ResourceCard({
+  resource: r,
+  criteria,
+  onAdd,
+  adding,
+  layout = 'grid',
+}) {
   const unit = PRICE_UNIT_LABELS[r.pricing?.priceUnit] || '';
   const match = r.matchScore != null ? Math.round(r.matchScore * 100) : null;
 
-  const meta = [
-    CATEGORY_LABELS[r.category],
-    r.distanceKm != null && `${r.distanceKm.toFixed(1)} km away`,
-    r.capacity && `up to ${r.capacity} guests`,
-    r.pricing?.minRentalPeriodHours > 1 && `min ${r.pricing.minRentalPeriodHours}h`,
-  ].filter(Boolean);
+  const locationLine = [
+    r.distanceKm != null && `${r.distanceKm.toFixed(1)} km`,
+    r.owner?.location?.city || r.owner?.location?.address || null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
-  return (
-    <article className="py-8 border-b border-line last:border-0">
-      <div className="flex flex-col sm:flex-row gap-6">
-        <Link to={`/r/${r._id}`} className="shrink-0">
+  /* ── 1. Compact B2B List layout ──────────────────────────────────────── */
+  if (layout === 'list') {
+    return (
+      <article
+        className={[
+          'group relative flex flex-col sm:flex-row rounded-lg overflow-hidden',
+          'bg-surface-alt border border-line',
+          'transition-all duration-200',
+          'hover:-translate-y-[2px] hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] hover:border-line-strong',
+        ].join(' ')}
+      >
+        {/* Image: Fixed compact aspect ratio (approx 180x130 on desktop) */}
+        <Link
+          to={`/r/${r._id}`}
+          className="relative w-full h-36 sm:w-44 sm:h-[130px] md:w-[180px] md:h-[130px] sm:self-start shrink-0 overflow-hidden bg-surface-sunk block rounded-t-lg sm:rounded-t-none sm:rounded-l-lg"
+          tabIndex={-1}
+          aria-hidden
+        >
           <img
             src={resourceImage(r)}
-            alt={r.title}
+            alt=""
             loading="lazy"
-            className="w-full sm:w-[180px] h-[140px] object-cover rounded bg-surface-sunk"
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = PLACEHOLDER;
+            }}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
+          {/* Mobile match badge */}
+          {match != null && (
+            <span className="sm:hidden absolute top-2 right-2 z-10">
+              <MatchBadge match={match} />
+            </span>
+          )}
         </Link>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-4">
+        {/* Content Column (Middle) */}
+        <div className="flex-1 min-w-0 p-3 sm:p-3.5 md:p-4 flex flex-col justify-between">
+          <div className="space-y-1.5">
+            {/* Title & Provider */}
             <div className="min-w-0">
-              <Link to={`/r/${r._id}`} className="text-lg font-medium hover:underline underline-offset-4">
+              <Link
+                to={`/r/${r._id}`}
+                className="text-base font-semibold leading-snug hover:text-accent transition-colors truncate block text-ink"
+                title={r.title}
+              >
                 {r.title}
               </Link>
-              <p className="text-sm muted mt-0.5">
-                <Link to={`/provider/${r.owner?._id}`} className="link-quiet">
-                  {r.owner?.businessName}
+              <p className="text-xs text-ink-soft mt-0.5 truncate">
+                by{' '}
+                <Link
+                  to={`/provider/${r.owner?._id}`}
+                  className="link-quiet hover:text-ink font-medium"
+                >
+                  {r.owner?.businessName || 'Verified Provider'}
                 </Link>
               </p>
             </div>
 
-            {match != null && <DealBadge className="shrink-0">{match}% match</DealBadge>}
-          </div>
+            {/* Category • Quantity • Availability • Capacity */}
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <CategoryBadge category={r.category} />
+              <span className="text-ink-mute text-xs">•</span>
+              <AvailBadge resource={r} />
+              {r.capacity != null && (
+                <>
+                  <span className="text-ink-mute text-xs">•</span>
+                  <span className="text-ink-soft">
+                    Up to {r.capacity} guests
+                  </span>
+                </>
+              )}
+              {r.pricing?.minRentalPeriodHours > 1 && (
+                <>
+                  <span className="text-ink-mute text-xs">•</span>
+                  <span className="text-ink-mute">
+                    min {r.pricing.minRentalPeriodHours}h
+                  </span>
+                </>
+              )}
+            </div>
 
-          <div className="flex items-center gap-4 mt-3">
-            <Price amount={r.pricing?.basePrice} unit={unit} />
-            {r.ratingCount > 0 && <Stars rating={r.ratingAvg} count={r.ratingCount} size={13} />}
-          </div>
+            {/* Rating • Distance • Location */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-soft">
+              {r.ratingCount > 0 ? (
+                <Stars rating={r.ratingAvg} count={r.ratingCount} size={12} />
+              ) : (
+                <span className="text-ink-mute">No reviews yet</span>
+              )}
+              {locationLine && (
+                <>
+                  <span className="text-ink-mute">•</span>
+                  <span className="truncate">{locationLine}</span>
+                </>
+              )}
+            </div>
 
-          <p className="text-sm muted mt-2">{meta.join(' · ')}</p>
-
-          {r.description && (
-            <p className="text-sm muted mt-2 line-clamp-2 max-w-prose">{r.description}</p>
-          )}
-
-          {r.availableQuantity != null && (
-            <p className="text-sm mt-2 text-success">
-              {r.availableQuantity} of {r.totalQuantity} available for your dates
-            </p>
-          )}
-
-          <div className="flex items-center gap-3 mt-5">
-            {onAdd && (
-              <button onClick={() => onAdd(r)} disabled={adding} className="btn-primary btn-sm">
-                {adding ? 'Adding…' : 'Add to request'}
-              </button>
+            {/* Match highlights (compact list when matching) */}
+            {r.matchHighlights && r.matchHighlights.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-line/60 text-[11px]">
+                {r.matchHighlights.slice(0, 3).map((h, i) => (
+                  <span
+                    key={i}
+                    className={`inline-flex items-center gap-1 ${
+                      h.ok ? 'text-success font-medium' : 'text-ink-soft'
+                    }`}
+                  >
+                    <span className="font-bold text-[10px] leading-none">
+                      {h.ok ? '✓' : '•'}
+                    </span>
+                    <span>{h.label}</span>
+                  </span>
+                ))}
+                {r.matchHighlights.length > 3 && (
+                  <span className="text-ink-mute text-[10px]">
+                    +{r.matchHighlights.length - 3} more
+                  </span>
+                )}
+              </div>
             )}
-            <Link to={`/r/${r._id}`} className="btn-secondary btn-sm">
-              View details
-            </Link>
           </div>
 
+          {/* Match breakdown (collapsible "Why this match?") */}
           {r.matchBreakdown && (
-            <div className="mt-4">
+            <div className="pt-2">
               <MatchBreakdown
                 score={r.matchScore}
                 breakdown={r.matchBreakdown}
@@ -86,12 +231,192 @@ export default function ResourceCard({ resource: r, criteria, onAdd, adding }) {
             </div>
           )}
         </div>
+
+        {/* Right Column: Price, Match %, Actions */}
+        <div className="p-3 sm:p-3.5 md:p-4 sm:pl-0 flex flex-col justify-between sm:items-end border-t sm:border-t-0 sm:border-l border-line sm:w-44 md:w-48 shrink-0 bg-surface-alt/40 sm:bg-transparent">
+          {/* Price + Desktop Match Badge */}
+          <div className="sm:text-right flex items-center sm:flex-col sm:items-end justify-between sm:justify-start gap-1 w-full">
+            <Price amount={r.pricing?.basePrice} unit={unit} size="md" />
+            {match != null && (
+              <div className="hidden sm:block mt-1">
+                <MatchBadge match={match} />
+              </div>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2 mt-3 sm:mt-0 w-full">
+            {onAdd && (
+              <button
+                onClick={() => onAdd(r)}
+                disabled={adding}
+                className="btn-primary btn-sm flex-1 justify-center whitespace-nowrap"
+              >
+                {adding ? 'Adding…' : 'Add'}
+              </button>
+            )}
+            <Link
+              to={`/r/${r._id}`}
+              className={`btn-secondary btn-sm ${onAdd ? 'flex-1' : 'w-full'} justify-center whitespace-nowrap`}
+            >
+              Details
+            </Link>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  /* ── 2. Grid layout (visually unchanged) ─────────────────────────────── */
+  return (
+    <article
+      className={[
+        /* card surface + border */
+        'group relative flex flex-col rounded-lg overflow-hidden',
+        'bg-surface-alt border border-line',
+        /* hover: lift + stronger border + shadow */
+        'transition-all duration-200',
+        'hover:-translate-y-[3px] hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] hover:border-line-strong',
+      ].join(' ')}
+    >
+      {/* ── Image ────────────────────────────────────────────────── */}
+      <Link
+        to={`/r/${r._id}`}
+        className="block aspect-[4/3] overflow-hidden bg-surface-sunk shrink-0"
+        tabIndex={-1}
+        aria-hidden
+      >
+        <img
+          src={resourceImage(r)}
+          alt=""
+          loading="lazy"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = PLACEHOLDER;
+          }}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        />
+      </Link>
+
+      {/* Match badge — floats top-right over the image only when personalized score exists */}
+      {match != null && (
+        <span className="absolute top-2.5 right-2.5 z-10">
+          <MatchBadge match={match} />
+        </span>
+      )}
+
+      {/* ── Body ─────────────────────────────────────────────────── */}
+      <div className="flex flex-col flex-1 p-4 gap-3">
+        {/* Category */}
+        <div className="flex items-center justify-between gap-2">
+          <CategoryBadge category={r.category} />
+          <AvailBadge resource={r} />
+        </div>
+
+        {/* Title + provider */}
+        <div className="min-w-0">
+          <Link
+            to={`/r/${r._id}`}
+            className="text-base font-semibold leading-snug line-clamp-2 hover:text-accent transition-colors"
+          >
+            {r.title}
+          </Link>
+          <p className="text-xs text-ink-soft mt-0.5 truncate">
+            by{' '}
+            <Link to={`/provider/${r.owner?._id}`} className="link-quiet hover:text-ink">
+              {r.owner?.businessName}
+            </Link>
+          </p>
+        </div>
+
+        {/* Rating + location */}
+        <div className="flex items-center justify-between gap-2 text-xs text-ink-soft">
+          {r.ratingCount > 0 ? (
+            <Stars rating={r.ratingAvg} count={r.ratingCount} size={12} />
+          ) : (
+            <span className="text-ink-mute">No reviews yet</span>
+          )}
+          {locationLine && (
+            <span className="truncate text-right">{locationLine}</span>
+          )}
+        </div>
+
+        {/* Capacity */}
+        {r.capacity != null && (
+          <p className="text-xs text-ink-mute -mt-1">
+            Up to {r.capacity} guests
+            {r.pricing?.minRentalPeriodHours > 1 &&
+              ` · min ${r.pricing.minRentalPeriodHours} h`}
+          </p>
+        )}
+
+        {/* Match highlights checklist — visible when matching against active requirement */}
+        {r.matchHighlights && r.matchHighlights.length > 0 && (
+          <div className="bg-surface-sunk/70 rounded-md p-2.5 border border-line text-xs space-y-1 my-0.5">
+            {r.matchHighlights.map((h, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-2 ${
+                  h.ok ? 'text-success font-medium' : 'text-ink-soft'
+                }`}
+              >
+                <span className="font-bold text-[11px] leading-none shrink-0">
+                  {h.ok ? '✓' : '•'}
+                </span>
+                <span className="truncate leading-tight">{h.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Spacer pushes price + CTA to bottom */}
+        <div className="flex-1" />
+
+        {/* Price */}
+        <div className="flex items-baseline gap-1.5">
+          <Price amount={r.pricing?.basePrice} unit={unit} size="md" />
+        </div>
+
+        {/* CTA row */}
+        <div className="flex gap-2 pt-1 border-t border-line">
+          {onAdd && (
+            <button
+              onClick={() => onAdd(r)}
+              disabled={adding}
+              className="btn-primary btn-sm flex-1"
+            >
+              {adding ? 'Adding…' : 'Add'}
+            </button>
+          )}
+          <Link
+            to={`/r/${r._id}`}
+            className={`btn-secondary btn-sm ${onAdd ? '' : 'flex-1 justify-center'}`}
+          >
+            Details
+          </Link>
+        </div>
+
+        {/* Match breakdown — collapsible, explainable */}
+        {r.matchBreakdown && (
+          <div className="pt-1">
+            <MatchBreakdown
+              score={r.matchScore}
+              breakdown={r.matchBreakdown}
+              reasons={r.matchReasons}
+              criteria={criteria}
+            />
+          </div>
+        )}
       </div>
     </article>
   );
 }
 
-/** Compact tile for grids and carousels. */
+/* ════════════════════════════════════════════════════════════════════════
+   ResourceTile — compact tile for landing-page carousels.
+   DO NOT modify — used by Home.jsx / Browse landing sections.
+   ════════════════════════════════════════════════════════════════════════ */
+/** @param {{ resource: object, showPrice?: boolean }} props */
 export function ResourceTile({ resource: r, showPrice = true }) {
   return (
     <Link to={`/r/${r._id}`} className="group block">

@@ -63,10 +63,13 @@ export default function App() {
         toastOptions={{
           style: {
             borderRadius: '6px',
-            border: '1px solid #E4E4E7',
+            /* CSS custom properties are resolved by the browser even inside
+               JS style objects, so these automatically flip on theme change. */
+            border: '1px solid rgb(var(--color-line))',
             boxShadow: 'none',
             fontSize: '14px',
-            color: '#141416',
+            color: 'rgb(var(--color-ink))',
+            backgroundColor: 'rgb(var(--color-surface-alt))',
           },
         }}
       />

@@ -103,6 +103,8 @@ const requirementSchema = new mongoose.Schema(
       enum: ['low', 'medium', 'high'],
       default: 'medium',
     },
+    radiusKm: { type: Number, default: 25 },
+    additionalConstraints: String,
     offers: [offerSchema],
     status: {
       type: String,

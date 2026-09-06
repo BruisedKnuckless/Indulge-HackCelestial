@@ -4,20 +4,15 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { useAnalytics } from '../hooks/queries';
+import { useTheme } from '../context/ThemeContext';
 import { Spinner, EmptyState } from '../components/ui';
 import { CATEGORY_LABELS } from '../lib/constants';
 import { inr } from '../lib/format';
 
-/* Monochrome ramp — the minimal skin has no brand hues to spend, so slices are
-   separated by value rather than colour, which also survives being printed. */
-const PALETTE = ['#141416', '#4A4A50', '#6E6E75', '#92929A', '#B4B4BA', '#D0D0D5', '#E4E4E7'];
-const INK = '#141416';
-const GRID = '#E4E4E7';
-const AXIS = '#8E8E93';
 
 function Tile({ label, value, sub, tone = 'ink' }) {
   return (
-    <div className="bg-white p-4 rounded border border-line">
+    <div className="bg-surface-alt p-4 rounded border border-line">
       <p className="text-xs text-ink-soft uppercase tracking-wide mb-1">{label}</p>
       <p className={`text-3xl font-semibold leading-none ${tone === 'success' ? 'text-success' : ''}`}>
         {value}
@@ -29,7 +24,7 @@ function Tile({ label, value, sub, tone = 'ink' }) {
 
 function ChartCard({ title, subtitle, children, height = 260 }) {
   return (
-    <div className="bg-white p-5 rounded border border-line">
+    <div className="bg-surface-alt p-5 rounded border border-line">
       <h2 className="h-section">{title}</h2>
       {subtitle && <p className="text-base text-ink-soft mb-3">{subtitle}</p>}
       <div style={{ height }}>{children}</div>
@@ -37,16 +32,30 @@ function ChartCard({ title, subtitle, children, height = 260 }) {
   );
 }
 
+/* Tooltip styles use CSS custom properties so they adapt to the theme
+   without needing JS-side theme detection. */
 const tooltipStyle = {
   contentStyle: {
-    border: '1px solid #E4E4E7',
+    border: '1px solid rgb(var(--color-line))',
     borderRadius: 8,
     fontSize: 13,
     boxShadow: 'none',
+    backgroundColor: 'rgb(var(--color-surface-alt))',
+    color: 'rgb(var(--color-ink))',
   },
 };
 
 export default function Analytics() {
+  const { dark } = useTheme();
+
+  /* Monochrome ramp — flips direction in dark mode so bars are visible. */
+  const PALETTE = dark
+    ? ['#E8E8ED', '#B4B4BA', '#92929A', '#6E6E75', '#4A4A50', '#2C2C36', '#1E1E24']
+    : ['#141416', '#4A4A50', '#6E6E75', '#92929A', '#B4B4BA', '#D0D0D5', '#E4E4E7'];
+  const INK  = dark ? '#E8E8ED' : '#141416';
+  const GRID = dark ? '#2C2C36' : '#E4E4E7';
+  const AXIS = dark ? '#64646B' : '#8E8E93';
+
   const { data: summary, isLoading } = useAnalytics('summary');
   const { data: util } = useAnalytics('utilization', { days: 30 });
   const { data: revenue } = useAnalytics('revenue');
@@ -195,7 +204,7 @@ export default function Analytics() {
           </ChartCard>
 
           {/* The raw table behind the charts, for anyone who wants the numbers. */}
-          <div className="bg-white p-5 rounded border border-line lg:col-span-2">
+          <div className="bg-surface-alt p-5 rounded border border-line lg:col-span-2">
             <h2 className="h-section mb-5">Listing performance</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-base">

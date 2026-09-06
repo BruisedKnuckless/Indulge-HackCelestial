@@ -19,11 +19,13 @@ const SORT_OPTIONS = [
 
 export default function Nearby() {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Mode: 'resources' | 'requirements'
   const [mode, setMode] = useState('resources');
   const [radiusKm, setRadiusKm] = useState(() => Number(searchParams.get('radiusKm')) || 25);
+  const [isCustomRadius, setIsCustomRadius] = useState(false);
+  const [customRadiusInput, setCustomRadiusInput] = useState('');
   const [category, setCategory] = useState('all');
   const [sort, setSort] = useState('distance');
   const [selectedItemId, setSelectedItemId] = useState(null);
@@ -54,6 +56,7 @@ export default function Nearby() {
     const num = Number(r);
     if (num > 0) {
       setRadiusKm(num);
+      setIsCustomRadius(!PRESET_RADII.includes(num));
       setSelectedItemId(null);
     }
   };
@@ -115,6 +118,7 @@ export default function Nearby() {
   /* ── 3. Synchronization: Resource Card -> Map Marker ── */
   const handleCardClick = useCallback((item) => {
     setSelectedItemId(item._id);
+    // On small screens, switch to map view so the focused marker is visible
     if (window.innerWidth < 1024) {
       setMobileTab('map');
     }
@@ -167,7 +171,10 @@ export default function Nearby() {
               className="btn-primary w-full sm:w-auto"
             >
               {geoStatus === 'loading' ? (
-                <span>Locating…</span>
+                <>
+                  <Spinner size="sm" />
+                  <span>Locating…</span>
+                </>
               ) : geoStatus === 'denied' ? (
                 'Try again'
               ) : (
@@ -197,22 +204,22 @@ export default function Nearby() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Page Header Area */}
-      <header className="shell pt-6 pb-4 border-b border-line">
+      <header className="shell pt-5 pb-3 border-b border-line">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-ink">Nearby Discovery</h1>
             <p className="text-sm text-ink-soft mt-0.5">
               {isLoading
                 ? 'Finding resources near you...'
-                : `${activeItems.length} ${mode} within ${radiusKm} km`}
+                : `${activeItems.length} ${mode === 'resources' ? 'resource' : 'requirement'}${activeItems.length === 1 ? '' : 's'} within ${radiusKm} km`}
               {coords.city && (
                 <span className="text-ink-mute"> · {coords.city}</span>
               )}
             </p>
           </div>
 
-          {/* Location status chip */}
-          <div className="flex items-center gap-2 text-xs bg-surface border border-line rounded-lg px-3 py-1.5 self-start sm:self-auto shrink-0 shadow-sm">
+          {/* Location status chip with quick-switch */}
+          <div className="flex items-center gap-2 text-xs bg-surface border border-line rounded-lg px-3 py-1.5 self-start sm:self-auto shrink-0 shadow-2xs">
             <span className="w-2 h-2 rounded-full bg-success" />
             <span className="font-medium truncate max-w-[200px]">
               {coords.isDemo
@@ -226,13 +233,13 @@ export default function Nearby() {
               className="text-accent hover:underline font-semibold ml-1 shrink-0"
               title="Re-request browser GPS location"
             >
-              Update
+              Use my current location
             </button>
           </div>
         </div>
 
         {/* Filter Controls Row */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-3.5">
           <div className="flex flex-wrap items-center gap-3">
             {/* Mode switch */}
             <div className="flex items-center gap-0.5 p-0.5 bg-surface-sunk rounded-lg border border-line">
@@ -242,10 +249,12 @@ export default function Nearby() {
                   setSelectedItemId(null);
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-                  mode === 'resources' ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft'
+                  mode === 'resources'
+                    ? 'bg-surface text-ink shadow-2xs'
+                    : 'text-ink-soft hover:text-ink'
                 }`}
               >
-                Available Listings
+                Resources {resources.length > 0 && `(${resources.length})`}
               </button>
               <button
                 onClick={() => {
@@ -253,21 +262,78 @@ export default function Nearby() {
                   setSelectedItemId(null);
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-                  mode === 'requirements' ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft'
+                  mode === 'requirements'
+                    ? 'bg-surface text-ink shadow-2xs'
+                    : 'text-ink-soft hover:text-ink'
                 }`}
               >
-                Open RFQs
+                Requirements {requirements.length > 0 && `(${requirements.length})`}
               </button>
             </div>
 
-            {/* Category filter */}
+            {/* Radius Selector Pills */}
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-xs text-ink-mute font-medium mr-0.5">Radius:</span>
+              {PRESET_RADII.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => handleRadiusChange(r)}
+                  className={`h-7 px-2.5 text-xs font-medium rounded-full border transition-colors ${
+                    radiusKm === r && !isCustomRadius
+                      ? 'bg-ink border-ink text-ink-invert'
+                      : 'border-line text-ink-soft hover:border-ink hover:text-ink'
+                  }`}
+                >
+                  {r} km
+                </button>
+              ))}
+
+              {/* Custom radius */}
+              {isCustomRadius ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleRadiusChange(customRadiusInput);
+                  }}
+                  className="flex items-center gap-1"
+                >
+                  <input
+                    type="number"
+                    min="1"
+                    max="300"
+                    value={customRadiusInput}
+                    onChange={(e) => setCustomRadiusInput(e.target.value)}
+                    placeholder="km"
+                    className="field h-7 w-16 text-xs px-2"
+                    autoFocus
+                  />
+                  <button type="submit" className="btn-primary h-7 px-2 text-xs">
+                    Set
+                  </button>
+                </form>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsCustomRadius(true);
+                    setCustomRadiusInput(String(radiusKm));
+                  }}
+                  className="h-7 px-2.5 text-xs font-medium rounded-full border border-line text-ink-soft hover:border-ink hover:text-ink"
+                >
+                  Custom
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Right side: Category & Sort */}
+          <div className="flex items-center gap-2">
             <select
               value={category}
               onChange={(e) => {
                 setCategory(e.target.value);
                 setSelectedItemId(null);
               }}
-              className="field-select text-xs h-8 pl-2.5 pr-7"
+              className="field-select text-xs h-8 pl-2 pr-7"
             >
               <option value="all">All Categories</option>
               {CATEGORIES.map((c) => (
@@ -277,36 +343,15 @@ export default function Nearby() {
               ))}
             </select>
 
-            {/* Radius Selector */}
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-ink-mute mr-1">Radius:</span>
-              {PRESET_RADII.map((r) => (
-                <button
-                  key={r}
-                  onClick={() => handleRadiusChange(r)}
-                  className={`px-2 py-0.5 text-xs font-medium rounded border transition-colors ${
-                    radiusKm === r
-                      ? 'bg-ink text-ink-invert border-ink'
-                      : 'bg-surface border-line text-ink-soft hover:text-ink'
-                  }`}
-                >
-                  {r} km
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Sort Selector */}
-          <div className="flex items-center gap-2">
             {mode === 'resources' && (
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
-                className="field-select text-xs h-8 pl-2.5 pr-7"
+                className="field-select text-xs h-8 pl-2 pr-7"
               >
-                {SORT_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
@@ -319,7 +364,7 @@ export default function Nearby() {
           <button
             onClick={() => setMobileTab('map')}
             className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              mobileTab === 'map' ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft'
+              mobileTab === 'map' ? 'bg-surface text-ink shadow-2xs' : 'text-ink-soft'
             }`}
           >
             🗺 Map
@@ -327,7 +372,7 @@ export default function Nearby() {
           <button
             onClick={() => setMobileTab('list')}
             className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-              mobileTab === 'list' ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft'
+              mobileTab === 'list' ? 'bg-surface text-ink shadow-2xs' : 'text-ink-soft'
             }`}
           >
             📋 Listings ({activeItems.length})

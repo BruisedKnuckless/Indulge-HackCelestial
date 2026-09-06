@@ -4,7 +4,7 @@ import Proposal from '../models/Proposal.js';
 import Resource from '../models/Resource.js';
 import Booking from '../models/Booking.js';
 import Transaction from '../models/Transaction.js';
-import { requireAuth } from '../middleware/auth.middleware.js';
+import { requireAuth, optionalAuth } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest, getAvailableQuantity } from '../services/availability.service.js';
 import { scoreSingleResource } from '../services/matching.service.js';
@@ -94,6 +94,8 @@ router.post(
         coordinates: coords,
         radiusKm: Number(radiusKm) || 25,
       },
+      radiusKm: Number(radiusKm) || 25,
+      additionalConstraints: req.body.additionalConstraints || undefined,
       urgency,
       offers: [],
       status: 'open',
@@ -143,24 +145,63 @@ router.post(
 
 /**
  * GET /api/requirements/open
- * The provider-facing board of open requirements. Excludes the caller's own postings.
+ * The provider-facing board of open requirements. Excludes the caller's own
+ * postings when authenticated. Supports geographic radius filtering via lat & lng.
  */
 router.get(
   '/open',
-  requireAuth,
+  optionalAuth,
   asyncHandler(async (req, res) => {
+    const { lat, lng, radiusKm, category, limit = 50 } = req.query;
     const filter = {
       status: 'open',
-      seeker: { $ne: req.user._id },
       endDateTime: { $gte: new Date() },
     };
-    if (req.query.category && req.query.category !== 'all') filter.category = req.query.category;
+    if (req.user) {
+      filter.seeker = { $ne: req.user._id };
+    }
+    if (category && category !== 'all') filter.category = category;
 
-    const requirements = await Requirement.find(filter)
-      .populate(POPULATE)
-      .sort({ urgency: -1, startDateTime: 1 })
-      .limit(Number(req.query.limit) || 50)
-      .lean();
+    let requirements;
+
+    if (lat && lng) {
+      const geoNearStage = {
+        near: { type: 'Point', coordinates: [Number(lng), Number(lat)] },
+        distanceField: 'distanceMeters',
+        query: filter,
+        spherical: true,
+      };
+      if (radiusKm) {
+        geoNearStage.maxDistance = Number(radiusKm) * 1000;
+      }
+
+      requirements = await Requirement.aggregate([
+        { $geoNear: geoNearStage },
+        { $limit: Number(limit) },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'seeker',
+            foreignField: '_id',
+            as: 'seekerDoc',
+          },
+        },
+        { $unwind: { path: '$seekerDoc', preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            distanceKm: { $divide: ['$distanceMeters', 1000] },
+            seeker: '$seekerDoc',
+          },
+        },
+        { $project: { 'seeker.passwordHash': 0 } },
+      ]);
+    } else {
+      requirements = await Requirement.find(filter)
+        .populate(POPULATE)
+        .sort({ urgency: -1, startDateTime: 1 })
+        .limit(Number(limit) || 50)
+        .lean();
+    }
 
     res.json({ requirements });
   })

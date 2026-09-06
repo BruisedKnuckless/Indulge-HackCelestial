@@ -149,7 +149,7 @@ function NegotiationThread({ bookingId, booking, me, isProvider }) {
               <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[75%] border rounded-lg px-3 py-2 ${
-                    mine ? 'bg-surface-sunk border-line' : 'bg-white border-line'
+                    mine ? 'bg-surface-sunk border-line' : 'bg-surface-alt border-line'
                   }`}
                 >
                   <p className="text-xs font-semibold mb-0.5">

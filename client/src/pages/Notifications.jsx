@@ -51,7 +51,7 @@ export default function Notifications() {
           message="Request updates, messages and reviews will show up here as they happen."
         />
       ) : (
-        <div className="bg-white border border-line rounded divide-y divide-line">
+        <div className="bg-surface-alt border border-line rounded divide-y divide-line">
           {notifications.map((n) => {
             const meta = TYPE_META[n.type] || {};
             const body = (
