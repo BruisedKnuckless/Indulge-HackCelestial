@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import Requirement from '../models/Requirement.js';
 import Proposal from '../models/Proposal.js';
-import Resource from '../models/Resource.js';
+import Resource, { RESOURCE_CATEGORIES } from '../models/Resource.js';
 import Booking from '../models/Booking.js';
 import Transaction from '../models/Transaction.js';
 import { requireAuth, optionalAuth } from '../middleware/auth.middleware.js';
@@ -766,6 +766,131 @@ router.post(
 );
 
 /**
+ * PUT /api/requirements/:id
+ * Authenticated owner edits an open requirement.
+ */
+router.put(
+  '/:id',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const requirement = await Requirement.findById(req.params.id);
+    if (!requirement) throw new HttpError(404, 'Requirement not found.');
+
+    // 1. Authenticated ownership verification
+    if (String(requirement.seeker) !== String(req.user._id)) {
+      throw new HttpError(403, 'You can only edit your own requirements.');
+    }
+
+    // 2. Lifecycle status check
+    if (requirement.status === 'fulfilled') {
+      throw new HttpError(400, 'Fulfilled requirements with confirmed bookings cannot be edited.');
+    }
+    if (requirement.status === 'closed' || requirement.status === 'cancelled' || requirement.status === 'expired') {
+      throw new HttpError(400, `Cannot edit a requirement that is ${requirement.status}.`);
+    }
+    if (requirement.status !== 'open') {
+      throw new HttpError(400, `Cannot edit requirement with status "${requirement.status}".`);
+    }
+
+    const {
+      title,
+      category,
+      description,
+      requiredQuantity,
+      quantity,
+      unit,
+      minCapacity,
+      maxBudget,
+      maxPrice,
+      startDateTime,
+      endDateTime,
+      radiusKm,
+      urgency,
+      location,
+      additionalConstraints,
+    } = req.body;
+
+    if (title !== undefined) {
+      if (!title.trim()) throw new HttpError(400, 'Title cannot be empty.');
+      requirement.title = title.trim();
+    }
+
+    if (category !== undefined) {
+      if (!RESOURCE_CATEGORIES.includes(category)) {
+        throw new HttpError(400, `Invalid category: ${category}`);
+      }
+      requirement.category = category;
+    }
+
+    if (description !== undefined) {
+      requirement.description = description?.trim() || '';
+    }
+
+    const qty = Number(requiredQuantity || quantity);
+    if (!Number.isNaN(qty) && qty > 0) {
+      requirement.requiredQuantity = qty;
+      requirement.quantity = qty;
+    }
+
+    if (unit !== undefined) {
+      requirement.unit = unit;
+    }
+
+    if (minCapacity !== undefined) {
+      requirement.minCapacity = minCapacity ? Number(minCapacity) : undefined;
+    }
+
+    const budget = maxBudget != null ? Number(maxBudget) : maxPrice != null ? Number(maxPrice) : undefined;
+    if (budget !== undefined) {
+      requirement.maxBudget = budget;
+      requirement.maxPrice = budget;
+    }
+
+    if (startDateTime || endDateTime) {
+      const start = new Date(startDateTime || requirement.startDateTime);
+      const end = new Date(endDateTime || requirement.endDateTime);
+      if (Number.isNaN(+start) || Number.isNaN(+end) || end <= start) {
+        throw new HttpError(400, 'End time must be after start time.');
+      }
+      requirement.startDateTime = start;
+      requirement.endDateTime = end;
+    }
+
+    if (urgency !== undefined) {
+      if (['low', 'medium', 'high'].includes(urgency)) {
+        requirement.urgency = urgency;
+      }
+    }
+
+    if (radiusKm !== undefined) {
+      const r = Number(radiusKm) || 25;
+      requirement.radiusKm = r;
+      if (requirement.location) requirement.location.radiusKm = r;
+    }
+
+    if (additionalConstraints !== undefined) {
+      requirement.additionalConstraints = additionalConstraints?.trim() || undefined;
+    }
+
+    if (location) {
+      const coords = location.coordinates?.length === 2 ? location.coordinates : requirement.location?.coordinates;
+      requirement.location = {
+        address: location.address || requirement.location?.address,
+        city: location.city || requirement.location?.city,
+        pincode: location.pincode || requirement.location?.pincode,
+        coordinates: coords,
+        radiusKm: Number(radiusKm) || requirement.location?.radiusKm || 25,
+      };
+    }
+
+    // Save and update updatedAt while preserving seeker, createdAt, proposals, offers
+    await requirement.save();
+
+    res.json({ requirement: await requirement.populate(POPULATE) });
+  })
+);
+
+/**
  * PATCH /api/requirements/:id/close
  * Close a requirement without accepting anything.
  */
@@ -778,8 +903,34 @@ router.patch(
     if (String(requirement.seeker) !== String(req.user._id)) {
       throw new HttpError(403, 'Only the requirement owner can close it.');
     }
+    if (requirement.status === 'fulfilled') {
+      throw new HttpError(400, 'Cannot close an already fulfilled requirement.');
+    }
 
     requirement.status = 'closed';
+    await requirement.save();
+    res.json({ requirement });
+  })
+);
+
+/**
+ * PATCH /api/requirements/:id/cancel
+ * Cancel an open requirement.
+ */
+router.patch(
+  '/:id/cancel',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const requirement = await Requirement.findById(req.params.id);
+    if (!requirement) throw new HttpError(404, 'Requirement not found.');
+    if (String(requirement.seeker) !== String(req.user._id)) {
+      throw new HttpError(403, 'Only the requirement owner can cancel it.');
+    }
+    if (requirement.status === 'fulfilled') {
+      throw new HttpError(400, 'Cannot cancel an already fulfilled requirement.');
+    }
+
+    requirement.status = 'cancelled';
     await requirement.save();
     res.json({ requirement });
   })

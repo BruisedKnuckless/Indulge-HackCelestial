@@ -178,6 +178,11 @@ export default function RequirementBoard() {
           What other businesses are looking for right now. Offer spare capacity directly instead of
           waiting to be found.
         </p>
+        <div className="mt-3">
+          <Link to="/requirements" className="text-sm link">
+            Go to My Requirements Workspace →
+          </Link>
+        </div>
       </header>
 
       <div className="flex items-center gap-3 pb-4 border-b border-line mb-2">

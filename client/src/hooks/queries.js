@@ -281,8 +281,18 @@ export function useRequirementActions() {
     onSuccess: refresh,
   });
 
+  const update = useMutation({
+    mutationFn: async ({ id, ...body }) => (await api.put(`/requirements/${id}`, body)).data,
+    onSuccess: refresh,
+  });
+
   const close = useMutation({
     mutationFn: async (id) => (await api.patch(`/requirements/${id}/close`)).data,
+    onSuccess: refresh,
+  });
+
+  const cancel = useMutation({
+    mutationFn: async (id) => (await api.patch(`/requirements/${id}/cancel`)).data,
     onSuccess: refresh,
   });
 
@@ -300,10 +310,12 @@ export function useRequirementActions() {
 
   return {
     create,
+    update,
     offer,
     acceptOffer,
     withdrawOffer,
     close,
+    cancel,
     submitProposal,
     acceptProposal,
   };

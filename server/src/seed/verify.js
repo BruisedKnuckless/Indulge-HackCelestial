@@ -444,6 +444,62 @@ async function main() {
     allProps.some((p) => p._id === proposalId && p.status === 'accepted')
   );
 
+  // 11. Requirement editing & management
+  const editTestRfq = await api('POST', '/api/requirements', {
+    token: kalpataru,
+    body: {
+      title: 'Original Title — 50 Chairs',
+      category: 'furniture',
+      requiredQuantity: 50,
+      startDateTime: new Date(Date.now() + 10 * 86400000).toISOString(),
+      endDateTime: new Date(Date.now() + 11 * 86400000).toISOString(),
+      location: { coordinates: [72.8777, 19.076] },
+    },
+  });
+  const editTestId = editTestRfq.body.requirement?._id;
+
+  // Non-owner cannot edit
+  const unauthorizedEdit = await api('PUT', `/api/requirements/${editTestId}`, {
+    token: seasons,
+    body: { title: 'Hacked Title' },
+  });
+  check('unauthorized user cannot edit another user\'s requirement', unauthorizedEdit.status === 403);
+
+  // Owner can edit
+  const ownerEdit = await api('PUT', `/api/requirements/${editTestId}`, {
+    token: kalpataru,
+    body: {
+      title: 'Updated Title — 60 Chairs',
+      requiredQuantity: 60,
+      description: 'Updated delivery instructions.',
+    },
+  });
+  check(
+    'owner can successfully edit open requirement',
+    ownerEdit.status === 200 &&
+      ownerEdit.body.requirement?.title === 'Updated Title — 60 Chairs' &&
+      ownerEdit.body.requirement?.requiredQuantity === 60
+  );
+
+  // Cannot edit fulfilled requirement
+  const editFulfilled = await api('PUT', `/api/requirements/${createdRfqId}`, {
+    token: kalpataru,
+    body: { title: 'Cannot edit fulfilled' },
+  });
+  check('cannot edit a fulfilled requirement with confirmed booking', editFulfilled.status === 400);
+
+  // Owner can cancel requirement
+  const cancelRes = await api('PATCH', `/api/requirements/${editTestId}/cancel`, {
+    token: kalpataru,
+  });
+  check('owner can cancel open requirement', cancelRes.status === 200 && cancelRes.body.requirement?.status === 'cancelled');
+
+  // Cannot cancel fulfilled requirement
+  const cancelFulfilled = await api('PATCH', `/api/requirements/${createdRfqId}/cancel`, {
+    token: kalpataru,
+  });
+  check('cannot cancel a fulfilled requirement', cancelFulfilled.status === 400);
+
   // ---- availability windows ----
   console.log('\nAvailability windows');
   const kitchenSearch = await api('GET', '/api/search/resources?category=kitchen_capacity&limit=20', {

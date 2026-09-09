@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin } from 'lucide-react';
+import { MapPin, ArrowRight } from 'lucide-react';
 import { useRequirementsFeed } from '../hooks/queries';
+import { useAuth } from '../context/AuthContext';
 import ProposalModal from '../components/ProposalModal';
 import { Spinner, EmptyState, Stars } from '../components/ui';
 import { CATEGORIES, CATEGORY_LABELS } from '../lib/constants';
 import { inr, dateRange, relative } from '../lib/format';
 
 export default function RequirementsFeed() {
+  const { user } = useAuth();
   const [category, setCategory] = useState('all');
   const [radiusKm, setRadiusKm] = useState(50);
   const [urgency, setUrgency] = useState('all');
@@ -24,15 +26,39 @@ export default function RequirementsFeed() {
 
   return (
     <div className="shell pt-12 pb-20">
-      <div className="flex items-baseline justify-between flex-wrap gap-4 mb-8">
+      <div className="flex items-baseline justify-between flex-wrap gap-4 mb-4">
         <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-surface-sunk border border-line text-ink-soft">
+              Marketplace Demand Feed
+            </span>
+          </div>
           <h1 className="h-page">Supplier RFQ Feed</h1>
           <p className="text-sm muted mt-1 max-w-2xl">
-            Live resource requirements posted by hospitality businesses nearby. Submit competitive quotations to monetize idle capacity.
+            Live resource requirements posted by other hospitality businesses nearby. Submit competitive quotations to monetize idle capacity.
           </p>
         </div>
-        <Link to="/listings" className="btn-secondary">
-          Manage Your Listings
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Link to="/requirements" className="btn-secondary">
+            My Requirements
+          </Link>
+          <Link to="/listings" className="btn-secondary">
+            Manage Listings
+          </Link>
+        </div>
+      </div>
+
+      {/* Distinction helper banner */}
+      <div className="p-3.5 mb-6 bg-surface-sunk/70 border border-line rounded-lg text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        <span className="text-ink-soft">
+          Need resources, spaces, or equipment for <strong>your own business</strong>?
+        </span>
+        <Link
+          to="/requirements"
+          className="font-medium text-ink hover:underline inline-flex items-center gap-1 shrink-0"
+        >
+          <span>Go to My Requirements Workspace</span>
+          <ArrowRight size={13} />
         </Link>
       </div>
 
@@ -121,7 +147,9 @@ export default function RequirementsFeed() {
                   </div>
 
                   <h2 className="text-lg font-semibold text-ink leading-snug mb-1">
-                    {rfq.title}
+                    <Link to={`/requirements/${rfq._id}`} className="hover:underline">
+                      {rfq.title}
+                    </Link>
                   </h2>
 
                   {rfq.description && (
@@ -182,8 +210,15 @@ export default function RequirementsFeed() {
                     </span>
                   </div>
 
-                  {rfq.hasProposed ? (
-                    <div className="p-2.5 bg-success/10 border border-success/30 rounded-lg text-center">
+                  {user && String(seeker._id || seeker) === String(user._id) ? (
+                    <div className="p-2.5 bg-surface-sunk border border-line rounded-lg text-center w-full">
+                      <span className="text-xs font-semibold text-ink-soft block">Your Requirement</span>
+                      <Link to={`/requirements/${rfq._id}`} className="text-xs link mt-1 block">
+                        Manage in Workspace →
+                      </Link>
+                    </div>
+                  ) : rfq.hasProposed ? (
+                    <div className="p-2.5 bg-success/10 border border-success/30 rounded-lg text-center w-full">
                       <span className="text-xs font-semibold text-success block">Quote Submitted</span>
                       <span className="text-sm font-semibold text-ink">
                         {inr(rfq.myProposal?.quotedPrice)}

@@ -1,6 +1,8 @@
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useSearch } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
+import { useHomeAnimation } from '../hooks/useHomeAnimation';
 import ScrollSequence from '../components/ScrollSequence';
 import { Price, Spinner } from '../components/ui';
 import CategoryIcon from '../components/ui/CategoryIcon';
@@ -132,6 +134,19 @@ function FeaturedResourceCard({ resource: r, isAuthenticated }) {
 
 export default function Home() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { enabled: animationEnabled } = useHomeAnimation();
+
+  const isCinematic = searchParams.get('cinematic') === 'true';
+  const showAnimation = Boolean(isCinematic && animationEnabled);
+
+  // If ?cinematic=true is in the URL but animation is disabled, cleanly normalize to /
+  useEffect(() => {
+    if (isCinematic && !animationEnabled) {
+      navigate('/', { replace: true });
+    }
+  }, [isCinematic, animationEnabled, navigate]);
 
   /* Real backend search data */
   const { data: searchData, isLoading } = useSearch({ limit: 8, radiusKm: 60 });
@@ -142,9 +157,9 @@ export default function Home() {
     <>
       {/* ══════════════════════════════════════════════════════════════════════
           SECTION 1 — SCROLLSEQUENCE ANIMATION
-          Kept completely intact and functional as requested.
+          Triggered exclusively by the Indulge navbar logo when enabled.
           ══════════════════════════════════════════════════════════════════════ */}
-      <ScrollSequence />
+      {showAnimation && <ScrollSequence />}
 
       <div className="shell pb-24">
         {/* ════════════════════════════════════════════════════════════════════

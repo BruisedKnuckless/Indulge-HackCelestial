@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Pencil } from 'lucide-react';
 import { useMyRequirements } from '../hooks/queries';
 import { Spinner, EmptyState } from '../components/ui';
 import { CATEGORY_LABELS } from '../lib/constants';
@@ -84,15 +85,26 @@ export default function MyRequirements() {
                       open offer{live.length === 1 ? '' : 's'}
                     </p>
                   </div>
-                  {r.status === 'open' && (
-                    <Link
-                      to={`/s?requirementId=${r._id}`}
-                      className="btn-primary btn-sm text-xs gap-1 inline-flex items-center"
-                    >
-                      <span>Find matches</span>
-                      <span aria-hidden>→</span>
-                    </Link>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {r.status === 'open' && (
+                      <Link
+                        to={`/requirements/${r._id}/edit`}
+                        className="btn-secondary btn-sm text-xs gap-1 inline-flex items-center"
+                      >
+                        <Pencil size={12} />
+                        <span>Edit</span>
+                      </Link>
+                    )}
+                    {r.status === 'open' && (
+                      <Link
+                        to={`/s?requirementId=${r._id}`}
+                        className="btn-primary btn-sm text-xs gap-1 inline-flex items-center"
+                      >
+                        <span>Find matches</span>
+                        <span aria-hidden>→</span>
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
             );

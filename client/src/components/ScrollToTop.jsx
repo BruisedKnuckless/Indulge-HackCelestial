@@ -8,7 +8,7 @@ import { useLocation } from 'react-router-dom';
  * reload starts the intro from its first frame too.
  */
 export default function ScrollToTop() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
@@ -18,7 +18,7 @@ export default function ScrollToTop() {
 
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [pathname]);
+  }, [pathname, search]);
 
   return null;
 }

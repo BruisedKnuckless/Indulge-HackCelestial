@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Pencil, XCircle, ArrowRight, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMyRequirements, useRequirement, useRequirementActions } from '../hooks/queries';
 import { errorMessage } from '../api/client';
@@ -141,17 +141,50 @@ function ProposalsDrawer({ requirementId }) {
 export default function MyRFQs() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [openDrawerId, setOpenDrawerId] = useState(null);
+  const [actionBusyId, setActionBusyId] = useState(null);
 
+  const { close, cancel } = useRequirementActions();
   const { data, isLoading } = useMyRequirements(statusFilter !== 'all' ? statusFilter : undefined);
   const requirements = data?.requirements || [];
 
+  const handleClose = async (id) => {
+    if (!window.confirm('Close this requirement? Suppliers will no longer be able to submit quotes.')) return;
+    setActionBusyId(id);
+    try {
+      await close.mutateAsync(id);
+      toast.success('Requirement closed');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to close requirement.'));
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const handleCancel = async (id) => {
+    if (!window.confirm('Cancel this requirement? It will be marked as cancelled.')) return;
+    setActionBusyId(id);
+    try {
+      await cancel.mutateAsync(id);
+      toast.success('Requirement cancelled');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to cancel requirement.'));
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
   return (
     <div className="shell pt-12 pb-20 max-w-[1000px]">
-      <div className="flex items-baseline justify-between flex-wrap gap-4 mb-6">
+      <div className="flex items-baseline justify-between flex-wrap gap-4 mb-4">
         <div>
-          <h1 className="h-page">My Requirements (RFQs)</h1>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-surface-sunk border border-line text-ink-soft">
+              My Demand Workspace
+            </span>
+          </div>
+          <h1 className="h-page">My Requirements</h1>
           <p className="text-sm muted mt-1">
-            Track resource requests you have broadcasted to suppliers, review competitive quotations, and confirm bookings.
+            Manage resource requirements your business has broadcasted, review incoming supplier quotes, and confirm bookings.
           </p>
         </div>
         <Link to="/requirements/new" className="btn-primary">
@@ -159,9 +192,23 @@ export default function MyRFQs() {
         </Link>
       </div>
 
-      {/* Tabs */}
+      {/* Conceptual clarity banner */}
+      <div className="p-3.5 mb-6 bg-surface-sunk/70 border border-line rounded-lg text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        <span className="text-ink-soft">
+          Looking to supply capacity or quote on requirements posted by <strong>other businesses</strong>?
+        </span>
+        <Link
+          to="/requirements/feed"
+          className="font-medium text-ink hover:underline inline-flex items-center gap-1 shrink-0"
+        >
+          <span>Open Supplier RFQ Feed</span>
+          <ArrowRight size={13} />
+        </Link>
+      </div>
+
+      {/* Status Tabs */}
       <div className="flex border-b border-line mb-6 text-sm">
-        {['all', 'open', 'fulfilled'].map((tab) => (
+        {['all', 'open', 'fulfilled', 'closed'].map((tab) => (
           <button
             key={tab}
             onClick={() => setStatusFilter(tab)}
@@ -184,7 +231,7 @@ export default function MyRFQs() {
           message="Post what you need and let qualified hospitality suppliers nearby bid with their best rates."
           action={
             <Link to="/requirements/new" className="btn-primary">
-              Post your first RFQ
+              Post your first requirement
             </Link>
           }
         />
@@ -193,6 +240,7 @@ export default function MyRFQs() {
           {requirements.map((rfq) => {
             const isOpen = openDrawerId === rfq._id;
             const isFulfilled = rfq.status === 'fulfilled';
+            const isStatusOpen = rfq.status === 'open';
 
             return (
               <div key={rfq._id} className="card p-0 overflow-hidden">
@@ -206,7 +254,9 @@ export default function MyRFQs() {
                         className={`inline-flex items-center h-5 px-2 rounded-full text-[11px] font-medium border capitalize ${
                           isFulfilled
                             ? 'bg-success/10 border-success/30 text-success'
-                            : 'bg-surface-sunk border-line text-ink'
+                            : isStatusOpen
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400'
+                            : 'bg-surface-sunk border-line text-ink-soft'
                         }`}
                       >
                         {rfq.status}
@@ -217,34 +267,87 @@ export default function MyRFQs() {
                     </div>
 
                     <h2 className="text-lg font-semibold text-ink leading-snug mb-1">
-                      {rfq.title}
+                      <Link to={`/requirements/${rfq._id}`} className="hover:underline">
+                        {rfq.title}
+                      </Link>
                     </h2>
 
                     {rfq.description && (
-                      <p className="text-sm muted mb-2">{rfq.description}</p>
+                      <p className="text-sm muted mb-2 line-clamp-2">{rfq.description}</p>
                     )}
 
                     <div className="flex flex-wrap gap-4 text-xs text-ink-soft mt-3">
-                      <span>Quantity: <strong className="text-ink">{rfq.requiredQuantity} {rfq.unit}</strong></span>
+                      <span>Quantity: <strong className="text-ink">{rfq.requiredQuantity || rfq.quantity} {rfq.unit || 'unit'}</strong></span>
                       <span>Dates: <strong className="text-ink">{dateRange(rfq.startDateTime, rfq.endDateTime)}</strong></span>
                       {rfq.maxBudget && (
                         <span>Budget Cap: <strong className="text-success">{inr(rfq.maxBudget)}</strong></span>
                       )}
                     </div>
+
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-line text-xs">
+                      <Link
+                        to={`/requirements/${rfq._id}`}
+                        className="text-ink-soft hover:text-ink hover:underline font-medium"
+                      >
+                        View Full Details →
+                      </Link>
+                      {isStatusOpen && (
+                        <Link
+                          to={`/s?requirementId=${rfq._id}`}
+                          className="text-xs text-ink-soft hover:text-ink inline-flex items-center gap-1 font-medium"
+                        >
+                          <Sparkles size={11} className="text-emerald-500" />
+                          <span>Find catalog matches</span>
+                        </Link>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="shrink-0 flex flex-col items-end gap-2 w-full md:w-auto">
-                    <button
-                      onClick={() => setOpenDrawerId(isOpen ? null : rfq._id)}
-                      className="btn-secondary btn-sm w-full md:w-auto"
-                    >
-                      {isOpen ? 'Hide Quotes' : `View Quotes (${rfq.proposalCount || 0})`}
-                    </button>
+                  <div className="shrink-0 flex flex-col items-stretch md:items-end gap-2 w-full md:w-auto">
+                    <div className="flex items-center gap-2">
+                      {isStatusOpen && (
+                        <Link
+                          to={`/requirements/${rfq._id}/edit`}
+                          className="btn-secondary btn-sm gap-1 inline-flex items-center"
+                          title="Edit requirement"
+                        >
+                          <Pencil size={13} />
+                          <span>Edit</span>
+                        </Link>
+                      )}
+
+                      <button
+                        onClick={() => setOpenDrawerId(isOpen ? null : rfq._id)}
+                        className="btn-primary btn-sm flex-1 md:flex-initial"
+                      >
+                        {isOpen ? 'Hide Quotes' : `View Quotes (${rfq.proposalCount || 0})`}
+                      </button>
+                    </div>
+
+                    {isStatusOpen && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleClose(rfq._id)}
+                          disabled={actionBusyId === rfq._id}
+                          className="text-[11px] text-ink-soft hover:text-ink hover:underline"
+                        >
+                          Close RFQ
+                        </button>
+                        <span className="text-ink-mute text-[10px]">·</span>
+                        <button
+                          onClick={() => handleCancel(rfq._id)}
+                          disabled={actionBusyId === rfq._id}
+                          className="text-[11px] text-danger hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
 
                     {isFulfilled && rfq.resultingBooking && (
                       <Link
                         to={`/bookings/detail/${rfq.resultingBooking._id || rfq.resultingBooking}`}
-                        className="text-xs link"
+                        className="text-xs link font-medium"
                       >
                         View Confirmed Booking →
                       </Link>

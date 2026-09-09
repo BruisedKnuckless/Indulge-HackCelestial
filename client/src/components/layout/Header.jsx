@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useCart, useNotifications } from "../../hooks/queries";
 import useTheme from "../../hooks/useTheme";
 import { shortName } from "../../lib/businessName";
+import { useHomeAnimation } from "../../hooks/useHomeAnimation";
 import Logo from "./Logo";
 
 /* ── Icons ──────────────────────────────────────────────────────────────── */
@@ -84,7 +85,7 @@ const NAV = [
   { to: '/', label: 'Home' },
   { to: '/s', label: 'Browse' },
   { to: '/nearby', label: 'Nearby' },
-  { to: '/requirements/board', label: 'Requirements' },
+  { to: '/requirements', label: 'Requirements' },
   { to: '/requirements/feed', label: 'RFQ Feed' },
   { to: '/listings', label: 'Your Listings' },
   { to: '/bookings/received', label: 'Requests' },
@@ -96,8 +97,7 @@ const ACCOUNT_LINKS = [
   { to: '/nearby', label: 'Nearby Map' },
   { to: '/bookings/sent', label: 'Requests you sent' },
   { to: '/bookings/received', label: 'Requests received' },
-  { to: '/requirements/mine', label: 'My RFQs' },
-  { to: '/requirements', label: 'Your requirements' },
+  { to: '/requirements', label: 'My Requirements' },
   { to: '/requirements/feed', label: 'Supplier RFQ feed' },
   { to: '/requirements/new', label: 'Post a requirement' },
   { to: '/listings', label: 'Your listings' },
@@ -116,16 +116,24 @@ function resolveActive(to, pathname) {
   if (to === "/") return pathname === "/";
   if (to === "/s") return pathname === "/s";
   if (to === "/bookings/received") return pathname.startsWith("/bookings");
+  if (to === "/requirements") return pathname.startsWith("/requirements") && !pathname.startsWith("/requirements/feed");
+  if (to === "/requirements/feed") return pathname.startsWith("/requirements/feed");
   return pathname === to || pathname.startsWith(to + "/");
 }
 
 function NavLink({ to, label }) {
-  const { pathname } = useLocation();
-  const active = resolveActive(to, pathname);
+  const { pathname, search } = useLocation();
+  const isCinematic = pathname === "/" && search.includes("cinematic=true");
+  const active = to === "/" ? (pathname === "/" && !isCinematic) : resolveActive(to, pathname);
 
   return (
     <Link
       to={to}
+      onClick={() => {
+        if (to === "/" && pathname === "/") {
+          window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+        }
+      }}
       className={[
         "relative px-2.5 py-1.5 text-sm rounded-md",
         "transition-colors duration-200 whitespace-nowrap",
@@ -163,8 +171,10 @@ const ICON_BTN =
 export default function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname, search } = location;
   const { dark, toggle: toggleTheme } = useTheme();
+  const { enabled: animationEnabled, toggle: toggleAnimation } = useHomeAnimation();
 
   const { data: cart } = useCart();
   const { data: notifs } = useNotifications();
@@ -207,9 +217,14 @@ export default function Header() {
         <div className="h-16 flex items-center gap-2">
 
           <Link
-            to="/"
+            to={animationEnabled ? "/?cinematic=true" : "/"}
             aria-label="Indulge Home"
-            title="Indulge — Home"
+            title={animationEnabled ? "Indulge — Experience & Home" : "Indulge — Home"}
+            onClick={() => {
+              if (animationEnabled && pathname === "/" && search.includes("cinematic=true")) {
+                window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+              }
+            }}
             className="shrink-0 mr-4 transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 rounded"
           >
             <Logo size={22} className="text-ink" />
@@ -331,7 +346,7 @@ export default function Header() {
             {menuOpen && (
               <div
                 className={[
-                  "absolute right-0 top-full mt-2 w-60 py-2 z-50",
+                  "absolute right-0 top-full mt-2 w-64 py-2 z-50",
                   "bg-surface-alt",
                   "border border-line",
                   "rounded shadow-lg",
@@ -344,6 +359,35 @@ export default function Header() {
                         {user.businessName}
                       </p>
                       <p className="text-xs muted truncate">{user.email}</p>
+                    </div>
+
+                    {/* Homepage Animation toggle directly below profile name/account info */}
+                    <div className="px-4 py-2 border-b border-line mb-1 flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-ink">Homepage Animation</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono text-ink-mute uppercase">
+                          {animationEnabled ? "ON" : "OFF"}
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={animationEnabled}
+                          aria-label={`Homepage Animation ${animationEnabled ? "ON" : "OFF"}`}
+                          onClick={toggleAnimation}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
+                            animationEnabled ? "bg-ink" : "bg-surface-sunk border border-line"
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full shadow-xs transition-transform duration-200 ${
+                              animationEnabled
+                                ? "translate-x-4 bg-ink-invert"
+                                : "translate-x-0.5 bg-ink/40"
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
 
                     {ACCOUNT_LINKS.map((l) => (
@@ -374,14 +418,44 @@ export default function Header() {
                     </button>
                   </>
                 ) : (
-                  <div className="px-4 py-2 space-y-2">
-                    <Link to="/login" className="btn-primary w-full text-center">
-                      Sign in
-                    </Link>
-                    <Link to="/register" className="btn-secondary w-full text-center">
-                      Create account
-                    </Link>
-                  </div>
+                  <>
+                    <div className="px-4 py-2 space-y-2">
+                      <Link to="/login" className="btn-primary w-full text-center">
+                        Sign in
+                      </Link>
+                      <Link to="/register" className="btn-secondary w-full text-center">
+                        Create account
+                      </Link>
+                    </div>
+
+                    <div className="px-4 py-2 border-t border-line mt-2 flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-ink">Homepage Animation</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono text-ink-mute uppercase">
+                          {animationEnabled ? "ON" : "OFF"}
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={animationEnabled}
+                          aria-label={`Homepage Animation ${animationEnabled ? "ON" : "OFF"}`}
+                          onClick={toggleAnimation}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
+                            animationEnabled ? "bg-ink" : "bg-surface-sunk border border-line"
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full shadow-xs transition-transform duration-200 ${
+                              animationEnabled
+                                ? "translate-x-4 bg-ink-invert"
+                                : "translate-x-0.5 bg-ink/40"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -406,12 +480,18 @@ export default function Header() {
             aria-label="Mobile navigation"
           >
             {NAV.map((n) => {
-              const active = resolveActive(n.to, pathname);
+              const isCinematic = pathname === "/" && search.includes("cinematic=true");
+              const active = n.to === "/" ? (pathname === "/" && !isCinematic) : resolveActive(n.to, pathname);
               return (
                 <Link
                   key={n.to}
                   to={n.to}
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => {
+                    setMobileOpen(false);
+                    if (n.to === "/" && pathname === "/") {
+                      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+                    }
+                  }}
                   className={[
                     "py-2 px-3 text-sm rounded",
                     "transition-colors duration-150",

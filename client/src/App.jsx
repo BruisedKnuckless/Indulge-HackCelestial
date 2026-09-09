@@ -209,12 +209,20 @@ export default function App() {
                   path="/requirements"
                   element={
                     <RequireAuth>
-                      <MyRequirements />
+                      <MyRFQs />
                     </RequireAuth>
                   }
                 />
                 <Route
                   path="/requirements/new"
+                  element={
+                    <RequireAuth>
+                      <PostRequirement />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/requirements/:id/edit"
                   element={
                     <RequireAuth>
                       <PostRequirement />

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRequirement, useRequirementActions } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
@@ -13,7 +14,7 @@ export default function RequirementDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data, isLoading } = useRequirement(id);
-  const { acceptOffer, withdrawOffer, close } = useRequirementActions();
+  const { acceptOffer, withdrawOffer, close, cancel } = useRequirementActions();
   const [busy, setBusy] = useState('');
 
   if (isLoading) return <Spinner label="Loading requirement" />;
@@ -60,11 +61,21 @@ export default function RequirementDetail() {
     }
   };
 
+  const cancelIt = async () => {
+    if (!window.confirm('Cancel this requirement? It will be marked as cancelled.')) return;
+    try {
+      await cancel.mutateAsync(id);
+      toast.success('Requirement cancelled');
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  };
+
   return (
     <div className="shell pt-12 pb-20 max-w-[900px]">
       <p className="text-xs text-ink-soft mb-3">
-        <Link to={isOwner ? '/requirements' : '/requirements/board'} className="link">
-          {isOwner ? 'Your requirements' : 'Open requirements'}
+        <Link to={isOwner ? '/requirements' : '/requirements/feed'} className="link">
+          {isOwner ? 'My Requirements' : 'Supplier RFQ Feed'}
         </Link>
         {' › '}
         <span>{r.title}</span>
@@ -101,19 +112,33 @@ export default function RequirementDetail() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {isOwner && r.status === 'open' && (
+              <Link
+                to={`/requirements/${r._id}/edit`}
+                className="btn-secondary btn-sm gap-1.5 inline-flex items-center"
+              >
+                <Pencil size={13} />
+                <span>Edit</span>
+              </Link>
+            )}
             {isOwner && r.status === 'open' && (
               <Link
                 to={`/s?requirementId=${r._id}`}
                 className="btn-primary btn-sm gap-1.5 inline-flex items-center"
               >
-                <span>Browse matching resources</span>
+                <span>Find matches</span>
                 <span aria-hidden>→</span>
               </Link>
             )}
             {isOwner && r.status === 'open' && (
               <button onClick={closeIt} className="btn-ghost btn-sm">
-                Close requirement
+                Close
+              </button>
+            )}
+            {isOwner && r.status === 'open' && (
+              <button onClick={cancelIt} className="btn-ghost btn-sm text-danger hover:text-danger">
+                Cancel
               </button>
             )}
           </div>
