@@ -141,7 +141,7 @@ export default function HowItWorks() {
       <div className="border-b border-line bg-surface-alt">
         <div className="shell py-16 max-w-3xl">
           <p className="text-xs text-ink-soft mb-4">
-            <Link to="/" className="link">
+            <Link to="/home" className="link">
               Home
             </Link>
             {' › '}

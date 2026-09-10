@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useSearch } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
 import { useHomeAnimation } from '../hooks/useHomeAnimation';
@@ -134,19 +133,20 @@ function FeaturedResourceCard({ resource: r, isAuthenticated }) {
 
 export default function Home() {
   const { user } = useAuth();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { enabled: animationEnabled } = useHomeAnimation();
 
-  const isCinematic = searchParams.get('cinematic') === 'true';
-  const showAnimation = Boolean(isCinematic && animationEnabled);
+  // The default route "/" when opening the application displays the Indulge intro / animation page.
+  // The navbar "Home" button navigates to "/home", which displays the main integrated dashboard
+  // directly without showing the intro / animation.
+  // Optional query parameters ?static=true or ?view=dashboard also render the dashboard directly.
+  const isDashboardRoute =
+    location.pathname === '/home' ||
+    searchParams.get('static') === 'true' ||
+    searchParams.get('view') === 'dashboard';
 
-  // If ?cinematic=true is in the URL but animation is disabled, cleanly normalize to /
-  useEffect(() => {
-    if (isCinematic && !animationEnabled) {
-      navigate('/', { replace: true });
-    }
-  }, [isCinematic, animationEnabled, navigate]);
+  const showAnimation = Boolean(!isDashboardRoute && animationEnabled);
 
   /* Real backend search data */
   const { data: searchData, isLoading } = useSearch({ limit: 8, radiusKm: 60 });

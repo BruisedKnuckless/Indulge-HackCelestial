@@ -87,6 +87,7 @@ export default function App() {
             <Shell>
               <Routes>
                 <Route path="/" element={<Home />} />
+                <Route path="/home" element={<Home />} />
                 <Route path="/s" element={<Search />} />
                 <Route path="/nearby" element={<Nearby />} />
                 <Route path="/r/:id" element={<ResourceDetail />} />

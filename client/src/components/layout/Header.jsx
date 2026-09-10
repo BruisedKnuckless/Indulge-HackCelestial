@@ -82,7 +82,7 @@ const PATHS = {
  * both sides of the marketplace.
  */
 const NAV = [
-  { to: '/', label: 'Home' },
+  { to: '/home', label: 'Home' },
   { to: '/s', label: 'Browse' },
   { to: '/nearby', label: 'Nearby' },
   { to: '/requirements', label: 'Requirements' },
@@ -113,6 +113,7 @@ const ACCOUNT_LINKS = [
  * Bookings are treated as one section regardless of sent / received direction.
  */
 function resolveActive(to, pathname) {
+  if (to === "/home") return pathname === "/home";
   if (to === "/") return pathname === "/";
   if (to === "/s") return pathname === "/s";
   if (to === "/bookings/received") return pathname.startsWith("/bookings");
@@ -122,15 +123,14 @@ function resolveActive(to, pathname) {
 }
 
 function NavLink({ to, label }) {
-  const { pathname, search } = useLocation();
-  const isCinematic = pathname === "/" && search.includes("cinematic=true");
-  const active = to === "/" ? (pathname === "/" && !isCinematic) : resolveActive(to, pathname);
+  const { pathname } = useLocation();
+  const active = resolveActive(to, pathname);
 
   return (
     <Link
       to={to}
       onClick={() => {
-        if (to === "/" && pathname === "/") {
+        if (to === pathname) {
           window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
         }
       }}
@@ -217,11 +217,11 @@ export default function Header() {
         <div className="h-16 flex items-center gap-2">
 
           <Link
-            to={animationEnabled ? "/?cinematic=true" : "/"}
+            to="/"
             aria-label="Indulge Home"
-            title={animationEnabled ? "Indulge — Experience & Home" : "Indulge — Home"}
+            title="Indulge — Experience & Landing"
             onClick={() => {
-              if (animationEnabled && pathname === "/" && search.includes("cinematic=true")) {
+              if (pathname === "/") {
                 window.scrollTo({ top: 0, left: 0, behavior: "instant" });
               }
             }}
@@ -480,15 +480,14 @@ export default function Header() {
             aria-label="Mobile navigation"
           >
             {NAV.map((n) => {
-              const isCinematic = pathname === "/" && search.includes("cinematic=true");
-              const active = n.to === "/" ? (pathname === "/" && !isCinematic) : resolveActive(n.to, pathname);
+              const active = resolveActive(n.to, pathname);
               return (
                 <Link
                   key={n.to}
                   to={n.to}
                   onClick={() => {
                     setMobileOpen(false);
-                    if (n.to === "/" && pathname === "/") {
+                    if (n.to === pathname) {
                       window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
                     }
                   }}
