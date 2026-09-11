@@ -63,10 +63,10 @@ function PillToggle({ value, active, onClick, children }) {
     <button
       onClick={() => onClick(active ? null : value)}
       className={[
-        'h-7 px-3 text-xs rounded-full border transition-colors whitespace-nowrap',
+        'h-7 px-3 text-xs rounded-full border transition-all duration-200 whitespace-nowrap',
         active
-          ? 'bg-ink border-ink text-ink-invert'
-          : 'border-line-strong text-ink-soft hover:border-ink hover:text-ink',
+          ? 'bg-indigo border-indigo text-white shadow-xs'
+          : 'border-line-strong text-ink-soft hover:border-indigo/40 hover:text-ink hover:bg-indigo/5 dark:hover:bg-indigo/10',
       ].join(' ')}
     >
       {children}
@@ -77,7 +77,7 @@ function PillToggle({ value, active, onClick, children }) {
 /** View-mode toggle icons. */
 function ViewToggle({ grid, onToggle }) {
   return (
-    <div className="flex items-center gap-0.5 border border-line rounded p-0.5">
+    <div className="flex items-center gap-0.5 border border-line rounded-lg p-0.5 bg-surface-alt">
       {[
         {
           key: 'grid',
@@ -98,8 +98,8 @@ function ViewToggle({ grid, onToggle }) {
           title={title}
           onClick={() => onToggle(key === 'grid')}
           className={[
-            'w-7 h-7 rounded grid place-items-center transition-colors',
-            active ? 'bg-ink text-ink-invert' : 'text-ink-soft hover:text-ink',
+            'w-7 h-7 rounded-md grid place-items-center transition-all duration-200',
+            active ? 'bg-indigo text-white shadow-xs' : 'text-ink-soft hover:text-ink hover:bg-indigo/10',
           ].join(' ')}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke ? 'none' : 'currentColor'}
@@ -566,7 +566,7 @@ export default function Search() {
               onClick={() => patch({ [key]: null })}
               className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full
                          bg-ink text-ink-invert text-xs font-medium
-                         hover:opacity-80 transition-opacity"
+                         hover:bg-indigo hover:text-white transition-all duration-200 shadow-xs"
             >
               {filterLabel(key, value)}
               <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
@@ -578,8 +578,8 @@ export default function Search() {
           <button
             onClick={clearAll}
             className="inline-flex items-center gap-1 h-7 px-3 rounded-full
-                       border border-line-strong text-xs text-ink-soft hover:text-ink
-                       hover:border-ink transition-colors"
+                       border border-line-strong text-xs text-ink-soft hover:text-red-accent
+                       hover:border-red-accent/40 hover:bg-red-accent/5 transition-all duration-200"
           >
             Clear all
           </button>

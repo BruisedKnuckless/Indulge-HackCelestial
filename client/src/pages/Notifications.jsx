@@ -6,11 +6,12 @@ import { useNotifications } from '../hooks/queries';
 import { Spinner, EmptyState } from '../components/ui';
 import { relative } from '../lib/format';
 
+/* Each notification type gets a distinct accent icon box */
 const TYPE_META = {
-  booking_request: { Icon: Inbox, tone: 'text-ink' },
-  booking_status_change: { Icon: RefreshCw, tone: 'text-success' },
-  negotiation_message: { Icon: MessageSquare, tone: 'text-ink' },
-  review_received: { Icon: Star, tone: 'text-amber-500' },
+  booking_request:      { Icon: Inbox,        boxClass: 'icon-box-indigo',  dot: 'bg-indigo' },
+  booking_status_change:{ Icon: RefreshCw,     boxClass: 'icon-box-green',   dot: 'bg-green-accent' },
+  negotiation_message:  { Icon: MessageSquare, boxClass: 'icon-box-teal',    dot: 'bg-teal' },
+  review_received:      { Icon: Star,          boxClass: 'icon-box-amber',   dot: 'bg-amber-accent' },
 };
 
 export default function Notifications() {
@@ -32,13 +33,19 @@ export default function Notifications() {
 
   return (
     <div className="shell pt-12 pb-20 max-w-prose">
-      <div className="flex items-baseline justify-between flex-wrap gap-2 mb-4">
-        <h1 className="h-page">
-          Notifications
-          {unread > 0 && <span className="text-base text-ink-soft ml-2">({unread} unread)</span>}
-        </h1>
+      <div className="flex items-baseline justify-between flex-wrap gap-2 mb-6">
+        <div>
+          <h1 className="h-page">
+            Notifications
+            {unread > 0 && (
+              <span className="ml-2 inline-flex items-center h-6 px-2 rounded-full text-xs font-semibold bg-red-accent/12 text-red-accent border border-red-accent/25">
+                {unread} unread
+              </span>
+            )}
+          </h1>
+        </div>
         {unread > 0 && (
-          <button onClick={markAll} className="link text-base">
+          <button onClick={markAll} className="link text-sm">
             Mark all as read
           </button>
         )}
@@ -52,31 +59,40 @@ export default function Notifications() {
           message="Request updates, messages and reviews will show up here as they happen."
         />
       ) : (
-        <div className="bg-surface-alt border border-line rounded divide-y divide-line">
+        <div className="card overflow-hidden p-0 divide-y divide-line">
           {notifications.map((n) => {
-            const meta = TYPE_META[n.type] || { Icon: Bell, tone: 'text-ink-soft' };
+            const meta = TYPE_META[n.type] || { Icon: Bell, boxClass: 'icon-box-muted', dot: 'bg-ink-mute' };
             const IconComponent = meta.Icon || Bell;
             const body = (
               <div
-                className={`flex items-start gap-3.5 p-4 hover:bg-surface-sunk transition-colors ${
-                  n.isRead ? '' : 'bg-surface-sunk/60'
-                }`}
+                className={`flex items-start gap-3.5 p-4 transition-colors duration-150
+                  hover:bg-surface-sunk/50
+                  ${n.isRead ? '' : 'bg-indigo/5 dark:bg-indigo/10'}`}
               >
-                <div className="w-8 h-8 rounded-lg bg-surface-sunk border border-line flex items-center justify-center text-ink-soft shrink-0">
-                  <IconComponent size={16} className={meta.tone || 'text-ink-soft'} />
+                {/* Accent icon container */}
+                <div className={`icon-box w-9 h-9 rounded-xl shrink-0 ${meta.boxClass}`}>
+                  <IconComponent size={15} strokeWidth={1.8} />
                 </div>
+
                 <div className="flex-1 min-w-0">
-                  <p className={`text-base font-semibold ${meta.tone || ''}`}>{n.title}</p>
-                  <p className="text-base text-ink-soft">{n.message}</p>
-                  <p className="text-xs text-ink-mute mt-0.5">{relative(n.createdAt)}</p>
+                  {/* Unread dot + title */}
+                  <div className="flex items-center gap-2">
+                    {!n.isRead && (
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
+                    )}
+                    <p className="text-sm font-semibold leading-snug">{n.title}</p>
+                  </div>
+                  <p className="text-sm text-ink-soft mt-0.5">{n.message}</p>
+                  <p className="text-xs text-ink-mute mt-1">{relative(n.createdAt)}</p>
                 </div>
+
                 {!n.isRead && (
                   <button
                     onClick={(e) => {
                       e.preventDefault();
                       markOne(n._id);
                     }}
-                    className="link text-xs shrink-0 self-start"
+                    className="link text-xs shrink-0 self-start text-ink-mute hover:text-ink"
                   >
                     Mark read
                   </button>

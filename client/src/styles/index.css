@@ -20,64 +20,173 @@
    ============================================================ */
 
 :root {
-  /* ── Surfaces — 3-level depth hierarchy ──────────────────────
-     Level 1: Page background  (warm off-white — NOT pure white)
-     Level 2: Cards / panels   (pure white — lifts above the page)
-     Level 3: Inputs / sunken  (slightly darker warm neutral)
+  /* ── Surfaces — Hospitality layered depth hierarchy ──────────
+     Level 1: Page background  (#F5F3EE — warm ivory page bg)
+     Level 2: Section surfaces (#F8F7F4, #F1F2F8, #FAF8F3)
+     Level 3: Cards / panels   (#FFFFFF — pure white card surface)
+     Level 4: Inputs / sunken  (#EAE7DF — warm tactile sunken)
      ─────────────────────────────────────────────────────────── */
-  --color-surface:      248 247 244;   /* #F8F7F4 — warm off-white page bg  */
-  --color-surface-alt:  255 255 255;   /* #FFFFFF  — card surface            */
-  --color-surface-sunk: 242 241 237;   /* #F2F1ED — inputs / sunken areas    */
+  --color-surface:         245 243 238;   /* #F5F3EE — warm ivory page bg */
+  --color-surface-section: 248 247 244;   /* #F8F7F4 — alternative section surface */
+  --color-surface-tinted:  241 242 248;   /* #F1F2F8 — soft cool/lavender tinted */
+  --color-surface-warm:    250 248 243;   /* #FAF8F3 — soft warm surface */
+  --color-surface-elevated:255 255 255;   /* #FFFFFF  — elevated surface */
+  --color-surface-alt:     255 255 255;   /* #FFFFFF  — card surface */
+  --color-surface-sunk:    234 231 223;   /* #EAE7DF — inputs / sunken areas */
 
-  /* Navigation bar — #A0A0A2 in light mode */
-  --color-nav:          160 160 162;   /* #A0A0A2 */
-  --color-nav-soft:     248 247 244;   /* #F8F7F4 — hover tint matches page */
+  /* Navigation bar — #A0A0A2 in light mode, #1A1C23 in dark mode */
+  --color-nav:             160 160 162;   /* #A0A0A2 */
+  --color-nav-soft:        142 142 144;   /* #8E8E90 */
+  --nav-bg:                rgb(160 160 162);
+  --nav-hover:             rgba(99, 102, 241, 0.10);
+  --nav-active:            rgba(99, 102, 241, 0.18);
+  --nav-border:            rgba(0, 0, 0, 0.10);
+  --nav-shadow:            0 2px 8px rgba(0, 0, 0, 0.08);
+
+  /* Card hover tokens (Light) */
+  --card-hover-border:     rgba(99, 102, 241, 0.22);
+  --card-hover-bg:         linear-gradient(145deg, rgba(99, 102, 241, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow:     0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(99, 102, 241, 0.05);
+
+  /* Category card hover tokens (Light) */
+  --card-hover-border-av_equipment:     rgba(99, 102, 241, 0.25);
+  --card-hover-bg-av_equipment:         linear-gradient(145deg, rgba(99, 102, 241, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-av_equipment:     0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(99, 102, 241, 0.06);
+
+  --card-hover-border-banquet_space:    rgba(217, 144, 0, 0.25);
+  --card-hover-bg-banquet_space:        linear-gradient(145deg, rgba(217, 144, 0, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-banquet_space:    0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(217, 144, 0, 0.06);
+
+  --card-hover-border-furniture:        rgba(139, 92, 246, 0.25);
+  --card-hover-bg-furniture:            linear-gradient(145deg, rgba(139, 92, 246, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-furniture:        0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(139, 92, 246, 0.06);
+
+  --card-hover-border-vehicle:          rgba(20, 184, 166, 0.25);
+  --card-hover-bg-vehicle:              linear-gradient(145deg, rgba(20, 184, 166, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-vehicle:          0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(20, 184, 166, 0.06);
+
+  --card-hover-border-kitchen_capacity: rgba(249, 115, 22, 0.25);
+  --card-hover-bg-kitchen_capacity:     linear-gradient(145deg, rgba(249, 115, 22, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-kitchen_capacity: 0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(249, 115, 22, 0.06);
+
+  --card-hover-border-parking:          rgba(59, 130, 246, 0.25);
+  --card-hover-bg-parking:              linear-gradient(145deg, rgba(59, 130, 246, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-parking:          0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(59, 130, 246, 0.06);
+
+  --card-hover-border-staff:            rgba(244, 63, 94, 0.25);
+  --card-hover-bg-staff:                linear-gradient(145deg, rgba(244, 63, 94, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-staff:            0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(244, 63, 94, 0.06);
+
+  --card-hover-border-other:            rgba(16, 185, 129, 0.25);
+  --card-hover-bg-other:                linear-gradient(145deg, rgba(16, 185, 129, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-other:            0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(16, 185, 129, 0.06);
 
   /* Text */
-  --color-ink:          20 20 22;      /* #141416 */
-  --color-ink-soft:     88 88 94;      /* #58585E — slightly warmer mid-gray */
-  --color-ink-mute:     148 146 140;   /* #94928C — warm muted               */
-  --color-ink-invert:   255 255 255;   /* #FFFFFF  — text on dark primary button */
+  --color-ink:             20 20 22;      /* #141416 */
+  --color-ink-soft:        88 88 94;      /* #58585E — warm mid-gray */
+  --color-ink-mute:        148 146 140;   /* #94928C — warm muted */
+  --color-ink-invert:      255 255 255;   /* #FFFFFF — text on dark button */
 
-  /* Borders / hairlines — slightly warmer, more visible */
-  --color-line:         224 222 216;   /* #E0DED8 — warm visible border      */
-  --color-line-strong:  206 203 196;   /* #CECBC4 — stronger separator       */
+  /* Borders / hairlines — warm visible neutral */
+  --color-line:            224 222 216;   /* #E0DED8 — warm visible border */
+  --color-line-strong:     206 203 196;   /* #CECBC4 — stronger separator */
 
   /* Semantic */
-  --color-accent:       20 20 22;      /* #141416 */
-  --color-success:      23 114 69;     /* #177245 */
-  --color-danger:       163 32 32;     /* #A32020 */
-  --color-warn:         138 106 0;     /* #8A6A00 */
+  --color-accent:          20 20 22;      /* #141416 */
+  --color-success:         23 114 69;     /* #177245 */
+  --color-danger:          163 32 32;     /* #A32020 */
+  --color-warn:            138 106 0;     /* #8A6A00 */
+
+  /* ── Accent palette — hospitality × B2B ────────────────────── */
+  --color-indigo:          99 102 241;    /* #6366F1 — refined primary accent */
+  --color-teal:            20 184 166;    /* #14B8A6 — refined secondary accent */
+  --color-amber-accent:    217 144 0;     /* #D99000 — warm accent */
+  --color-green-accent:    32 164 100;    /* #20A464 — positive */
+  --color-red-accent:      217 74 74;     /* #D94A4A — negative */
+  --color-violet:          139 92 246;    /* #8B5CF6 — violet accent */
 }
 
 /* Dark theme — applied when <html class="dark"> */
-/* !! DO NOT MODIFY — dark mode is preserved exactly as designed !! */
 .dark {
-  /* Surfaces — charcoal/near-black hierarchy */
-  --color-surface:      22 22 26;      /* #16161A */
-  --color-surface-alt:  30 30 36;      /* #1E1E24 */
-  --color-surface-sunk: 15 15 19;      /* #0F0F13 */
+  /* Surfaces — Charcoal depth hierarchy */
+  --color-surface:         17 19 24;      /* #111318 — main charcoal background */
+  --color-surface-section: 22 25 34;      /* #161922 — section surface */
+  --color-surface-tinted:  24 27 38;      /* #181B26 — soft tinted section surface */
+  --color-surface-warm:    22 25 34;      /* #161922 — warm section surface */
+  --color-surface-elevated:28 31 41;      /* #1C1F29 — elevated surface */
+  --color-surface-alt:     32 35 45;      /* #20232D — elevated card surface */
+  --color-surface-sunk:    13 15 20;      /* #0D0F14 — sunken surface */
 
-  /* Navigation */
-  --color-nav:          26 26 31;      /* #1A1A1F */
-  --color-nav-soft:     37 37 48;      /* #252530 */
+  /* Navigation — #1A1C23 refined dark neutral */
+  --color-nav:             26 28 35;      /* #1A1C23 — refined dark neutral */
+  --color-nav-soft:        35 38 48;      /* #232630 */
+  --nav-bg:                rgb(26 28 35);
+  --nav-hover:             rgba(99, 102, 241, 0.15);
+  --nav-active:            rgba(99, 102, 241, 0.24);
+  --nav-border:            rgba(255, 255, 255, 0.08);
+  --nav-shadow:            0 4px 16px rgba(0, 0, 0, 0.35);
+
+  /* Card hover tokens (Dark) */
+  --card-hover-border:     rgba(99, 102, 241, 0.28);
+  --card-hover-bg:         linear-gradient(145deg, rgba(99, 102, 241, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow:     0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(99, 102, 241, 0.10);
+
+  /* Category card hover tokens (Dark) */
+  --card-hover-border-av_equipment:     rgba(99, 102, 241, 0.32);
+  --card-hover-bg-av_equipment:         linear-gradient(145deg, rgba(99, 102, 241, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-av_equipment:     0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(99, 102, 241, 0.10);
+
+  --card-hover-border-banquet_space:    rgba(245, 158, 11, 0.32);
+  --card-hover-bg-banquet_space:        linear-gradient(145deg, rgba(245, 158, 11, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-banquet_space:    0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(245, 158, 11, 0.10);
+
+  --card-hover-border-furniture:        rgba(139, 92, 246, 0.32);
+  --card-hover-bg-furniture:            linear-gradient(145deg, rgba(139, 92, 246, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-furniture:        0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(139, 92, 246, 0.10);
+
+  --card-hover-border-vehicle:          rgba(45, 212, 191, 0.32);
+  --card-hover-bg-vehicle:              linear-gradient(145deg, rgba(45, 212, 191, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-vehicle:          0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(45, 212, 191, 0.10);
+
+  --card-hover-border-kitchen_capacity: rgba(249, 115, 22, 0.32);
+  --card-hover-bg-kitchen_capacity:     linear-gradient(145deg, rgba(249, 115, 22, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-kitchen_capacity: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(249, 115, 22, 0.10);
+
+  --card-hover-border-parking:          rgba(59, 130, 246, 0.32);
+  --card-hover-bg-parking:              linear-gradient(145deg, rgba(59, 130, 246, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-parking:          0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(59, 130, 246, 0.10);
+
+  --card-hover-border-staff:            rgba(244, 63, 94, 0.32);
+  --card-hover-bg-staff:                linear-gradient(145deg, rgba(244, 63, 94, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-staff:            0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(244, 63, 94, 0.10);
+
+  --card-hover-border-other:            rgba(52, 211, 153, 0.32);
+  --card-hover-bg-other:                linear-gradient(145deg, rgba(52, 211, 153, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-other:            0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(52, 211, 153, 0.10);
 
   /* Text — light on dark */
-  --color-ink:          232 232 237;   /* #E8E8ED */
-  --color-ink-soft:     158 158 165;   /* #9E9EA5 */
-  --color-ink-mute:     100 100 107;   /* #64646B */
-  /* ink-invert in dark = dark text on the now-light primary button */
-  --color-ink-invert:   22 22 26;      /* #16161A */
+  --color-ink:             232 232 237;   /* #E8E8ED */
+  --color-ink-soft:        158 158 165;   /* #9E9EA5 */
+  --color-ink-mute:        100 100 107;   /* #64646B */
+  --color-ink-invert:      17 19 24;      /* #111318 */
 
   /* Borders */
-  --color-line:         44 44 54;      /* #2C2C36 */
-  --color-line-strong:  62 62 74;      /* #3E3E4A */
+  --color-line:            38 42 56;      /* #262A38 — visible charcoal border */
+  --color-line-strong:     52 58 76;      /* #343A4C — stronger separator */
 
   /* Semantic — lighter for readability on dark backgrounds */
-  --color-accent:       232 232 237;   /* #E8E8ED */
-  --color-success:      52 199 89;     /* #34C759 */
-  --color-danger:       255 82 82;     /* #FF5252 */
-  --color-warn:         255 196 0;     /* #FFC400 */
+  --color-accent:          232 232 237;   /* #E8E8ED */
+  --color-success:         52 199 89;     /* #34C759 */
+  --color-danger:          255 82 82;     /* #FF5252 */
+  --color-warn:            255 196 0;     /* #FFC400 */
+
+  /* Accent palette dark equivalents — refined glowing tones */
+  --color-indigo:          129 140 248;   /* #818CF8 */
+  --color-teal:            45 212 191;    /* #2DD4BF */
+  --color-amber-accent:    245 158 11;    /* #F59E0B */
+  --color-green-accent:    52 211 153;    /* #34D399 */
+  --color-red-accent:      248 113 113;   /* #F87171 */
+  --color-violet:          167 139 250;   /* #A78BFA */
 }
 
 @layer base {
@@ -87,7 +196,40 @@
   }
 
   body {
-    @apply bg-surface text-ink font-sans text-base;
+    @apply bg-surface text-ink font-sans text-base relative min-h-screen overflow-x-hidden;
+  }
+
+  /* Global subtle ambient background depth glows — non-intrusive */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 20%;
+    width: 60vw;
+    height: 50vh;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.035) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: 10%;
+    right: 10%;
+    width: 50vw;
+    height: 50vh;
+    background: radial-gradient(circle, rgba(20, 184, 166, 0.03) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .dark body::before {
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.06) 0%, transparent 70%);
+  }
+
+  .dark body::after {
+    background: radial-gradient(circle, rgba(20, 184, 166, 0.05) 0%, transparent 70%);
   }
 
   a {
@@ -95,7 +237,7 @@
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-ink/20 ring-offset-2 ring-offset-surface rounded;
+    @apply outline-none ring-2 ring-indigo/30 ring-offset-2 ring-offset-surface rounded;
   }
 }
 
@@ -132,30 +274,33 @@
   }
 
   /* ---- Buttons --------------------------------------------------------
-     Primary: bg-ink (dark in light / light in dark) + text-ink-invert
-     (white in light / dark in dark). No dark: overrides needed — the CSS
-     variables flip both tokens automatically. */
+     Primary: uses the design ink token but enhanced with subtle gradient.
+     Secondary / outline / ghost: progressively lighter treatments.   */
   .btn {
     @apply inline-flex items-center justify-center gap-2 px-4 h-10
            text-sm font-medium rounded-lg cursor-pointer select-none
-           border transition-all duration-150 whitespace-nowrap
+           border transition-all duration-200 whitespace-nowrap
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
   .btn-primary {
     @apply btn bg-ink border-ink text-ink-invert
-           hover:opacity-85 active:opacity-75;
+           hover:opacity-90 hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)]
+           active:opacity-80 active:translate-y-0 active:shadow-none;
   }
 
   .btn-secondary {
     @apply btn bg-surface-alt border-line-strong text-ink
-           hover:bg-surface-sunk hover:border-line-strong
-           active:bg-surface-sunk;
+           hover:bg-surface-sunk hover:border-line-strong hover:-translate-y-[1px]
+           hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)]
+           active:bg-surface-sunk active:translate-y-0 active:shadow-none;
   }
 
   .btn-outline {
     @apply btn bg-transparent border-line-strong text-ink
-           hover:bg-surface-sunk active:bg-surface-sunk;
+           hover:bg-surface-sunk hover:-translate-y-[1px]
+           hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)]
+           active:bg-surface-sunk active:translate-y-0;
   }
 
   .btn-ghost {
@@ -165,7 +310,14 @@
 
   .btn-danger {
     @apply btn bg-danger/10 border-danger/30 text-danger
-           hover:bg-danger/20 active:bg-danger/25;
+           hover:bg-danger/20 hover:-translate-y-[1px]
+           active:bg-danger/25 active:translate-y-0;
+  }
+
+  .btn-accent {
+    @apply btn bg-indigo border-indigo text-white
+           hover:opacity-90 hover:-translate-y-[1px] hover:shadow-[0_4px_14px_rgba(91,91,214,0.35)]
+           active:opacity-80 active:translate-y-0 active:shadow-none;
   }
 
   .btn-sm {
@@ -174,26 +326,154 @@
 
   /* ---- Surfaces ------------------------------------------------------- */
   /* Cards sit above the warm page background using white surface + subtle
-     shadow. In dark mode the shadow is invisible; the border does the work. */
+     shadow. In dark mode borders do the heavy lifting alongside shadows. */
   .card {
     @apply bg-surface-alt border border-line rounded-xl p-6
-           shadow-[0_1px_4px_rgba(0,0,0,0.06)];
+           shadow-[0_2px_8px_rgba(0,0,0,0.07)]
+           dark:shadow-[0_2px_12px_rgba(0,0,0,0.25)];
   }
 
   .card-quiet {
     @apply bg-surface-alt border border-line rounded-xl p-6
-           shadow-[0_1px_3px_rgba(0,0,0,0.04)];
+           shadow-[0_1px_4px_rgba(0,0,0,0.05)]
+           dark:shadow-[0_2px_8px_rgba(0,0,0,0.20)];
+  }
+
+  /* ── Interactive card & Resource card hover system ───────── */
+  .resource-card,
+  .card-interactive {
+    @apply bg-surface-alt border border-line rounded-xl cursor-pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    transition:
+      transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 220ms ease,
+      border-color 180ms ease,
+      background 180ms ease;
+  }
+
+  .dark .resource-card,
+  .dark .card-interactive {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  }
+
+  .resource-card:hover,
+  .card-interactive:hover {
+    transform: translateY(-3px);
+    border-color: var(--card-cat-border, var(--card-hover-border));
+    background: var(--card-cat-bg, var(--card-hover-bg));
+    box-shadow: var(--card-cat-shadow, var(--card-hover-shadow));
+  }
+
+  .card-cat-av_equipment {
+    --card-cat-border: var(--card-hover-border-av_equipment);
+    --card-cat-bg: var(--card-hover-bg-av_equipment);
+    --card-cat-shadow: var(--card-hover-shadow-av_equipment);
+  }
+  .card-cat-banquet_space {
+    --card-cat-border: var(--card-hover-border-banquet_space);
+    --card-cat-bg: var(--card-hover-bg-banquet_space);
+    --card-cat-shadow: var(--card-hover-shadow-banquet_space);
+  }
+  .card-cat-furniture {
+    --card-cat-border: var(--card-hover-border-furniture);
+    --card-cat-bg: var(--card-hover-bg-furniture);
+    --card-cat-shadow: var(--card-hover-shadow-furniture);
+  }
+  .card-cat-vehicle {
+    --card-cat-border: var(--card-hover-border-vehicle);
+    --card-cat-bg: var(--card-hover-bg-vehicle);
+    --card-cat-shadow: var(--card-hover-shadow-vehicle);
+  }
+  .card-cat-kitchen_capacity {
+    --card-cat-border: var(--card-hover-border-kitchen_capacity);
+    --card-cat-bg: var(--card-hover-bg-kitchen_capacity);
+    --card-cat-shadow: var(--card-hover-shadow-kitchen_capacity);
+  }
+  .card-cat-parking {
+    --card-cat-border: var(--card-hover-border-parking);
+    --card-cat-bg: var(--card-hover-bg-parking);
+    --card-cat-shadow: var(--card-hover-shadow-parking);
+  }
+  .card-cat-staff {
+    --card-cat-border: var(--card-hover-border-staff);
+    --card-cat-bg: var(--card-hover-bg-staff);
+    --card-cat-shadow: var(--card-hover-shadow-staff);
+  }
+  .card-cat-other {
+    --card-cat-border: var(--card-hover-border-other);
+    --card-cat-bg: var(--card-hover-bg-other);
+    --card-cat-shadow: var(--card-hover-shadow-other);
+  }
+
+  /* ── Stat / KPI card — used in Analytics ─────────────────── */
+  .stat-card {
+    @apply bg-surface-alt border border-line rounded-xl p-5;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    transition:
+      transform 200ms ease,
+      box-shadow 200ms ease,
+      border-color 200ms ease,
+      background 200ms ease;
+  }
+
+  .dark .stat-card {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    border-color: rgb(var(--color-line-strong));
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.09), 0 0 16px rgba(99, 102, 241, 0.05);
+  }
+
+  .dark .stat-card:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38), 0 0 20px rgba(99, 102, 241, 0.08);
+  }
+
+  .stat-card .icon-box {
+    transition: transform 200ms ease;
+  }
+
+  .stat-card:hover .icon-box {
+    transform: scale(1.06);
+  }
+
+  /* ── Chart card ───────────────────────────────────────────── */
+  .chart-card {
+    @apply bg-surface-alt border border-line rounded-2xl p-5;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+    transition:
+      transform 200ms ease,
+      box-shadow 200ms ease,
+      border-color 200ms ease,
+      background 200ms ease;
+  }
+
+  .dark .chart-card {
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.28);
+  }
+
+  .chart-card:hover {
+    transform: translateY(-2px);
+    border-color: rgb(var(--color-line-strong));
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.09), 0 0 20px rgba(99, 102, 241, 0.05);
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.015) 0%, rgb(var(--color-surface-alt)) 100%);
+  }
+
+  .dark .chart-card:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38), 0 0 24px rgba(99, 102, 241, 0.08);
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.035) 0%, rgb(var(--color-surface-alt)) 100%);
   }
 
   /* ---- Form controls -------------------------------------------------- */
-  /* Inputs use surface-sunk so they look subtly recessed relative to the
-     card surface they sit on. In dark mode surface-sunk (#0F0F13) is darker
-     than the card surface (#16161A), creating the right depth hierarchy. */
   .field {
     @apply w-full h-10 px-3 text-base bg-surface-sunk rounded-lg
            border border-line-strong outline-none
            placeholder:text-ink-mute
-           focus:border-ink/50 focus:ring-1 focus:ring-ink/10
+           hover:border-indigo/40
+           focus:border-indigo focus:ring-2 focus:ring-indigo/15
            transition-all duration-150;
   }
 
@@ -201,7 +481,8 @@
     @apply w-full px-3 py-2.5 text-base bg-surface-sunk rounded-lg
            border border-line-strong outline-none
            placeholder:text-ink-mute
-           focus:border-ink/50 focus:ring-1 focus:ring-ink/10
+           hover:border-indigo/40
+           focus:border-indigo focus:ring-2 focus:ring-indigo/15
            transition-all duration-150;
   }
 
@@ -209,10 +490,9 @@
     @apply h-10 pl-3 pr-9 text-base bg-surface-sunk rounded-lg
            border border-line-strong cursor-pointer outline-none
            appearance-none
-           focus:border-ink/50 focus:ring-1 focus:ring-ink/10
+           hover:border-indigo/40
+           focus:border-indigo focus:ring-2 focus:ring-indigo/15
            transition-all duration-150;
-    /* Arrow SVG: colour matches ink-mute in both themes via the raw hex that
-       sits between the light (#94928C) and dark (#64646B) ink-mute values. */
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238E8E93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
     background-position: right 12px center;
     background-repeat: no-repeat;
@@ -240,6 +520,141 @@
   .rule {
     @apply border-0 border-t border-line;
   }
+
+  /* ── Badge system ─────────────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center gap-1 h-5 px-2 rounded-full
+           text-[11px] font-medium border;
+  }
+
+  .badge-indigo {
+    @apply badge bg-indigo/10 border-indigo/25 text-indigo;
+  }
+
+  .badge-teal {
+    @apply badge bg-teal/10 border-teal/25 text-teal;
+  }
+
+  .badge-amber {
+    @apply badge bg-amber-accent/10 border-amber-accent/30 text-amber-accent;
+  }
+
+  .badge-green {
+    @apply badge bg-green-accent/10 border-green-accent/30 text-green-accent;
+  }
+
+  .badge-red {
+    @apply badge bg-red-accent/10 border-red-accent/30 text-red-accent;
+  }
+
+  .badge-muted {
+    @apply badge bg-surface-sunk border-line-strong text-ink-mute;
+  }
+
+  /* Requirement / booking status pills */
+  .status-open       { @apply badge bg-indigo/10 border-indigo/25 text-indigo; }
+  .status-pending    { @apply badge bg-amber-accent/10 border-amber-accent/25 text-amber-accent; }
+  .status-negotiating{ @apply badge bg-amber-accent/10 border-amber-accent/25 text-amber-accent; }
+  .status-accepted   { @apply badge bg-green-accent/10 border-green-accent/25 text-green-accent; }
+  .status-confirmed  { @apply badge bg-green-accent/10 border-green-accent/25 text-green-accent; }
+  .status-completed  { @apply badge bg-surface-sunk border-line-strong text-ink-mute; }
+  .status-expired    { @apply badge bg-surface-sunk border-line-strong text-ink-mute; }
+  .status-fulfilled  { @apply badge bg-green-accent/10 border-green-accent/25 text-green-accent; }
+  .status-closed     { @apply badge bg-surface-sunk border-line-strong text-ink-soft; }
+  .status-rejected   { @apply badge bg-red-accent/10 border-red-accent/25 text-red-accent; }
+  .status-cancelled  { @apply badge bg-red-accent/10 border-red-accent/25 text-red-accent; }
+
+  /* ── Icon containers ──────────────────────────────────────── */
+  .icon-box {
+    @apply inline-flex items-center justify-center rounded-xl shrink-0;
+  }
+
+  .icon-box-indigo {
+    @apply icon-box bg-indigo/10 dark:bg-indigo/20 text-indigo;
+  }
+
+  .icon-box-teal {
+    @apply icon-box bg-teal/10 dark:bg-teal/20 text-teal;
+  }
+
+  .icon-box-amber {
+    @apply icon-box bg-amber-accent/10 dark:bg-amber-accent/15 text-amber-accent;
+  }
+
+  .icon-box-green {
+    @apply icon-box bg-green-accent/10 dark:bg-green-accent/15 text-green-accent;
+  }
+
+  .icon-box-violet {
+    @apply icon-box bg-violet/10 dark:bg-violet/20 text-violet;
+  }
+
+  .icon-box-muted {
+    @apply icon-box bg-surface-sunk border border-line text-ink-soft;
+  }
+
+  /* ── Section / visual dividers ────────────────────────────── */
+  .section-divider {
+    @apply border-0 border-t-2 border-line/60 my-8;
+  }
+
+  /* ── Gradient accents ─────────────────────────────────────── */
+  .gradient-accent {
+    background: linear-gradient(135deg, rgb(var(--color-indigo) / 0.08) 0%, rgb(var(--color-teal) / 0.05) 100%);
+  }
+
+  .soft-accent {
+    @apply bg-indigo/5 dark:bg-indigo/10;
+  }
+
+  /* ── Nav item ─────────────────────────────────────────────── */
+  .nav-item {
+    @apply relative px-2.5 py-1.5 text-sm rounded-md
+           transition-all duration-200 whitespace-nowrap;
+  }
+
+  .nav-item-active {
+    @apply nav-item font-medium text-ink bg-surface-sunk dark:bg-white/20;
+  }
+
+  .nav-item-inactive {
+    @apply nav-item text-ink/65 hover:text-ink hover:bg-surface-sunk dark:hover:bg-white/15;
+  }
+
+  /* ── Icon button ──────────────────────────────────────────── */
+  .icon-button {
+    @apply grid place-items-center w-9 h-9 rounded-lg text-ink
+           hover:bg-surface-sunk dark:hover:bg-white/10
+           transition-all duration-200;
+  }
+
+  /* ── Notification / count badges ─────────────────────────── */
+  .count-badge {
+    @apply absolute top-1 right-1 min-w-[15px] h-[15px] px-1 rounded-full
+           text-[10px] leading-[15px] text-center font-semibold;
+  }
+
+  .count-badge-danger {
+    @apply count-badge bg-red-accent text-white;
+  }
+
+  .count-badge-ink {
+    @apply count-badge bg-ink text-ink-invert;
+  }
+
+  /* ── Chart tooltip ────────────────────────────────────────── */
+  .chart-tooltip {
+    @apply bg-surface-alt border border-line rounded-lg text-sm text-ink
+           shadow-[0_4px_16px_rgba(0,0,0,0.12)];
+  }
+
+  /* ── Empty state ──────────────────────────────────────────── */
+  .empty-state-icon {
+    @apply inline-flex items-center justify-center w-14 h-14 rounded-2xl
+           bg-indigo/5 dark:bg-indigo/10
+           border border-indigo/20 dark:border-indigo/30
+           mb-5 mx-auto text-indigo;
+  }
 }
 
 @layer utilities {
@@ -264,4 +679,35 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+
+  /* ── Scroll Reveal System ─────────────────────────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(22px);
+    transition: opacity 650ms cubic-bezier(0.16, 1, 0.3, 1),
+                transform 650ms cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: opacity, transform;
+  }
+
+  .reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .reveal-delay-100 { transition-delay: 100ms; }
+  .reveal-delay-150 { transition-delay: 150ms; }
+  .reveal-delay-200 { transition-delay: 200ms; }
+  .reveal-delay-250 { transition-delay: 250ms; }
+  .reveal-delay-300 { transition-delay: 300ms; }
+  .reveal-delay-350 { transition-delay: 350ms; }
+  .reveal-delay-400 { transition-delay: 400ms; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      opacity: 1 !important;
+      transform: none !important;
+      transition: none !important;
+    }
+  }
 }
+

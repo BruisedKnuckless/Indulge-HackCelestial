@@ -135,23 +135,22 @@ function NavLink({ to, label }) {
         }
       }}
       className={[
-        "relative px-2.5 py-1.5 text-sm rounded-md",
-        "transition-colors duration-200 whitespace-nowrap",
+        "relative px-3.5 py-1.5 text-sm rounded-full",
+        "transition-all duration-200 ease-out whitespace-nowrap",
         active
-          ? "font-medium text-ink bg-surface-sunk dark:bg-white/20"
-          : "text-ink/65",
-        !active &&
-        "hover:text-ink hover:bg-surface-sunk dark:hover:bg-white/15",
+          ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
+          : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo/40",
       ]
         .filter(Boolean)
         .join(" ")}
     >
       {label}
-      {/* Subtle two-pixel active underline — bg-ink auto-flips to light in dark mode. */}
+      {/* Indigo accent indicator for active link */}
       {active && (
         <span
           aria-hidden
-          className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-ink/30"
+          className="absolute bottom-0.5 left-3 right-3 h-[2px] rounded-full bg-indigo shadow-xs"
         />
       )}
     </Link>
@@ -161,10 +160,13 @@ function NavLink({ to, label }) {
 /* ── Shared icon-button class ────────────────────────────────────────────── */
 
 const ICON_BTN =
-  "grid place-items-center w-9 h-9 rounded-md " +
-  "text-ink " +
-  "hover:bg-surface-sunk dark:hover:bg-white/10 " +
-  "transition-colors duration-200";
+  "grid place-items-center w-9 h-9 rounded-full " +
+  "text-zinc-900/85 dark:text-zinc-200 " +
+  "hover:text-indigo dark:hover:text-indigo " +
+  "hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)] " +
+  "hover:scale-[1.04] active:scale-95 " +
+  "transition-all duration-200 ease-out cursor-pointer " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo/40";
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
 
@@ -212,7 +214,7 @@ export default function Header() {
   const unread = notifs?.unreadCount ?? 0;
 
   return (
-    <header className="sticky top-0 z-40 bg-nav border-b border-line shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-none">
+    <header className="sticky top-0 z-40 bg-nav/95 backdrop-blur-md border-b border-black/10 dark:border-white/10 shadow-[0_2px_8px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.35)] transition-all duration-200">
       <div className="shell">
         <div className="h-16 flex items-center gap-2">
 
@@ -225,9 +227,9 @@ export default function Header() {
                 window.scrollTo({ top: 0, left: 0, behavior: "instant" });
               }
             }}
-            className="shrink-0 mr-4 transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 rounded"
+            className="inline-flex items-center shrink-0 mr-4 h-9 transition-transform duration-200 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo/40 rounded-md"
           >
-            <Logo size={22} className="text-ink" />
+            <Logo size={21} className="transition-opacity hover:opacity-90" />
           </Link>
 
           {/* ── Primary nav — hidden below lg ─────────────────────── */}
@@ -256,14 +258,13 @@ export default function Header() {
                 placeholder="Search resources"
                 aria-label="Search resources"
                 className={[
-                  "h-9 w-56 px-3 text-sm rounded",
-                  "bg-white/90 dark:bg-white/10",
-                  "text-ink",
-                  "border border-transparent",
+                  "h-9 w-56 px-3 text-sm rounded-lg",
+                  "bg-white/95 dark:bg-zinc-800/90 text-zinc-950 dark:text-zinc-100",
+                  "border border-black/15 dark:border-white/15",
                   "outline-none",
-                  "placeholder:text-ink-mute",
-                  "focus:border-ink/30",
-                  "transition-colors duration-200",
+                  "placeholder:text-zinc-500 dark:placeholder:text-zinc-400",
+                  "focus:bg-white dark:focus:bg-zinc-800 focus:border-indigo focus:ring-1 focus:ring-indigo/40",
+                  "transition-all duration-200",
                 ].join(" ")}
               />
             </form>
@@ -288,8 +289,8 @@ export default function Header() {
               {unread > 0 && (
                 <span
                   className="absolute top-1 right-1 min-w-[15px] h-[15px] px-1 rounded-full
-                             bg-ink text-ink-invert
-                             text-[10px] leading-[15px] text-center font-medium"
+                             bg-red-accent text-white
+                             text-[10px] leading-[15px] text-center font-semibold"
                 >
                   {unread > 9 ? "9+" : unread}
                 </span>
@@ -307,8 +308,8 @@ export default function Header() {
             {cartCount > 0 && (
               <span
                 className="absolute top-1 right-1 min-w-[15px] h-[15px] px-1 rounded-full
-                           bg-ink text-ink-invert
-                           text-[10px] leading-[15px] text-center font-medium"
+                           bg-indigo text-white
+                           text-[10px] leading-[15px] text-center font-semibold"
               >
                 {cartCount}
               </span>
@@ -329,10 +330,11 @@ export default function Header() {
             <button
               onClick={() => setMenuOpen((v) => !v)}
               className={[
-                "flex items-center gap-2 h-9 px-2 rounded-md",
-                "text-ink",
-                "hover:bg-surface-sunk dark:hover:bg-white/10",
-                "transition-colors duration-200",
+                "flex items-center gap-2 h-9 px-3 rounded-full",
+                "font-medium text-sm text-zinc-900/90 dark:text-zinc-200",
+                "hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)] hover:scale-[1.04] active:scale-95",
+                "transition-all duration-200 ease-out cursor-pointer",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo/40",
               ].join(" ")}
               aria-label="Account menu"
               aria-expanded={menuOpen}
@@ -349,7 +351,7 @@ export default function Header() {
                   "absolute right-0 top-full mt-2 w-64 py-2 z-50",
                   "bg-surface-alt",
                   "border border-line",
-                  "rounded shadow-lg",
+                  "rounded-xl shadow-[0_8px_28px_rgba(0,0,0,0.13)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45)]",
                 ].join(" ")}
               >
                 {user ? (
@@ -474,9 +476,9 @@ export default function Header() {
 
       {/* ── Mobile nav panel ────────────────────────────────────────── */}
       {mobileOpen && (
-        <div className="lg:hidden border-t border-black/10 dark:border-white/8">
+        <div className="lg:hidden border-t border-black/10 dark:border-white/10 bg-nav/95">
           <nav
-            className="shell py-3 flex flex-col gap-0.5"
+            className="shell py-3 flex flex-col gap-1"
             aria-label="Mobile navigation"
           >
             {NAV.map((n) => {
@@ -492,11 +494,11 @@ export default function Header() {
                     }
                   }}
                   className={[
-                    "py-2 px-3 text-sm rounded",
-                    "transition-colors duration-150",
+                    "py-2 px-3 text-sm rounded-lg",
+                    "transition-all duration-200 ease-out",
                     active
-                      ? "font-medium text-ink bg-surface-sunk dark:bg-white/15"
-                      : "text-ink/70 hover:text-ink hover:bg-surface-sunk dark:hover:bg-white/10",
+                      ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
+                      : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
                   ].join(" ")}
                 >
                   {n.label}
@@ -508,18 +510,18 @@ export default function Header() {
               to="/how-it-works"
               onClick={() => setMobileOpen(false)}
               className={[
-                "py-2 px-3 text-sm rounded",
-                "transition-colors duration-150",
+                "py-2 px-3 text-sm rounded-lg",
+                "transition-all duration-200 ease-out",
                 pathname === "/how-it-works"
-                  ? "font-medium text-ink bg-surface-sunk dark:bg-white/15"
-                  : "text-ink/70 hover:text-ink hover:bg-surface-sunk dark:hover:bg-white/10",
+                  ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
+                  : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
               ].join(" ")}
             >
               How it works
             </Link>
 
             {!user && (
-              <div className="mt-3 pt-3 border-t border-black/10 dark:border-white/8 flex gap-2">
+              <div className="mt-3 pt-3 border-t border-black/10 dark:border-black/20 flex gap-2">
                 <Link
                   to="/login"
                   onClick={() => setMobileOpen(false)}

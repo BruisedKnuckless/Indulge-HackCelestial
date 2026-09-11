@@ -13,9 +13,13 @@ export default {
         nav:           "rgb(var(--color-nav)           / <alpha-value>)",
         "nav-soft":    "rgb(var(--color-nav-soft)      / <alpha-value>)",
 
-        surface:       "rgb(var(--color-surface)       / <alpha-value>)",
-        "surface-alt": "rgb(var(--color-surface-alt)   / <alpha-value>)",
-        "surface-sunk":"rgb(var(--color-surface-sunk)  / <alpha-value>)",
+        surface:           "rgb(var(--color-surface)           / <alpha-value>)",
+        "surface-section": "rgb(var(--color-surface-section)   / <alpha-value>)",
+        "surface-tinted":  "rgb(var(--color-surface-tinted)    / <alpha-value>)",
+        "surface-warm":    "rgb(var(--color-surface-warm)      / <alpha-value>)",
+        "surface-elevated":"rgb(var(--color-surface-elevated)  / <alpha-value>)",
+        "surface-alt":     "rgb(var(--color-surface-alt)       / <alpha-value>)",
+        "surface-sunk":    "rgb(var(--color-surface-sunk)      / <alpha-value>)",
 
         ink:           "rgb(var(--color-ink)           / <alpha-value>)",
         "ink-soft":    "rgb(var(--color-ink-soft)      / <alpha-value>)",
@@ -29,8 +33,26 @@ export default {
         success:       "rgb(var(--color-success)       / <alpha-value>)",
         danger:        "rgb(var(--color-danger)        / <alpha-value>)",
         warn:          "rgb(var(--color-warn)          / <alpha-value>)",
+
+        // ── Accent palette — hospitality × B2B ───────────────
+        // Use strategically: icons, charts, badges, active states.
+        indigo:         "rgb(var(--color-indigo)        / <alpha-value>)",
+        teal:           "rgb(var(--color-teal)          / <alpha-value>)",
+        "amber-accent": "rgb(var(--color-amber-accent)  / <alpha-value>)",
+        "green-accent": "rgb(var(--color-green-accent)  / <alpha-value>)",
+        "red-accent":   "rgb(var(--color-red-accent)    / <alpha-value>)",
+        violet:         "rgb(var(--color-violet)        / <alpha-value>)",
       },
       fontFamily: {
+        brand: [
+          "'Plus Jakarta Sans'",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "'Segoe UI'",
+          "Roboto",
+          "sans-serif",
+        ],
         display: ["Nohemi", "Georgia", "serif"],
         sans: [
           "system-ui",

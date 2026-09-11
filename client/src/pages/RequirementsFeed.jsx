@@ -29,7 +29,7 @@ export default function RequirementsFeed() {
       <div className="flex items-baseline justify-between flex-wrap gap-4 mb-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-surface-sunk border border-line text-ink-soft">
+            <span className="badge badge-indigo">
               Marketplace Demand Feed
             </span>
           </div>
@@ -125,15 +125,15 @@ export default function RequirementsFeed() {
             return (
               <div
                 key={rfq._id}
-                className="card p-5 flex flex-col md:flex-row gap-5 justify-between items-start hover:border-ink/40 transition-colors"
+                className="card-interactive p-5 flex flex-col md:flex-row gap-5 justify-between items-start"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-2">
-                    <span className="inline-flex items-center h-5 px-2 rounded-full border border-line text-[11px] font-medium bg-surface-sunk text-ink-soft">
+                    <span className="badge badge-indigo">
                       {CATEGORY_LABELS[rfq.category]}
                     </span>
                     {isUrgent && (
-                      <span className="inline-flex items-center h-5 px-2 rounded-full border border-danger/30 text-[11px] font-medium bg-danger/10 text-danger">
+                      <span className="badge badge-red">
                         Urgent Need
                       </span>
                     )}

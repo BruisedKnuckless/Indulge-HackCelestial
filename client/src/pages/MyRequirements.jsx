@@ -1,15 +1,15 @@
 import { Link } from 'react-router-dom';
-import { Pencil } from 'lucide-react';
+import { Pencil, ArrowRight } from 'lucide-react';
 import { useMyRequirements } from '../hooks/queries';
 import { Spinner, EmptyState } from '../components/ui';
 import { CATEGORY_LABELS } from '../lib/constants';
 import { inr, dateRange, relative } from '../lib/format';
 
-const STATUS_TONE = {
-  open: 'border-warn/40 text-warn',
-  fulfilled: 'border-success/40 text-success',
-  closed: 'border-line-strong text-ink-soft',
-  expired: 'border-line-strong text-ink-mute',
+const STATUS_CLASS = {
+  open:      'status-open',
+  fulfilled: 'status-fulfilled',
+  closed:    'status-closed',
+  expired:   'status-expired',
 };
 
 export default function MyRequirements() {
@@ -41,37 +41,33 @@ export default function MyRequirements() {
           }
         />
       ) : (
-        <div className="border-t border-line">
+        <div className="space-y-3">
           {requirements.map((r) => {
             const live = (r.offers || []).filter((o) => o.status === 'offered');
             return (
               <div
                 key={r._id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-6 border-b border-line
-                           hover:bg-surface-alt transition-colors px-2 -mx-2"
+                className="card-interactive p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 flex-wrap mb-1.5">
-                    <span
-                      className={`inline-flex items-center h-6 px-2.5 rounded-full border text-xs
-                                  font-medium capitalize ${STATUS_TONE[r.status]}`}
-                    >
+                  <div className="flex items-center gap-2.5 flex-wrap mb-2">
+                    <span className={STATUS_CLASS[r.status] || 'badge-muted'}>
                       {r.status}
                     </span>
                     {r.urgency === 'high' && r.status === 'open' && (
-                      <span className="text-xs text-danger">Urgent</span>
+                      <span className="badge badge-red">Urgent</span>
                     )}
+                    <span className="text-xs text-ink-mute">{CATEGORY_LABELS[r.category]}</span>
                   </div>
 
                   <Link
                     to={`/requirements/${r._id}`}
-                    className="text-lg font-medium hover:text-accent transition-colors block"
+                    className="text-lg font-semibold hover:text-indigo transition-colors block leading-snug"
                   >
                     {r.title}
                   </Link>
                   <p className="text-sm muted mt-1">
-                    {CATEGORY_LABELS[r.category]} · qty {r.quantity} ·{' '}
-                    {dateRange(r.startDateTime, r.endDateTime)}
+                    Qty {r.quantity} · {dateRange(r.startDateTime, r.endDateTime)}
                     {r.maxPrice ? ` · under ${inr(r.maxPrice)}` : ''}
                     {r.radiusKm ? ` · ${r.radiusKm} km` : ''}
                   </p>
@@ -80,7 +76,7 @@ export default function MyRequirements() {
 
                 <div className="sm:text-right shrink-0 flex items-center sm:flex-col sm:items-end justify-between gap-3">
                   <div>
-                    <p className="text-2xl font-semibold tracking-tight">{live.length}</p>
+                    <p className="text-2xl font-bold tracking-tight text-indigo">{live.length}</p>
                     <p className="text-xs muted">
                       open offer{live.length === 1 ? '' : 's'}
                     </p>
@@ -89,7 +85,7 @@ export default function MyRequirements() {
                     {r.status === 'open' && (
                       <Link
                         to={`/requirements/${r._id}/edit`}
-                        className="btn-secondary btn-sm text-xs gap-1 inline-flex items-center"
+                        className="btn-secondary btn-sm gap-1 inline-flex items-center"
                       >
                         <Pencil size={12} />
                         <span>Edit</span>
@@ -98,10 +94,10 @@ export default function MyRequirements() {
                     {r.status === 'open' && (
                       <Link
                         to={`/s?requirementId=${r._id}`}
-                        className="btn-primary btn-sm text-xs gap-1 inline-flex items-center"
+                        className="btn-primary btn-sm gap-1 inline-flex items-center"
                       >
                         <span>Find matches</span>
-                        <span aria-hidden>→</span>
+                        <ArrowRight size={12} />
                       </Link>
                     )}
                   </div>

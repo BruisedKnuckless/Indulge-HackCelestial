@@ -39,10 +39,10 @@ export function Stars({ rating = 0, count, size = 14, linkTo, className = '' }) 
 
   const body = (
     <span className={`inline-flex items-center gap-1.5 ${className}`}>
-      <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor" className="text-ink">
+      <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor" className="text-amber-accent">
         <path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z" />
       </svg>
-      <span className="text-sm tabular-nums">{value.toFixed(1)}</span>
+      <span className="text-sm tabular-nums font-medium">{value.toFixed(1)}</span>
       {count != null && count > 0 && <span className="text-sm text-ink-mute">({count})</span>}
     </span>
   );
@@ -186,7 +186,7 @@ export function Button({ variant = 'secondary', pill, className = '', as, to, ..
 export function Spinner({ label = 'Loading' }) {
   return (
     <div className="flex items-center justify-center gap-3 py-16 text-ink-mute">
-      <span className="w-4 h-4 rounded-full border-2 border-line-strong border-t-ink animate-spin" />
+      <span className="w-5 h-5 rounded-full border-2 border-line-strong border-t-indigo animate-spin" />
       <span className="text-sm">{label}…</span>
     </div>
   );
@@ -196,11 +196,14 @@ export function EmptyState({ title, message, action, icon }) {
   return (
     <div className="text-center py-20 px-6">
       {/* Icon — either a custom one passed via prop, or the default inbox glyph */}
-      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-surface-sunk border border-line mb-5 mx-auto">
+      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl
+                      bg-indigo/5 dark:bg-indigo/10
+                      border border-indigo/20 dark:border-indigo/30
+                      mb-5 mx-auto text-indigo">
         {icon || (
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
-               strokeLinejoin="round" className="text-ink-mute">
+               strokeLinejoin="round">
             <path d="M22 12h-6l-2 3H10l-2-3H2" />
             <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z" />
           </svg>

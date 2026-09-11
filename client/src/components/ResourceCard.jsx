@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, ArrowRight } from 'lucide-react';
 import { Price, Stars, DealBadge } from './ui';
 import CategoryIcon from './ui/CategoryIcon';
 import MatchBreakdown from './MatchBreakdown';
+import { getCategoryCardTheme } from '../lib/categoryTheme';
 import {
   CATEGORY_LABELS,
   PRICE_UNIT_LABELS,
@@ -41,8 +42,9 @@ function AvailBadge({ resource: r }) {
 /* ── Category badge ────────────────────────────────────────────────────── */
 function CategoryBadge({ category }) {
   const label = CATEGORY_LABELS[category] || category;
+  const theme = getCategoryCardTheme(category);
   return (
-    <span className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full border border-line text-[11px] text-ink-soft bg-surface-sunk">
+    <span className={`inline-flex items-center gap-1.5 h-5 px-2 rounded-full border text-[11px] font-medium transition-all duration-200 ${theme.badge}`}>
       <CategoryIcon category={category} size={11} className="shrink-0" />
       <span>{label}</span>
     </span>
@@ -88,6 +90,7 @@ export default function ResourceCard({
 }) {
   const unit = PRICE_UNIT_LABELS[r.pricing?.priceUnit] || '';
   const match = r.matchScore != null ? Math.round(r.matchScore * 100) : null;
+  const theme = getCategoryCardTheme(r.category);
 
   const locationLine = [
     r.distanceKm != null && `${r.distanceKm.toFixed(1)} km`,
@@ -101,10 +104,9 @@ export default function ResourceCard({
     return (
       <article
         className={[
-          'group relative flex flex-col sm:flex-row rounded-lg overflow-hidden',
-          'bg-surface-alt border border-line',
-          'transition-all duration-200',
-          'hover:-translate-y-[2px] hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] hover:border-line-strong',
+          'group relative flex flex-col sm:flex-row rounded-xl overflow-hidden',
+          'resource-card',
+          theme.catClass,
         ].join(' ')}
       >
         {/* Image: Fixed compact aspect ratio (approx 180x130 on desktop) */}
@@ -139,7 +141,7 @@ export default function ResourceCard({
             <div className="min-w-0">
               <Link
                 to={`/r/${r._id}`}
-                className="text-base font-semibold leading-snug hover:text-accent transition-colors truncate block text-ink"
+                className={`text-base font-semibold leading-snug truncate block text-ink transition-colors duration-200 ${theme.titleHover}`}
                 title={r.title}
               >
                 {r.title}
@@ -260,9 +262,10 @@ export default function ResourceCard({
             )}
             <Link
               to={`/r/${r._id}`}
-              className={`btn-secondary btn-sm ${onAdd ? 'flex-1' : 'w-full'} justify-center whitespace-nowrap`}
+              className={`btn-secondary btn-sm ${onAdd ? 'flex-1' : 'w-full'} justify-center whitespace-nowrap inline-flex items-center gap-1 group-hover:border-line-strong transition-all duration-200`}
             >
-              Details
+              <span>Details</span>
+              <ArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-[3px]" />
             </Link>
           </div>
         </div>
@@ -270,16 +273,13 @@ export default function ResourceCard({
     );
   }
 
-  /* ── 2. Grid layout (visually unchanged) ─────────────────────────────── */
+  /* ── 2. Grid layout ──────────────────────────────────────────────────── */
   return (
     <article
       className={[
-        /* card surface + border */
-        'group relative flex flex-col rounded-lg overflow-hidden',
-        'bg-surface-alt border border-line',
-        /* hover: lift + stronger border + shadow */
-        'transition-all duration-200',
-        'hover:-translate-y-[3px] hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] hover:border-line-strong',
+        'group relative flex flex-col rounded-xl overflow-hidden',
+        'resource-card',
+        theme.catClass,
       ].join(' ')}
     >
       {/* ── Image ────────────────────────────────────────────────── */}
@@ -320,7 +320,7 @@ export default function ResourceCard({
         <div className="min-w-0">
           <Link
             to={`/r/${r._id}`}
-            className="text-base font-semibold leading-snug line-clamp-2 hover:text-accent transition-colors"
+            className={`text-base font-semibold leading-snug line-clamp-2 text-ink transition-colors duration-200 ${theme.titleHover}`}
           >
             {r.title}
           </Link>
@@ -397,9 +397,10 @@ export default function ResourceCard({
           )}
           <Link
             to={`/r/${r._id}`}
-            className={`btn-secondary btn-sm ${onAdd ? '' : 'flex-1 justify-center'}`}
+            className={`btn-secondary btn-sm ${onAdd ? '' : 'flex-1 justify-center'} inline-flex items-center justify-center gap-1 group-hover:border-line-strong transition-all duration-200`}
           >
-            Details
+            <span>Details</span>
+            <ArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-[3px]" />
           </Link>
         </div>
 

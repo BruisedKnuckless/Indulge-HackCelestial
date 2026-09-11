@@ -114,15 +114,22 @@ function RequirementRow({ requirement: r, listings, me }) {
   const alreadyOffered = mine.some((o) => o.status === 'offered');
 
   return (
-    <article className="py-8 border-b border-line last:border-0">
+    <article className="card-interactive p-5 transition-all">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3 flex-wrap mb-1.5">
-            {r.urgency === 'high' && <span className="text-xs text-danger">Urgent</span>}
-            <span className="text-xs muted">{CATEGORY_LABELS[r.category]}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2.5 flex-wrap mb-2">
+            {r.urgency === 'high' && (
+              <span className="badge badge-red">Urgent</span>
+            )}
+            <span className="badge badge-indigo">
+              {CATEGORY_LABELS[r.category]}
+            </span>
+            <span className="text-xs text-ink-mute">
+              {(r.offers || []).filter((o) => o.status === 'offered').length} offer(s) so far
+            </span>
           </div>
 
-          <p className="text-lg font-medium">{r.title}</p>
+          <p className="text-lg font-semibold leading-snug">{r.title}</p>
 
           <p className="text-sm muted mt-1">
             {r.seeker?.businessName}
@@ -137,15 +144,11 @@ function RequirementRow({ requirement: r, listings, me }) {
           {r.description && (
             <p className="text-sm muted mt-2 max-w-prose">{r.description}</p>
           )}
-
-          <p className="text-xs text-ink-mute mt-2">
-            {(r.offers || []).filter((o) => o.status === 'offered').length} offer(s) so far
-          </p>
         </div>
 
         <div className="shrink-0">
           {alreadyOffered ? (
-            <span className="text-sm text-success">You have offered</span>
+            <span className="badge badge-green">You have offered</span>
           ) : (
             <button onClick={() => setOpen((v) => !v)} className="btn-secondary btn-sm">
               {open ? 'Close' : 'Make an offer'}
@@ -212,7 +215,7 @@ export default function RequirementBoard() {
           message="When another business posts something you can supply, it appears here."
         />
       ) : (
-        <div>
+        <div className="space-y-3">
           {requirements.map((r) => (
             <RequirementRow key={r._id} requirement={r} listings={listings} me={user} />
           ))}
