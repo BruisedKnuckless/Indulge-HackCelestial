@@ -50,8 +50,12 @@ export async function getAvailableQuantity(resourceId, start, end, opts = {}) {
  *
  * Sweep-line over booking boundaries: walk the sorted event points, add
  * quantity at each start and remove it at each end, and keep the running peak.
+ *
+ * Exported so the admin integrity audit can re-derive the same peak from the
+ * stored bookings and prove no resource is oversubscribed — an audit that
+ * reimplemented this with a sum would report phantom breaches.
  */
-function maxConcurrent(bookings, start, end) {
+export function maxConcurrent(bookings, start, end) {
   if (!bookings.length) return 0;
 
   const events = [];

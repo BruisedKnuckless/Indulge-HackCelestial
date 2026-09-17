@@ -648,6 +648,25 @@ export default function Header() {
                       </div>
                     </div>
 
+                    {/* Only shown to accounts on the API's ADMIN_EMAILS
+                        allowlist — the flag is computed server-side per
+                        session, never stored on the account. */}
+                    {user.isPlatformAdmin && (
+                      <>
+                        <Link
+                          to="/admin"
+                          className="flex items-center justify-between gap-2 px-4 py-2 text-sm
+                                     font-medium text-ink
+                                     hover:bg-surface-sunk
+                                     transition-colors duration-150"
+                        >
+                          Platform console
+                          <span className="badge-indigo">Admin</span>
+                        </Link>
+                        <hr className="rule my-1" />
+                      </>
+                    )}
+
                     {ACCOUNT_LINKS.map((l) => (
                       <Link
                         key={l.to}

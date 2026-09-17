@@ -28,6 +28,15 @@ const userSchema = new mongoose.Schema(
     },
     ratingAvg: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
+
+    // Platform moderation. NOT a role — it says nothing about whether this
+    // business provides or seeks, only whether it may transact at all. A
+    // suspended account is rejected at requireAuth, so every route is covered
+    // without each one having to remember the check.
+    suspended: { type: Boolean, default: false, index: true },
+    suspendedAt: Date,
+    suspensionReason: String,
+
     preferences: {
       preferredProviders: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
       preferredResourceTypes: [String],

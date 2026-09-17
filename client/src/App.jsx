@@ -33,6 +33,7 @@ import RequirementBoard from './pages/RequirementBoard';
 import RequirementDetail from './pages/RequirementDetail';
 import Payment from './pages/Payment';
 import HowItWorks from './pages/HowItWorks';
+import Admin from './pages/Admin';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -40,6 +41,21 @@ function RequireAuth({ children }) {
 
   if (loading) return <Spinner label="Loading your account" />;
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  return children;
+}
+
+/**
+ * The admin console is gated on the server too — /api/admin answers 404 to a
+ * non-admin, so a forced route would render an empty shell rather than leak
+ * anything. This guard exists to keep it out of the way, not to secure it.
+ */
+function RequireAdmin({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) return <Spinner label="Loading your account" />;
+  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  if (!user.isPlatformAdmin) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -172,6 +188,14 @@ export default function App() {
                     <RequireAuth>
                       <Analytics />
                     </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <RequireAdmin>
+                      <Admin />
+                    </RequireAdmin>
                   }
                 />
                 <Route

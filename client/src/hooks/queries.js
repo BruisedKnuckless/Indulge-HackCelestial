@@ -320,3 +320,140 @@ export function useRequirementActions() {
     acceptProposal,
   };
 }
+
+/* ------------------------------------------------- Admin console (eagle eye) */
+
+/**
+ * Platform administration. Every one of these reads across tenant boundaries,
+ * so the API answers 404 rather than 403 to a non-admin — which means these
+ * hooks stay disabled unless the session actually carries the flag, and a
+ * demoted admin degrades to an empty console instead of a wall of errors.
+ */
+function useAdminSession() {
+  const { user } = useAuth();
+  return Boolean(user?.isPlatformAdmin);
+}
+
+export function useAdminOverview() {
+  return useQuery({
+    queryKey: ['admin', 'overview'],
+    queryFn: async () => (await api.get('/admin/overview')).data,
+    enabled: useAdminSession(),
+    refetchInterval: 60000,
+  });
+}
+
+/** The merged activity stream — the one screen that should feel live. */
+export function useAdminLive(limit = 60) {
+  return useQuery({
+    queryKey: ['admin', 'live', limit],
+    queryFn: async () => (await api.get('/admin/live', { params: { limit } })).data,
+    enabled: useAdminSession(),
+    refetchInterval: 15000,
+  });
+}
+
+export function useAdminHealth() {
+  return useQuery({
+    queryKey: ['admin', 'health'],
+    queryFn: async () => (await api.get('/admin/health')).data,
+    enabled: useAdminSession(),
+    // The audit sweeps every collection, so it is the one call here worth
+    // holding onto rather than refetching on a timer.
+    staleTime: 60_000,
+  });
+}
+
+export function useAdminMeta() {
+  return useQuery({
+    queryKey: ['admin', 'meta'],
+    queryFn: async () => (await api.get('/admin/meta')).data,
+    enabled: useAdminSession(),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * One hook for every paginated admin table — they all share the same
+ * {total, page, pages} envelope, so a second hook per resource would only
+ * duplicate the filter plumbing.
+ */
+export function useAdminList(resource, params = {}) {
+  return useQuery({
+    queryKey: ['admin', resource, params],
+    queryFn: async () => (await api.get(`/admin/${resource}`, { params })).data,
+    enabled: useAdminSession(),
+    placeholderData: (prev) => prev, // keep rows on screen while refiltering
+  });
+}
+
+/** Full dossier for one business — both sides of the marketplace at once. */
+export function useAdminBusiness(id) {
+  return useQuery({
+    queryKey: ['admin', 'business', id],
+    queryFn: async () => (await api.get(`/admin/users/${id}`)).data,
+    enabled: useAdminSession() && Boolean(id),
+  });
+}
+
+/**
+ * Administrative writes. Each one can move counts, money, the audit and
+ * somebody's notification list at once, so they all invalidate the whole
+ * admin namespace rather than guessing which table was affected — and the
+ * marketplace queries too, since the acting admin is also a business.
+ */
+export function useAdminActions() {
+  const qc = useQueryClient();
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['admin'] });
+    qc.invalidateQueries({ queryKey: ['bookings'] });
+    qc.invalidateQueries({ queryKey: ['listings'] });
+    qc.invalidateQueries({ queryKey: ['requirements'] });
+    qc.invalidateQueries({ queryKey: ['notifications'] });
+    qc.invalidateQueries({ queryKey: ['analytics'] });
+  };
+
+  const mutate = (fn) => ({ mutationFn: fn, onSuccess: refresh });
+
+  return {
+    suspendBusiness: useMutation(
+      mutate(async ({ id, suspended, reason }) =>
+        (await api.patch(`/admin/users/${id}/suspend`, { suspended, reason })).data
+      )
+    ),
+    unlistBusiness: useMutation(
+      mutate(async ({ id, status, reason }) =>
+        (await api.post(`/admin/users/${id}/unlist`, { status, reason })).data
+      )
+    ),
+    resetPassword: useMutation(
+      mutate(async ({ id }) => (await api.post(`/admin/users/${id}/reset-password`)).data)
+    ),
+    setListingStatus: useMutation(
+      mutate(async ({ id, status, reason }) =>
+        (await api.patch(`/admin/listings/${id}/status`, { status, reason })).data
+      )
+    ),
+    overrideBooking: useMutation(
+      mutate(async ({ id, status, reason }) =>
+        (await api.patch(`/admin/bookings/${id}/status`, { status, reason })).data
+      )
+    ),
+    setRequirementStatus: useMutation(
+      mutate(async ({ id, status, reason }) =>
+        (await api.patch(`/admin/requirements/${id}/status`, { status, reason })).data
+      )
+    ),
+    refund: useMutation(
+      mutate(async ({ id, reason }) =>
+        (await api.patch(`/admin/transactions/${id}/refund`, { reason })).data
+      )
+    ),
+    deleteReview: useMutation(mutate(async ({ id }) => (await api.delete(`/admin/reviews/${id}`)).data)),
+    broadcast: useMutation(mutate(async (payload) => (await api.post('/admin/broadcast', payload)).data)),
+    repair: useMutation(
+      mutate(async ({ checkId }) => (await api.post('/admin/health/repair', { checkId })).data)
+    ),
+  };
+}

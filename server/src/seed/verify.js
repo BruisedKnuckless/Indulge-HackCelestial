@@ -10,6 +10,9 @@ import http from 'http';
 import { createApp } from '../app.js';
 import { connectDB, disconnectDB } from '../config/db.js';
 import { runSeed } from './seed.js';
+import Booking from '../models/Booking.js';
+import Resource from '../models/Resource.js';
+import Review from '../models/Review.js';
 
 let base = '';
 let passed = 0;
@@ -649,6 +652,351 @@ async function main() {
       JSON.stringify(detail.body.transaction)
     );
   }
+
+  // ---- admin console ----
+  // Every endpoint here reads across tenant boundaries, which no other route
+  // in the app may do, so the gate and the invariant re-derivation are both
+  // worth proving rather than assuming.
+  console.log('\nAdmin console — access control');
+
+  const meRes = await api('GET', '/api/auth/me', { token: orchid });
+  check('the session exposes a computed platform-admin flag', meRes.body.user?.isPlatformAdmin === true);
+
+  const nonAdminMe = await api('GET', '/api/auth/me', { token: kalpataru });
+  check('a non-admin session is not flagged', nonAdminMe.body.user?.isPlatformAdmin === false);
+
+  const adminBlocked = await api('GET', '/api/admin/overview', { token: kalpataru });
+  check("a non-admin gets 404, so the console's existence is not advertised", adminBlocked.status === 404);
+
+  const anon = await api('GET', '/api/admin/overview');
+  check('an anonymous request to the console is rejected', anon.status === 401);
+
+  for (const [method, path, body] of [
+    ['POST', '/api/admin/broadcast', { title: 'x', message: 'y' }],
+    ['POST', '/api/admin/health/repair', { checkId: 'rating_drift' }],
+    ['GET', '/api/admin/negotiations', null],
+  ]) {
+    const res = await api(method, path, { token: kalpataru, body });
+    check(`non-admin cannot reach ${method} ${path}`, res.status === 404, String(res.status));
+  }
+
+  console.log('\nAdmin console — platform view');
+
+  const overview = await api('GET', '/api/admin/overview', { token: orchid });
+  check('overview loads the whole platform in one call', overview.status === 200);
+  check(
+    'GMV counts only settled payments, never accepted-but-unpaid bookings',
+    overview.body.headline.gmv > 0 &&
+      overview.body.headline.gmv !== overview.body.headline.pendingSettlement
+  );
+  check(
+    'the funnel is ordered widest to narrowest',
+    overview.body.funnel.every((s, i, a) => i === 0 || s.count <= a[i - 1].count),
+    overview.body.funnel.map((s) => s.count).join(' >= ')
+  );
+  check('logistics stages are reported platform-wide', Boolean(overview.body.logistics));
+  check(
+    'businesses are counted across both marketplace sides',
+    overview.body.topProviders.length > 0 && overview.body.topSeekers.length > 0
+  );
+
+  const live = await api('GET', '/api/admin/live', { token: orchid });
+  check(
+    'the activity feed merges every record type in reverse-chronological order',
+    live.body.feed.length > 0 &&
+      live.body.feed.every((f, i, a) => i === 0 || new Date(a[i - 1].at) >= new Date(f.at))
+  );
+
+  const admNegotiations = await api('GET', '/api/admin/negotiations', { token: orchid });
+  check(
+    'the negotiation log exposes counter-offers no single tenant can read',
+    admNegotiations.status === 200 && admNegotiations.body.messages.length > 0
+  );
+
+  const dossier = await api('GET', `/api/admin/users/${meRes.body.user._id}`, { token: orchid });
+  check(
+    'a business dossier carries both provider and seeker activity at once',
+    Array.isArray(dossier.body.bookings?.provided) && Array.isArray(dossier.body.bookings?.sought)
+  );
+
+  console.log('\nAdmin console — integrity audit');
+
+  const audit = await api('GET', '/api/admin/health', { token: orchid });
+  check('the audit runs every check', audit.status === 200 && audit.body.checks.length >= 11);
+
+  // The seed leaves accepted bookings without transactions, which is exactly
+  // the class of bug CLAUDE.md records as having happened for real.
+  const missing = audit.body.checks.find((c) => c.id === 'missing_transaction');
+  check(
+    'the audit finds committed bookings that are missing a transaction',
+    missing && missing.count > 0,
+    `found ${missing?.count}`
+  );
+
+  const repair = await api('POST', '/api/admin/health/repair', {
+    token: orchid,
+    body: { checkId: 'missing_transaction' },
+  });
+  check('repairing backfills the missing transactions', repair.body.repaired > 0);
+  check(
+    'the finding is clear immediately after the repair',
+    repair.body.audit.checks.find((c) => c.id === 'missing_transaction').count === 0
+  );
+
+  // A backfill must never invent a settled payment — that would inflate GMV to
+  // tidy a dashboard.
+  const afterRepair = await api('GET', '/api/admin/overview', { token: orchid });
+  check(
+    'backfilled transactions land as pending, not as settled revenue',
+    afterRepair.body.headline.pendingSettlement > overview.body.headline.pendingSettlement
+  );
+
+  // ---- the audit must use the sweep line, not a sum ----
+  // Two bookings that never coexist inside a wider span must NOT read as an
+  // oversubscription. An audit that summed quantities would flag this.
+  const hall = await Resource.findOne({ totalQuantity: 1, status: 'active' }).lean();
+  const spare = await Resource.create({
+    owner: hall.owner,
+    title: 'Audit probe hall',
+    category: 'banquet_space',
+    totalQuantity: 1,
+    unit: 'unit',
+    pricing: { basePrice: 1000, priceUnit: 'per_day' },
+    location: hall.location,
+    status: 'paused',
+  });
+  const seekerId = (await api('GET', '/api/admin/users?q=kalpataru', { token: orchid })).body.users[0]._id;
+
+  const backToBack = [
+    { start: new Date(at(200, 9)), end: new Date(at(200, 12)) },
+    { start: new Date(at(200, 13)), end: new Date(at(200, 17)) },
+  ];
+  for (const w of backToBack) {
+    await Booking.create({
+      resource: spare._id,
+      provider: spare.owner,
+      seeker: seekerId,
+      requestedQuantity: 1,
+      startDateTime: w.start,
+      endDateTime: w.end,
+      status: 'confirmed',
+      agreedPrice: 1000,
+    });
+  }
+
+  let sweep = await api('GET', '/api/admin/health', { token: orchid });
+  let oversub = sweep.body.checks.find((c) => c.id === 'oversubscribed');
+  check(
+    'two non-overlapping bookings are not reported as oversubscription (sweep line, not a sum)',
+    !oversub.rows.some((r) => String(r.id) === String(spare._id)),
+    JSON.stringify(oversub.rows.map((r) => r.title))
+  );
+
+  // Now a genuine overlap, written straight to the DB the way a bug or a
+  // manual edit would, since the API refuses to create it.
+  await Booking.create({
+    resource: spare._id,
+    provider: spare.owner,
+    seeker: seekerId,
+    requestedQuantity: 1,
+    startDateTime: new Date(at(200, 10)),
+    endDateTime: new Date(at(200, 11)),
+    status: 'confirmed',
+    agreedPrice: 1000,
+  });
+
+  sweep = await api('GET', '/api/admin/health', { token: orchid });
+  oversub = sweep.body.checks.find((c) => c.id === 'oversubscribed');
+  const probe = oversub.rows.find((r) => String(r.id) === String(spare._id));
+  check('a genuine concurrent overlap is reported as oversubscribed', Boolean(probe));
+  check('the finding reports the peak and by how much it is over', probe?.extra?.overBy === 1, JSON.stringify(probe?.extra));
+  check('inventory conflicts are marked critical', oversub.severity === 'critical');
+
+  const noRepair = await api('POST', '/api/admin/health/repair', {
+    token: orchid,
+    body: { checkId: 'oversubscribed' },
+  });
+  check('an inventory conflict has no automatic repair — a human picks who gives way', noRepair.status === 400);
+
+  await Booking.deleteMany({ resource: spare._id });
+  await Resource.deleteOne({ _id: spare._id });
+
+  console.log('\nAdmin console — administrative powers');
+
+  // An override into a reserved status must re-validate availability exactly
+  // like the provider-accept path, or the console could create the very
+  // oversubscription its audit reports.
+  const confirmedHall = await Booking.findOne({ status: 'confirmed' })
+    .populate('resource')
+    .lean();
+  const rival = await Booking.create({
+    resource: confirmedHall.resource._id,
+    provider: confirmedHall.provider,
+    seeker: confirmedHall.seeker,
+    requestedQuantity: confirmedHall.resource.totalQuantity,
+    startDateTime: confirmedHall.startDateTime,
+    endDateTime: confirmedHall.endDateTime,
+    status: 'pending',
+  });
+
+  const noReason = await api('PATCH', `/api/admin/bookings/${rival._id}/status`, {
+    token: orchid,
+    body: { status: 'cancelled' },
+  });
+  check('an override without a reason is refused', noReason.status === 400);
+
+  const overbook = await api('PATCH', `/api/admin/bookings/${rival._id}/status`, {
+    token: orchid,
+    body: { status: 'confirmed', reason: 'attempting to oversubscribe' },
+  });
+  check(
+    'an override cannot reserve capacity that is already taken',
+    overbook.status === 409,
+    `${overbook.status} ${overbook.body?.error}`
+  );
+
+  const cancelOverride = await api('PATCH', `/api/admin/bookings/${rival._id}/status`, {
+    token: orchid,
+    body: { status: 'cancelled', reason: 'verification cleanup' },
+  });
+  check('an override to a non-reserving status succeeds', cancelOverride.status === 200);
+  check(
+    'the override reason is recorded on the booking',
+    /verification cleanup/.test(cancelOverride.body.booking?.cancellationReason || '')
+  );
+  await Booking.deleteOne({ _id: rival._id });
+
+  // ---- suspension ----
+  const suspendTarget = (await api('GET', '/api/admin/users?q=spiceroute', { token: orchid })).body.users[0];
+  const spiceToken = await login('hello@spiceroute.co.in');
+  check('the account works before suspension', Boolean(spiceToken));
+
+  const suspend = await api('PATCH', `/api/admin/users/${suspendTarget._id}/suspend`, {
+    token: orchid,
+    body: { suspended: true, reason: 'verification' },
+  });
+  check('a business can be suspended', suspend.status === 200 && suspend.body.business.suspended);
+
+  const deniedLogin = await api('POST', '/api/auth/login', {
+    body: { email: 'hello@spiceroute.co.in', password: 'indulge123' },
+  });
+  check('a suspended business cannot sign in', deniedLogin.status === 403);
+
+  // Enforcement lives in requireAuth, so an already-issued token dies too.
+  const deadToken = await api('GET', '/api/bookings/sent', { token: spiceToken });
+  check('an existing token stops working the moment the account is suspended', deadToken.status === 403);
+
+  const selfSuspend = await api('PATCH', `/api/admin/users/${meRes.body.user._id}/suspend`, {
+    token: orchid,
+    body: { suspended: true, reason: 'lockout' },
+  });
+  check('an admin cannot suspend itself out of the console', selfSuspend.status === 400);
+
+  const restore = await api('PATCH', `/api/admin/users/${suspendTarget._id}/suspend`, {
+    token: orchid,
+    body: { suspended: false },
+  });
+  check('a suspended business can be restored', restore.status === 200 && !restore.body.business.suspended);
+  check(
+    'the restored business can sign in again',
+    (await api('POST', '/api/auth/login', {
+      body: { email: 'hello@spiceroute.co.in', password: 'indulge123' },
+    })).status === 200
+  );
+
+  // ---- moderation ----
+  const someListing = (await api('GET', '/api/admin/listings?status=active&limit=1', { token: orchid }))
+    .body.listings[0];
+  const takedown = await api('PATCH', `/api/admin/listings/${someListing._id}/status`, {
+    token: orchid,
+    body: { status: 'paused', reason: 'verification' },
+  });
+  check('a listing can be taken off the market', takedown.status === 200 && takedown.body.resource.status === 'paused');
+  check(
+    'bookings already reserved against a paused listing are retained',
+    typeof takedown.body.upcomingBookingsRetained === 'number'
+  );
+  await api('PATCH', `/api/admin/listings/${someListing._id}/status`, {
+    token: orchid,
+    body: { status: 'active' },
+  });
+
+  // ---- review removal must re-settle the denormalised ratings ----
+  const reviewRow = (await api('GET', '/api/admin/reviews?limit=1', { token: orchid })).body.reviews[0];
+  const revieweeId = reviewRow.reviewee._id;
+  const countBefore = await Review.countDocuments({ reviewee: revieweeId });
+  await api('DELETE', `/api/admin/reviews/${reviewRow._id}`, { token: orchid });
+  const dossierAfter = await api('GET', `/api/admin/users/${revieweeId}`, { token: orchid });
+  check(
+    'removing a review recomputes the denormalised rating count',
+    dossierAfter.body.business.ratingCount === countBefore - 1,
+    `${countBefore} -> ${dossierAfter.body.business.ratingCount}`
+  );
+  const driftCheck = (await api('GET', '/api/admin/health', { token: orchid })).body.checks.find(
+    (c) => c.id === 'rating_drift'
+  );
+  check('deleting a review leaves no rating drift behind', driftCheck.count === 0, `${driftCheck.count} findings`);
+
+  // ---- refund ----
+  const allSettled = (await api('GET', '/api/admin/transactions?status=simulated_paid&limit=200', {
+    token: orchid,
+  })).body.transactions;
+
+  // A live booking must be released by its refund, or the provider is holding
+  // inventory for an order nobody paid for.
+  const liveSettled = allSettled.find((t) => t.booking?.status === 'confirmed');
+  if (liveSettled) {
+    const refund = await api('PATCH', `/api/admin/transactions/${liveSettled._id}/refund`, {
+      token: orchid,
+      body: { reason: 'verification' },
+    });
+    check('a settled payment can be refunded', refund.status === 200 && refund.body.transaction.status === 'refunded');
+    check(
+      'refunding a live booking cancels it, releasing the reserved inventory',
+      refund.body.booking?.status === 'cancelled',
+      refund.body.booking?.status
+    );
+    check(
+      'a refund cannot be applied twice',
+      (await api('PATCH', `/api/admin/transactions/${liveSettled._id}/refund`, {
+        token: orchid,
+        body: { reason: 'again' },
+      })).status === 400
+    );
+  }
+
+  // A completed booking is deliberately left alone: the service was delivered,
+  // so a goodwill refund must not rewrite that history.
+  const doneSettled = allSettled.find((t) => t.booking?.status === 'completed');
+  if (doneSettled) {
+    const refundDone = await api('PATCH', `/api/admin/transactions/${doneSettled._id}/refund`, {
+      token: orchid,
+      body: { reason: 'goodwill' },
+    });
+    check(
+      'refunding a completed booking does not reopen or cancel it',
+      refundDone.status === 200 &&
+        refundDone.body.transaction.status === 'refunded' &&
+        refundDone.body.booking?.status === 'completed',
+      refundDone.body.booking?.status
+    );
+  }
+
+  // ---- broadcast ----
+  const broadcast = await api('POST', '/api/admin/broadcast', {
+    token: orchid,
+    body: { title: 'Verification notice', message: 'Sent by the verification suite.' },
+  });
+  check('a broadcast reaches every active business', broadcast.status === 200 && broadcast.body.sent > 1);
+  const announceInbox = await api('GET', '/api/notifications', { token: kalpataru });
+  check(
+    'the announcement lands in a recipient notification list',
+    (announceInbox.body.notifications || []).some((n) => n.type === 'platform_announcement')
+  );
+  check(
+    'a broadcast with no message is refused',
+    (await api('POST', '/api/admin/broadcast', { token: orchid, body: { title: 'x' } })).status === 400
+  );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);
 

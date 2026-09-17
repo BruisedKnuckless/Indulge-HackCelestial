@@ -4,6 +4,7 @@ import Booking from '../models/Booking.js';
 import Resource from '../models/Resource.js';
 import Requirement from '../models/Requirement.js';
 import { signToken, requireAuth } from '../middleware/auth.middleware.js';
+import { sessionUser } from '../config/admin.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 
 const router = Router();
@@ -33,7 +34,7 @@ router.post(
       location,
     });
 
-    res.status(201).json({ user, token: signToken(user._id) });
+    res.status(201).json({ user: sessionUser(user), token: signToken(user._id) });
   })
 );
 
@@ -48,7 +49,18 @@ router.post(
       throw new HttpError(401, 'Email or password is incorrect.');
     }
 
-    res.json({ user, token: signToken(user._id) });
+    // Fail here with a readable reason rather than handing out a token that
+    // would be rejected by requireAuth on the very next request.
+    if (user.suspended) {
+      throw new HttpError(
+        403,
+        user.suspensionReason
+          ? `This account is suspended: ${user.suspensionReason}`
+          : 'This account has been suspended by the platform.'
+      );
+    }
+
+    res.json({ user: sessionUser(user), token: signToken(user._id) });
   })
 );
 
@@ -56,7 +68,7 @@ router.get(
   '/me',
   requireAuth,
   asyncHandler(async (req, res) => {
-    res.json({ user: req.user });
+    res.json({ user: sessionUser(req.user) });
   })
 );
 
@@ -69,7 +81,7 @@ router.patch(
       if (req.body[key] !== undefined) req.user[key] = req.body[key];
     }
     await req.user.save();
-    res.json({ user: req.user });
+    res.json({ user: sessionUser(req.user) });
   })
 );
 

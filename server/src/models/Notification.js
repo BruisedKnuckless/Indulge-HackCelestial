@@ -18,6 +18,9 @@ const notificationSchema = new mongoose.Schema(
         'fulfillment_update',
         'rental_expiry',
         'return_update',
+        // Sent by the admin console — broadcasts and moderation outcomes.
+        // Carries no related booking or requirement of its own.
+        'platform_announcement',
       ],
       required: true,
     },
