@@ -194,9 +194,11 @@ Traps that have each cost real debugging time:
   platform to anyone who read the repo. Locked means `/api/admin` answers `404`
   (deliberately, so the console is not advertised) and `/admin` shows the
   "unavailable" screen for every account. The API prints which state it is in at
-  startup, so check the deploy log first. `isPlatformAdmin` is computed when a
-  session is issued, so changing the variable needs a redeploy *and* a fresh
-  sign-in.
+  startup — including which variable it read — so check the deploy log first.
+  `ADMIN_EMAIL` (singular) is accepted as an alias because that typo locked a
+  real deployment; the plural wins if both are set. `isPlatformAdmin` is
+  recomputed by `/auth/me` on every page load and the JWT carries only the user
+  id, so changing the variable needs a redeploy and a refresh — not a re-login.
 
 ## Prototype boundaries
 

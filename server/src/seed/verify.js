@@ -699,7 +699,7 @@ async function main() {
       ],
       {
         cwd: new URL('../../', import.meta.url).pathname,
-        env: { ...process.env, ADMIN_EMAILS: '', NODE_ENV: '', ...envOverrides },
+        env: { ...process.env, ADMIN_EMAILS: '', ADMIN_EMAIL: '', NODE_ENV: '', ...envOverrides },
         encoding: 'utf8',
       }
     );
@@ -729,6 +729,27 @@ async function main() {
     'local development still falls back to the demo account for zero-config use',
     devUnset.state === 'development-fallback' && devUnset.emails.includes('ops@grandorchid.in'),
     JSON.stringify(devUnset)
+  );
+
+  // A plural 'S' must not be the difference between a working deployment and a
+  // console nobody can reach — this exact typo locked a real deployment.
+  const singular = resolveAdmins({ NODE_ENV: 'production', ADMIN_EMAIL: 'ops@grandorchid.in' });
+  check(
+    'the singular ADMIN_EMAIL is honoured as well as the plural',
+    singular.state === 'configured' && singular.emails.includes('ops@grandorchid.in'),
+    JSON.stringify(singular)
+  );
+  check('the banner names which variable supplied the allowlist', singular.source === 'ADMIN_EMAIL');
+
+  const bothSet = resolveAdmins({
+    NODE_ENV: 'production',
+    ADMIN_EMAILS: 'canonical@x.com',
+    ADMIN_EMAIL: 'alias@x.com',
+  });
+  check(
+    'when both are set the canonical plural wins',
+    bothSet.emails.length === 1 && bothSet.emails[0] === 'canonical@x.com',
+    JSON.stringify(bothSet.emails)
   );
 
   const multi = resolveAdmins({ NODE_ENV: 'production', ADMIN_EMAILS: 'a@b.com, c@d.com ,' });

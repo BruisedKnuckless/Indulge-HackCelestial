@@ -22,10 +22,33 @@ import { env } from './env.js';
  */
 const DEFAULT_ADMIN_EMAILS = ['ops@grandorchid.in'];
 
-export const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '')
-  .split(',')
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
+/**
+ * Accepted names for the allowlist variable.
+ *
+ * ADMIN_EMAILS is canonical, but the singular reads just as naturally when you
+ * are granting access to one person, and getting it wrong produces a console
+ * that is locked for everybody with no hint as to why. Both spellings are
+ * honoured rather than making a plural 'S' the difference between a working
+ * deployment and a dead one.
+ */
+const ENV_KEYS = ['ADMIN_EMAILS', 'ADMIN_EMAIL'];
+
+const parseList = (raw) =>
+  (raw || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+/** Which variable actually supplied the list, for the startup banner. */
+function readAllowlist() {
+  for (const key of ENV_KEYS) {
+    const emails = parseList(process.env[key]);
+    if (emails.length) return { key, emails };
+  }
+  return { key: null, emails: [] };
+}
+
+export const ADMIN_EMAILS = readAllowlist().emails;
 
 const isProduction = () => env.nodeEnv === 'production';
 
@@ -57,26 +80,32 @@ export function sessionUser(user) {
  * two-minute fix and an afternoon.
  */
 export function adminConfigStatus() {
-  if (ADMIN_EMAILS.length) {
+  const { key, emails } = readAllowlist();
+
+  if (emails.length) {
     return {
       state: 'configured',
-      emails: ADMIN_EMAILS,
-      message: `Admin console enabled for: ${ADMIN_EMAILS.join(', ')}`,
+      emails,
+      source: key,
+      message: `Admin console enabled for: ${emails.join(', ')} (from ${key})`,
     };
   }
   if (isProduction()) {
     return {
       state: 'locked',
       emails: [],
+      source: null,
       message:
-        'Admin console is LOCKED — ADMIN_EMAILS is not set and NODE_ENV=production. ' +
-        '/api/admin answers 404 and /admin will bounce to the homepage for every account. ' +
-        'Set ADMIN_EMAILS=you@yourbusiness.com on this service and redeploy to enable it.',
+        `Admin console is LOCKED — no allowlist set (checked ${ENV_KEYS.join(' and ')}) ` +
+        'and NODE_ENV=production. /api/admin answers 404 and /admin shows the unavailable ' +
+        'screen for every account. Set ADMIN_EMAILS=you@yourbusiness.com on this service ' +
+        'and redeploy to enable it.',
     };
   }
   return {
     state: 'development-fallback',
     emails: DEFAULT_ADMIN_EMAILS,
+    source: null,
     message: `Admin console enabled for the demo account (${DEFAULT_ADMIN_EMAILS.join(', ')}) because ADMIN_EMAILS is unset and this is not production. Set ADMIN_EMAILS before deploying.`,
   };
 }

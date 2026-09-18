@@ -47,8 +47,9 @@ export default function AdminLocked() {
             ADMIN_EMAILS={user?.email || 'you@yourbusiness.com'}
           </pre>
           <p className="text-sm muted">
-            Then sign out and back in — the flag is computed when your session is issued. The API
-            prints whether the console is enabled or locked in its startup logs.
+            Then reload this page once the service has restarted — the flag is recomputed on every
+            session check, so there is no need to sign out. The API prints whether the console is
+            enabled or locked, and which variable it read, in its startup logs.
           </p>
         </div>
 
