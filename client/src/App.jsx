@@ -34,6 +34,7 @@ import RequirementDetail from './pages/RequirementDetail';
 import Payment from './pages/Payment';
 import HowItWorks from './pages/HowItWorks';
 import Admin from './pages/Admin';
+import AdminLocked from './components/admin/AdminLocked';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -55,7 +56,10 @@ function RequireAdmin({ children }) {
 
   if (loading) return <Spinner label="Loading your account" />;
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  if (!user.isPlatformAdmin) return <Navigate to="/" replace />;
+  // Explain rather than silently bounce to the homepage: a console locked by
+  // unset configuration is indistinguishable from one locked by design, and
+  // that ambiguity is what makes a deployment hard to debug.
+  if (!user.isPlatformAdmin) return <AdminLocked />;
   return children;
 }
 

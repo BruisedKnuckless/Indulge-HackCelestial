@@ -7,6 +7,7 @@
  * services in isolation.
  */
 import http from 'http';
+import { execFileSync } from 'child_process';
 import { createApp } from '../app.js';
 import { connectDB, disconnectDB } from '../config/db.js';
 import { runSeed } from './seed.js';
@@ -679,6 +680,63 @@ async function main() {
     const res = await api(method, path, { token: kalpataru, body });
     check(`non-admin cannot reach ${method} ${path}`, res.status === 404, String(res.status));
   }
+
+  // ---- deployment posture ----
+  // ADMIN_EMAILS and NODE_ENV are read when config/admin.js is imported, so
+  // the only honest way to test the production lock is a fresh process. This
+  // rule decides between a publicly administrable marketplace and a console
+  // nobody can reach, which is worth more than the ~200ms it costs.
+  console.log('\nAdmin console — deployment posture');
+
+  const resolveAdmins = (envOverrides) => {
+    const out = execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        "const m = await import('./src/config/admin.js');" +
+          'process.stdout.write(JSON.stringify(m.adminConfigStatus()));',
+      ],
+      {
+        cwd: new URL('../../', import.meta.url).pathname,
+        env: { ...process.env, ADMIN_EMAILS: '', NODE_ENV: '', ...envOverrides },
+        encoding: 'utf8',
+      }
+    );
+    return JSON.parse(out);
+  };
+
+  const prodUnset = resolveAdmins({ NODE_ENV: 'production' });
+  check(
+    'production with no ADMIN_EMAILS locks the console instead of falling back to the demo account',
+    prodUnset.state === 'locked' && prodUnset.emails.length === 0,
+    JSON.stringify(prodUnset)
+  );
+  check(
+    'the locked state explains how to enable it, so a deployment is debuggable',
+    /ADMIN_EMAILS/.test(prodUnset.message) && /404/.test(prodUnset.message)
+  );
+
+  const prodSet = resolveAdmins({ NODE_ENV: 'production', ADMIN_EMAILS: 'Ops@GrandOrchid.in' });
+  check(
+    'an explicit allowlist works in production and is case-insensitive',
+    prodSet.state === 'configured' && prodSet.emails.includes('ops@grandorchid.in'),
+    JSON.stringify(prodSet)
+  );
+
+  const devUnset = resolveAdmins({});
+  check(
+    'local development still falls back to the demo account for zero-config use',
+    devUnset.state === 'development-fallback' && devUnset.emails.includes('ops@grandorchid.in'),
+    JSON.stringify(devUnset)
+  );
+
+  const multi = resolveAdmins({ NODE_ENV: 'production', ADMIN_EMAILS: 'a@b.com, c@d.com ,' });
+  check(
+    'a comma-separated allowlist is parsed and trailing blanks ignored',
+    multi.emails.length === 2 && multi.emails.join(',') === 'a@b.com,c@d.com',
+    JSON.stringify(multi.emails)
+  );
 
   console.log('\nAdmin console — platform view');
 

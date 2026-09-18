@@ -167,7 +167,7 @@ Environment:
 
 | Service | Variables |
 |---|---|
-| server | `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES`, `CLIENT_URL` |
+| server | `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES`, `CLIENT_URL`, `ADMIN_EMAILS` |
 | client | `VITE_API_URL`, `VITE_SOCKET_URL` |
 
 Traps that have each cost real debugging time:
@@ -187,6 +187,16 @@ Traps that have each cost real debugging time:
   Network Access.
 - `vite preview` rejects unknown `Host` headers; deployment domains must be in
   `preview.allowedHosts` in `client/vite.config.js`.
+- **`ADMIN_EMAILS` must be set on the server service or the admin console is
+  locked.** Railpack sets `NODE_ENV=production`, and in production an unset
+  allowlist resolves to *empty* rather than falling back to the seeded demo
+  account — whose password is in this file, so the fallback would hand the whole
+  platform to anyone who read the repo. Locked means `/api/admin` answers `404`
+  (deliberately, so the console is not advertised) and `/admin` shows the
+  "unavailable" screen for every account. The API prints which state it is in at
+  startup, so check the deploy log first. `isPlatformAdmin` is computed when a
+  session is issued, so changing the variable needs a redeploy *and* a fresh
+  sign-in.
 
 ## Prototype boundaries
 

@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
+import { logAdminConfig } from './config/admin.js';
 import { initSockets } from './sockets/index.js';
 import { runSeed } from './seed/seed.js';
 
@@ -28,7 +29,12 @@ async function main() {
 
   server.listen(env.port, () => {
     console.log(`\n  Indulge API  →  http://localhost:${env.port}`);
-    console.log(`  Client origin →  ${env.clientUrl}\n`);
+    console.log(`  Client origin →  ${env.clientUrl}`);
+    // A locked admin console 404s every request by design, which looks exactly
+    // like a bug from the outside. Say which it is, once, where a deployment
+    // log will show it.
+    logAdminConfig();
+    console.log('');
   });
 }
 
