@@ -53,7 +53,7 @@ const userSchema = new mongoose.Schema(
         enum: ['active', 'busy', 'offline'],
         default: 'active',
       },
-      vehicleInfo: { type: String, trim: true },
+      vehicleInfo: { type: mongoose.Schema.Types.Mixed },
       capacityDescription: { type: String, trim: true },
       completedJobs: { type: Number, default: 0 },
       rating: { type: Number, default: 5.0 },

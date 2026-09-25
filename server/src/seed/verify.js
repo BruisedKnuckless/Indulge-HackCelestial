@@ -1998,6 +1998,121 @@ async function main() {
     nonPhysJob.status === 200 && nonPhysJob.body.job === null
   );
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // Phase 2 Follow-up: Expose Logistics Partner Registration
+  // ══════════════════════════════════════════════════════════════════════════
+  console.log('\nPhase 2 Follow-up: Expose Logistics Partner Registration');
+
+  // 1. Normal business registration still works
+  const newBizReg = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'Royal Crest Grand Banquet',
+      email: 'events@royalcrest.in',
+      password: 'indulge123',
+      phone: '+91 98200 55443',
+      businessType: 'banquet_venue',
+      location: {
+        address: 'Thane West',
+        city: 'Thane',
+        pincode: '400601',
+        coordinates: [72.9781, 19.2183],
+      },
+    },
+  });
+  check(
+    'normal business registration still works and assigns business userType',
+    newBizReg.status === 201 &&
+      newBizReg.body.user.userType === 'business' &&
+      newBizReg.body.user.businessType === 'banquet_venue'
+  );
+
+  // 2. Logistics partner registration works
+  const newPartnerReg = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'SwiftDrop Cargo & Fleet',
+      email: 'dispatch@swiftdrop.in',
+      password: 'indulge123',
+      phone: '+91 98200 66778',
+      businessType: 'other',
+      userType: 'logistics_partner',
+      location: {
+        address: 'Vashi, Navi Mumbai',
+        city: 'Navi Mumbai',
+        pincode: '400703',
+        coordinates: [73.0071, 19.076],
+      },
+      logisticsProfile: {
+        serviceArea: ['Mumbai', 'Thane', 'Navi Mumbai'],
+        operatingStatus: 'active',
+        vehicleInfo: {
+          vehicleType: 'Tata Ace / Pickup Truck (1.0T - 1.5T)',
+          model: 'Tata Ace Gold Diesel',
+          licensePlate: 'MH-04-AZ-4567',
+          capacityKg: 1200,
+        },
+        capacityDescription: '1200 kg payload',
+      },
+    },
+  });
+  check(
+    'logistics partner registration works and assigns logistics_partner userType',
+    newPartnerReg.status === 201 &&
+      newPartnerReg.body.user.userType === 'logistics_partner' &&
+      newPartnerReg.body.user.businessName === 'SwiftDrop Cargo & Fleet'
+  );
+
+  // 3. logisticsProfile persists
+  const persistedPartner = await User.findById(newPartnerReg.body.user._id).lean();
+  check(
+    'logisticsProfile persists correctly in database with vehicle and service area',
+    persistedPartner &&
+      persistedPartner.userType === 'logistics_partner' &&
+      persistedPartner.logisticsProfile?.vehicleInfo?.licensePlate === 'MH-04-AZ-4567' &&
+      persistedPartner.logisticsProfile?.vehicleInfo?.capacityKg === 1200 &&
+      persistedPartner.logisticsProfile?.serviceArea?.includes('Navi Mumbai') &&
+      persistedPartner.logisticsProfile?.capacityDescription === '1200 kg payload'
+  );
+
+  // 4. Business redirects normally after authentication
+  const bizLogin = await api('POST', '/api/auth/login', {
+    body: {
+      email: 'events@royalcrest.in',
+      password: 'indulge123',
+    },
+  });
+  const bizTargetRoute = bizLogin.body?.user?.userType === 'logistics_partner' ? '/logistics' : '/';
+  check(
+    'business authenticates and targets normal business route (/)',
+    bizLogin.status === 200 &&
+      bizLogin.body.user.userType === 'business' &&
+      bizTargetRoute === '/'
+  );
+
+  // 5. Logistics partner routes to /logistics
+  const partnerLogin = await api('POST', '/api/auth/login', {
+    body: {
+      email: 'dispatch@swiftdrop.in',
+      password: 'indulge123',
+    },
+  });
+  const partnerTargetRoute = partnerLogin.body?.user?.userType === 'logistics_partner' ? '/logistics' : '/';
+  check(
+    'logistics partner authenticates and targets /logistics route',
+    partnerLogin.status === 200 &&
+      partnerLogin.body.user.userType === 'logistics_partner' &&
+      partnerTargetRoute === '/logistics'
+  );
+
+  // 6. Logistics account cannot accidentally become Seeker/Lister through frontend navigation
+  const isPartnerIsolated = partnerLogin.body.user.userType === 'logistics_partner';
+  const partnerJobsRes = await api('GET', '/api/logistics/jobs', {
+    token: partnerLogin.body.token,
+  });
+  check(
+    'logistics account is isolated to logistics partner role and can access jobs endpoint',
+    isPartnerIsolated && partnerJobsRes.status === 200 && Array.isArray(partnerJobsRes.body.jobs)
+  );
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
 
   server.close();

@@ -109,6 +109,13 @@ const ACCOUNT_LINKS = [
   { to: "/how-it-works", label: "How Indulge works" },
 ];
 
+const LOGISTICS_ACCOUNT_LINKS = [
+  { to: "/logistics", label: "Logistics Dashboard" },
+  { to: "/account", label: "Account Profile" },
+  { to: "/notifications", label: "Notifications" },
+  { to: "/how-it-works", label: "How Indulge works" },
+];
+
 /* ── NavLink — knows its own active state ────────────────────────────────── */
 
 function resolveActive(to, pathname) {
@@ -327,128 +334,128 @@ export default function Header() {
               label="Home"
             />
 
-            {user?.userType === 'logistics_partner' && (
+            {user?.userType === 'logistics_partner' ? (
               <NavLink
                 to="/logistics"
-                label="Logistics Dispatch"
+                label="Logistics Dashboard"
               />
-            )}
-
-            {/* Explore dropdown */}
-            <div
-              className="relative"
-              ref={exploreRef}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setExploreOpen((v) => !v)
-                }
-                className={[
-                  "relative px-3.5 py-1.5 text-sm rounded-full",
-                  "font-medium text-zinc-900/80 dark:text-zinc-300",
-                  "hover:text-zinc-950 dark:hover:text-white",
-                  "hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
-                  "transition-all duration-200 ease-out",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo/40",
-                  "flex items-center gap-1.5 whitespace-nowrap",
-                ].join(" ")}
-                aria-expanded={exploreOpen}
-                aria-haspopup="true"
+            ) : (
+              /* Explore dropdown */
+              <div
+                className="relative"
+                ref={exploreRef}
               >
-                Explore as
-                <span
-                  className={`text-xs transition-transform duration-200 ${
-                    exploreOpen
-                      ? "rotate-180"
-                      : ""
-                  }`}
-                >
-                  ▾
-                </span>
-              </button>
-
-              {exploreOpen && (
-                <div
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExploreOpen((v) => !v)
+                  }
                   className={[
-                    "absolute left-0 top-full mt-2 w-64 py-2 z-50",
-                    "bg-surface-alt",
-                    "border border-line",
-                    "rounded-xl",
-                    "shadow-[0_8px_28px_rgba(0,0,0,0.13)]",
-                    "dark:shadow-[0_8px_32px_rgba(0,0,0,0.45)]",
+                    "relative px-3.5 py-1.5 text-sm rounded-full",
+                    "font-medium text-zinc-900/80 dark:text-zinc-300",
+                    "hover:text-zinc-950 dark:hover:text-white",
+                    "hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
+                    "transition-all duration-200 ease-out",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo/40",
+                    "flex items-center gap-1.5 whitespace-nowrap",
                   ].join(" ")}
+                  aria-expanded={exploreOpen}
+                  aria-haspopup="true"
                 >
-                  {/* Mode selector */}
-                  <div className="px-3 py-2 border-b border-line mb-1">
-                    <p className="text-xs font-medium text-ink-mute mb-2">
-                      Explore as
-                    </p>
+                  Explore as
+                  <span
+                    className={`text-xs transition-transform duration-200 ${
+                      exploreOpen
+                        ? "rotate-180"
+                        : ""
+                    }`}
+                  >
+                    ▾
+                  </span>
+                </button>
 
-                    <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-surface-sunk">
-                      {EXPLORE_OPTIONS.map(
-                        (option) => (
-                          <button
-                            key={option.key}
-                            type="button"
-                            onClick={() =>
-                              changeExploreMode(
+                {exploreOpen && (
+                  <div
+                    className={[
+                      "absolute left-0 top-full mt-2 w-64 py-2 z-50",
+                      "bg-surface-alt",
+                      "border border-line",
+                      "rounded-xl",
+                      "shadow-[0_8px_28px_rgba(0,0,0,0.13)]",
+                      "dark:shadow-[0_8px_32px_rgba(0,0,0,0.45)]",
+                    ].join(" ")}
+                  >
+                    {/* Mode selector */}
+                    <div className="px-3 py-2 border-b border-line mb-1">
+                      <p className="text-xs font-medium text-ink-mute mb-2">
+                        Explore as
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-surface-sunk">
+                        {EXPLORE_OPTIONS.map(
+                          (option) => (
+                            <button
+                              key={option.key}
+                              type="button"
+                              onClick={() =>
+                                changeExploreMode(
+                                  option.key
+                                )
+                              }
+                              className={[
+                                "px-3 py-1.5 rounded-md text-xs font-medium",
+                                "transition-all duration-150",
+                                exploreMode ===
                                 option.key
-                              )
+                                  ? "bg-surface-alt text-ink shadow-xs"
+                                  : "text-ink-mute hover:text-ink",
+                              ].join(" ")}
+                            >
+                              {option.label}
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Current mode navigation */}
+                    <div className="px-1">
+                      {currentNav.map((n) => (
+                        <Link
+                          key={n.to}
+                          to={n.to}
+                          onClick={() => {
+                            setExploreOpen(false);
+
+                            if (
+                              n.to === pathname
+                            ) {
+                              window.scrollTo({
+                                top: 0,
+                                left: 0,
+                                behavior: "smooth",
+                              });
                             }
-                            className={[
-                              "px-3 py-1.5 rounded-md text-xs font-medium",
-                              "transition-all duration-150",
-                              exploreMode ===
-                              option.key
-                                ? "bg-surface-alt text-ink shadow-xs"
-                                : "text-ink-mute hover:text-ink",
-                            ].join(" ")}
-                          >
-                            {option.label}
-                          </button>
-                        )
-                      )}
+                          }}
+                          className={[
+                            "block px-3 py-2 text-sm rounded-lg",
+                            "transition-colors duration-150",
+                            resolveActive(
+                              n.to,
+                              pathname
+                            )
+                              ? "font-semibold text-ink bg-surface-sunk"
+                              : "text-ink-soft hover:bg-surface-sunk hover:text-ink",
+                          ].join(" ")}
+                        >
+                          {n.label}
+                        </Link>
+                      ))}
                     </div>
                   </div>
-
-                  {/* Current mode navigation */}
-                  <div className="px-1">
-                    {currentNav.map((n) => (
-                      <Link
-                        key={n.to}
-                        to={n.to}
-                        onClick={() => {
-                          setExploreOpen(false);
-
-                          if (
-                            n.to === pathname
-                          ) {
-                            window.scrollTo({
-                              top: 0,
-                              left: 0,
-                              behavior: "smooth",
-                            });
-                          }
-                        }}
-                        className={[
-                          "block px-3 py-2 text-sm rounded-lg",
-                          "transition-colors duration-150",
-                          resolveActive(
-                            n.to,
-                            pathname
-                          )
-                            ? "font-semibold text-ink bg-surface-sunk"
-                            : "text-ink-soft hover:bg-surface-sunk hover:text-ink",
-                        ].join(" ")}
-                      >
-                        {n.label}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </nav>
 
           {/* Spacer pushes everything right */}
@@ -520,27 +527,29 @@ export default function Header() {
           )}
 
           {/* Cart */}
-          <Link
-            to="/cart"
-            className={`relative ${ICON_BTN}`}
-            aria-label={`Cart${
-              cartCount
-                ? `, ${cartCount} items`
-                : ""
-            }`}
-          >
-            <Icon d={PATHS.cart} />
+          {user?.userType !== 'logistics_partner' && (
+            <Link
+              to="/cart"
+              className={`relative ${ICON_BTN}`}
+              aria-label={`Cart${
+                cartCount
+                  ? `, ${cartCount} items`
+                  : ""
+              }`}
+            >
+              <Icon d={PATHS.cart} />
 
-            {cartCount > 0 && (
-              <span
-                className="absolute top-1 right-1 min-w-[15px] h-[15px] px-1 rounded-full
-                           bg-indigo text-white
-                           text-[10px] leading-[15px] text-center font-semibold"
-              >
-                {cartCount}
-              </span>
-            )}
-          </Link>
+              {cartCount > 0 && (
+                <span
+                  className="absolute top-1 right-1 min-w-[15px] h-[15px] px-1 rounded-full
+                             bg-indigo text-white
+                             text-[10px] leading-[15px] text-center font-semibold"
+                >
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          )}
 
           {/* Theme toggle */}
           <button
@@ -674,23 +683,7 @@ export default function Header() {
                       </>
                     )}
 
-                    {user.userType === 'logistics_partner' && (
-                      <>
-                        <Link
-                          to="/logistics"
-                          className="flex items-center justify-between gap-2 px-4 py-2 text-sm
-                                     font-medium text-ink
-                                     hover:bg-surface-sunk
-                                     transition-colors duration-150"
-                        >
-                          Logistics Workspace
-                          <span className="badge-indigo">Partner</span>
-                        </Link>
-                        <hr className="rule my-1" />
-                      </>
-                    )}
-
-                    {ACCOUNT_LINKS.map((l) => (
+                    {(user.userType === 'logistics_partner' ? LOGISTICS_ACCOUNT_LINKS : ACCOUNT_LINKS).map((l) => (
                       <Link
                         key={l.to}
                         to={l.to}
@@ -817,39 +810,6 @@ export default function Header() {
             className="shell py-3 flex flex-col gap-1"
             aria-label="Mobile navigation"
           >
-            {/* Explore mode selector */}
-            <div className="px-3 py-2">
-              <p className="text-xs font-medium text-ink-mute mb-2">
-                Explore as
-              </p>
-
-              <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-surface-sunk">
-                {EXPLORE_OPTIONS.map(
-                  (option) => (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() =>
-                        changeExploreMode(
-                          option.key
-                        )
-                      }
-                      className={[
-                        "px-3 py-2 rounded-md text-sm font-medium",
-                        "transition-all duration-150",
-                        exploreMode ===
-                        option.key
-                          ? "bg-surface-alt text-ink shadow-xs"
-                          : "text-ink-mute hover:text-ink",
-                      ].join(" ")}
-                    >
-                      {option.label}
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
-
             {/* Home */}
             <Link
               to="/home"
@@ -878,61 +838,108 @@ export default function Header() {
               Home
             </Link>
 
-            {user?.userType === 'logistics_partner' && (
-              <Link
-                to="/logistics"
-                onClick={() => setMobileOpen(false)}
-                className={[
-                  "py-2 px-3 text-sm rounded-lg",
-                  "transition-all duration-200 ease-out",
-                  resolveActive(
-                    "/logistics",
-                    pathname
-                  )
-                    ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
-                    : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
-                ].join(" ")}
-              >
-                Logistics Dispatch
-              </Link>
-            )}
-
-            {/* Current mode navigation */}
-            {currentNav.map((n) => {
-              const active = resolveActive(
-                n.to,
-                pathname
-              );
-
-              return (
+            {user?.userType === 'logistics_partner' ? (
+              <>
                 <Link
-                  key={n.to}
-                  to={n.to}
-                  onClick={() => {
-                    setMobileOpen(false);
-
-                    if (
-                      n.to === pathname
-                    ) {
-                      window.scrollTo({
-                        top: 0,
-                        left: 0,
-                        behavior: "smooth",
-                      });
-                    }
-                  }}
+                  to="/logistics"
+                  onClick={() => setMobileOpen(false)}
                   className={[
-                    "py-2 px-3 text-sm rounded-lg",
-                    "transition-all duration-200 ease-out",
-                    active
+                    "py-2 px-3 text-sm rounded-lg transition-all duration-200 ease-out",
+                    resolveActive("/logistics", pathname)
                       ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
                       : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
                   ].join(" ")}
                 >
-                  {n.label}
+                  Logistics Dashboard
                 </Link>
-              );
-            })}
+                <Link
+                  to="/notifications"
+                  onClick={() => setMobileOpen(false)}
+                  className="py-2 px-3 text-sm rounded-lg font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]"
+                >
+                  Notifications
+                </Link>
+                <Link
+                  to="/account"
+                  onClick={() => setMobileOpen(false)}
+                  className="py-2 px-3 text-sm rounded-lg font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]"
+                >
+                  Account Profile
+                </Link>
+              </>
+            ) : (
+              <>
+                {/* Explore mode selector */}
+                <div className="px-3 py-2">
+                  <p className="text-xs font-medium text-ink-mute mb-2">
+                    Explore as
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-surface-sunk">
+                    {EXPLORE_OPTIONS.map(
+                      (option) => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() =>
+                            changeExploreMode(
+                              option.key
+                            )
+                          }
+                          className={[
+                            "px-3 py-2 rounded-md text-sm font-medium",
+                            "transition-all duration-150",
+                            exploreMode ===
+                            option.key
+                              ? "bg-surface-alt text-ink shadow-xs"
+                              : "text-ink-mute hover:text-ink",
+                          ].join(" ")}
+                        >
+                          {option.label}
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Current mode navigation */}
+                {currentNav.map((n) => {
+                  const active = resolveActive(
+                    n.to,
+                    pathname
+                  );
+
+                  return (
+                    <Link
+                      key={n.to}
+                      to={n.to}
+                      onClick={() => {
+                        setMobileOpen(false);
+
+                        if (
+                          n.to === pathname
+                        ) {
+                          window.scrollTo({
+                            top: 0,
+                            left: 0,
+                            behavior: "smooth",
+                          });
+                        }
+                      }}
+                      className={[
+                        "py-2 px-3 text-sm rounded-lg",
+                        "transition-all duration-200 ease-out",
+                        active
+                          ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
+                          : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
+                      ].join(" ")}
+                    >
+                      {n.label}
+                    </Link>
+                  );
+                })}
+              </>
+            )}
 
             <Link
               to="/how-it-works"

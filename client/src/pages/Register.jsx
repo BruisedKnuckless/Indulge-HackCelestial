@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Truck, Building2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../api/client';
 import Logo from '../components/layout/Logo';
@@ -17,10 +18,21 @@ const CITY_PRESETS = [
   { label: 'Navi Mumbai (Vashi)', pincode: '400703', coordinates: [73.0071, 19.076] },
 ];
 
+const VEHICLE_TYPE_PRESETS = [
+  'Tata Ace / Pickup Truck (1.0T - 1.5T)',
+  'Medium Commercial Vehicle / 407 (2.5T)',
+  'Heavy Freight Cargo Truck (5T+)',
+  'Refrigerated Catering Van',
+  'Three Wheeler Cargo (500kg)',
+  'Two Wheeler Express Dispatch',
+  'Other Transport Vehicle',
+];
+
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  const [accountType, setAccountType] = useState('business');
   const [form, setForm] = useState({
     businessName: '',
     email: '',
@@ -29,6 +41,12 @@ export default function Register() {
     businessType: 'hotel',
     address: '',
     cityIndex: 0,
+    // Logistics Partner specific
+    serviceArea: 'Mumbai, Thane, Navi Mumbai',
+    vehicleType: VEHICLE_TYPE_PRESETS[0],
+    vehicleModel: '',
+    licensePlate: '',
+    vehicleCapacity: '1200',
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -47,26 +65,58 @@ export default function Register() {
     setBusy(true);
     try {
       const city = CITY_PRESETS[Number(form.cityIndex)];
-      await register({
+      const isPartner = accountType === 'logistics_partner';
+
+      const payload = {
         businessName: form.businessName,
         email: form.email,
         password: form.password,
         phone: form.phone,
-        businessType: form.businessType,
+        businessType: isPartner ? 'other' : form.businessType,
+        userType: isPartner ? 'logistics_partner' : 'business',
         location: {
-          address: form.address,
-          city: city.label.split(' (')[0],
+          address: form.address || (isPartner ? form.serviceArea : city.label),
+          city: isPartner
+            ? (form.serviceArea?.split(',')[0]?.trim() || city.label.split(' (')[0])
+            : city.label.split(' (')[0],
           pincode: city.pincode,
           coordinates: city.coordinates,
         },
-      });
-      navigate('/', { replace: true });
+      };
+
+      if (isPartner) {
+        payload.logisticsProfile = {
+          serviceArea: form.serviceArea
+            ? form.serviceArea.split(',').map((s) => s.trim()).filter(Boolean)
+            : [city.label.split(' (')[0]],
+          operatingStatus: 'active',
+          vehicleInfo: {
+            vehicleType: form.vehicleType,
+            model: form.vehicleModel || form.vehicleType,
+            licensePlate: form.licensePlate,
+            capacityKg: Number(form.vehicleCapacity) || 0,
+          },
+          capacityDescription: form.vehicleCapacity ? `${form.vehicleCapacity} kg payload` : '',
+          completedJobs: 0,
+          rating: 5.0,
+        };
+      }
+
+      const registered = await register(payload);
+
+      if (isPartner || registered?.userType === 'logistics_partner') {
+        navigate('/logistics', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     } catch (err) {
       setError(errorMessage(err, 'Could not create your account.'));
     } finally {
       setBusy(false);
     }
   };
+
+  const isPartner = accountType === 'logistics_partner';
 
   return (
     <div className="bg-surface min-h-screen">
@@ -75,8 +125,47 @@ export default function Register() {
           <Logo width={130} dark />
         </Link>
 
-        <div className="border border-line rounded w-full max-w-[380px] p-5">
-          <h1 className="h-page mb-8">Create account</h1>
+        <div className={`border border-line rounded w-full ${isPartner ? 'max-w-[440px]' : 'max-w-[380px]'} p-5 transition-all`}>
+          <h1 className="h-page mb-2">Create account</h1>
+          <p className="text-xs text-ink-mute mb-5">
+            {isPartner
+              ? 'Join as an Indulge Logistics Partner to handle pickups and physical deliveries.'
+              : 'One hospitality account to both share and request resources across venues.'}
+          </p>
+
+          {/* ── Account Type Selector ─────────────────────────────────────── */}
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-surface-sunk mb-6 border border-line">
+            <button
+              type="button"
+              onClick={() => {
+                setAccountType('business');
+                setError('');
+              }}
+              className={`py-2 px-3 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                !isPartner
+                  ? 'bg-surface-alt text-ink shadow-xs'
+                  : 'text-ink-mute hover:text-ink'
+              }`}
+            >
+              <Building2 size={13} />
+              Business
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAccountType('logistics_partner');
+                setError('');
+              }}
+              className={`py-2 px-3 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                isPartner
+                  ? 'bg-surface-alt text-indigo shadow-xs'
+                  : 'text-ink-mute hover:text-ink'
+              }`}
+            >
+              <Truck size={14} />
+              Logistics Partner
+            </button>
+          </div>
 
           {error && (
             <Alert tone="error" className="mb-3">
@@ -85,62 +174,78 @@ export default function Register() {
           )}
 
           <form onSubmit={submit} className="space-y-3">
+            {/* Business / Partner Name */}
             <div>
               <label htmlFor="businessName" className="label">
-                Business name
+                {isPartner ? 'Partner / Company name' : 'Business name'}
               </label>
               <input
                 id="businessName"
                 value={form.businessName}
                 onChange={set('businessName')}
+                placeholder={isPartner ? 'e.g. SwiftFleet Express Logistics' : 'e.g. The Grand Orchid Hotel'}
                 className="field"
                 required
               />
             </div>
 
-            <div>
-              <label htmlFor="businessType" className="label">
-                Business type
-              </label>
-              <select
-                id="businessType"
-                value={form.businessType}
-                onChange={set('businessType')}
-                className="field-select w-full"
-              >
-                {BUSINESS_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Business Type (Business only) */}
+            {!isPartner && (
+              <div>
+                <label htmlFor="businessType" className="label">
+                  Business type
+                </label>
+                <select
+                  id="businessType"
+                  value={form.businessType}
+                  onChange={set('businessType')}
+                  className="field-select w-full"
+                >
+                  {BUSINESS_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
+            {/* Email */}
             <div>
               <label htmlFor="email" className="label">
-                Business email
+                {isPartner ? 'Dispatch / Business email' : 'Business email'}
               </label>
               <input
                 id="email"
                 type="email"
                 value={form.email}
                 onChange={set('email')}
+                placeholder={isPartner ? 'dispatch@swiftfleet.in' : 'ops@grandorchid.in'}
                 className="field"
                 autoComplete="email"
                 required
               />
             </div>
 
+            {/* Phone */}
             <div>
               <label htmlFor="phone" className="label">
-                Mobile number
+                {isPartner ? 'Mobile / Dispatch phone' : 'Mobile number'}
               </label>
-              <input id="phone" value={form.phone} onChange={set('phone')} className="field" />
+              <input
+                id="phone"
+                value={form.phone}
+                onChange={set('phone')}
+                placeholder="+91 98200 11099"
+                className="field"
+                required={isPartner}
+              />
             </div>
 
+            {/* Operating Area / Primary Hub */}
             <div>
               <label htmlFor="cityIndex" className="label">
-                Operating area
+                {isPartner ? 'Primary operational hub' : 'Operating area'}
               </label>
               <select
                 id="cityIndex"
@@ -155,22 +260,121 @@ export default function Register() {
                 ))}
               </select>
               <p className="text-xs text-ink-mute mt-1">
-                Used to rank resources by distance from you.
+                {isPartner ? 'Base depot for initial pickup proximity.' : 'Used to rank resources by distance from you.'}
               </p>
             </div>
 
-            <div>
-              <label htmlFor="address" className="label">
-                Street address
-              </label>
-              <input
-                id="address"
-                value={form.address}
-                onChange={set('address')}
-                className="field"
-              />
-            </div>
+            {/* Logistics Partner Specific Fields */}
+            {isPartner && (
+              <>
+                <div>
+                  <label htmlFor="serviceArea" className="label">
+                    Service area coverage
+                  </label>
+                  <input
+                    id="serviceArea"
+                    value={form.serviceArea}
+                    onChange={set('serviceArea')}
+                    placeholder="e.g. Mumbai, Thane, Navi Mumbai"
+                    className="field"
+                    required
+                  />
+                  <p className="text-xs text-ink-mute mt-1">
+                    Comma-separated regions where your fleet operates.
+                  </p>
+                </div>
 
+                <div className="pt-2 border-t border-line">
+                  <p className="text-xs font-semibold text-ink uppercase tracking-wider mb-2">
+                    Fleet Vehicle Details
+                  </p>
+
+                  <div className="space-y-2.5">
+                    <div>
+                      <label htmlFor="vehicleType" className="label">
+                        Vehicle category
+                      </label>
+                      <select
+                        id="vehicleType"
+                        value={form.vehicleType}
+                        onChange={set('vehicleType')}
+                        className="field-select w-full text-xs"
+                      >
+                        {VEHICLE_TYPE_PRESETS.map((vt) => (
+                          <option key={vt} value={vt}>
+                            {vt}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label htmlFor="vehicleModel" className="label">
+                          Vehicle model
+                        </label>
+                        <input
+                          id="vehicleModel"
+                          value={form.vehicleModel}
+                          onChange={set('vehicleModel')}
+                          placeholder="e.g. Tata Ace Gold"
+                          className="field text-xs"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="licensePlate" className="label">
+                          License plate
+                        </label>
+                        <input
+                          id="licensePlate"
+                          value={form.licensePlate}
+                          onChange={set('licensePlate')}
+                          placeholder="e.g. MH-04-AB-1234"
+                          className="field text-xs"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="vehicleCapacity" className="label">
+                        Payload capacity (kg)
+                      </label>
+                      <input
+                        id="vehicleCapacity"
+                        type="number"
+                        min="50"
+                        max="20000"
+                        value={form.vehicleCapacity}
+                        onChange={set('vehicleCapacity')}
+                        placeholder="1200"
+                        className="field text-xs"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Address (Business only) */}
+            {!isPartner && (
+              <div>
+                <label htmlFor="address" className="label">
+                  Street address
+                </label>
+                <input
+                  id="address"
+                  value={form.address}
+                  onChange={set('address')}
+                  placeholder="e.g. Hiranandani Gardens, Powai"
+                  className="field"
+                />
+              </div>
+            )}
+
+            {/* Password */}
             <div>
               <label htmlFor="password" className="label">
                 Password
@@ -188,7 +392,11 @@ export default function Register() {
             </div>
 
             <button type="submit" disabled={busy} className="btn-primary w-full">
-              {busy ? 'Creating account…' : 'Create your Indulge account'}
+              {busy
+                ? 'Creating account…'
+                : isPartner
+                ? 'Register as Logistics Partner →'
+                : 'Create your Indulge account'}
             </button>
           </form>
 

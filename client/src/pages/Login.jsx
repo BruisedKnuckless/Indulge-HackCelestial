@@ -9,6 +9,7 @@ const DEMO_ACCOUNTS = [
   { email: 'ops@grandorchid.in', label: 'The Grand Orchid Hotel', note: 'listings + incoming requests' },
   { email: 'events@seasonsbanquet.in', label: 'Seasons Banquet', note: 'owns the flagship ballroom' },
   { email: 'desk@kalpataruevents.in', label: 'Kalpataru Events', note: 'active seeker, has history' },
+  { email: 'dispatch@swiftfleet.in', label: 'SwiftFleet Logistics', note: 'verified logistics partner' },
 ];
 
 export default function Login() {
@@ -28,8 +29,12 @@ export default function Login() {
     setError('');
     setBusy(true);
     try {
-      await login(email, password);
-      navigate(redirectTo, { replace: true });
+      const user = await login(email, password);
+      if (user?.userType === 'logistics_partner') {
+        navigate('/logistics', { replace: true });
+      } else {
+        navigate(redirectTo, { replace: true });
+      }
     } catch (err) {
       setError(errorMessage(err, 'Could not sign you in.'));
     } finally {
