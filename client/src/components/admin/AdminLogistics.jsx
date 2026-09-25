@@ -65,7 +65,7 @@ export default function AdminLogistics() {
     const q = search.toLowerCase();
     return jobs.filter((j) => {
       const bRef = String(j.booking?._id || j.booking || '').toLowerCase();
-      const pName = (j.assignedPartner?.businessName || '').toLowerCase();
+      const pName = (j.logisticsPartner?.businessName || j.assignedPartner?.businessName || '').toLowerCase();
       const seekerName = (j.seeker?.businessName || '').toLowerCase();
       const providerName = (j.provider?.businessName || '').toLowerCase();
       const rTitle = (j.resource?.title || '').toLowerCase();
@@ -85,8 +85,9 @@ export default function AdminLogistics() {
 
   const handleOpenAssign = (job) => {
     setAssignTarget(job);
-    setSelectedPartnerId(job.assignedPartner?._id || '');
-    setAssignNotes(job.notes || '');
+    const partner = job.logisticsPartner || job.assignedPartner;
+    setSelectedPartnerId(partner?._id || '');
+    setAssignNotes(job.operationalNotes || job.notes || '');
   };
 
   const handleConfirmAssign = (e) => {
@@ -201,7 +202,7 @@ export default function AdminLogistics() {
                     <span className="font-mono text-xs font-semibold text-ink">
                       #{String(j._id).slice(-8).toUpperCase()}
                     </span>
-                    {j.requiresReturn && (
+                    {(j.returnRequired ?? j.requiresReturn) && (
                       <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-accent/15 text-amber-accent font-medium">
                         Return
                       </span>
@@ -242,36 +243,39 @@ export default function AdminLogistics() {
             {
               key: 'partner',
               label: 'Assigned Partner',
-              render: (j) => (
-                <div>
-                  {j.assignedPartner ? (
-                    <div>
-                      <p className="text-xs font-semibold text-ink flex items-center gap-1.5">
-                        <Truck size={13} className="text-indigo shrink-0" />
-                        {j.assignedPartner.businessName}
-                      </p>
-                      <p className="text-[11px] text-ink-mute">
-                        {j.assignedPartner.phone || j.assignedPartner.email}
-                      </p>
-                      {j.assignedPartner.logisticsProfile?.vehicleInfo?.model && (
-                        <p className="text-[10px] text-ink-soft italic">
-                          {j.assignedPartner.logisticsProfile.vehicleInfo.model}
+              render: (j) => {
+                const partner = j.logisticsPartner || j.assignedPartner;
+                return (
+                  <div>
+                    {partner ? (
+                      <div>
+                        <p className="text-xs font-semibold text-ink flex items-center gap-1.5">
+                          <Truck size={13} className="text-indigo shrink-0" />
+                          {partner.businessName}
                         </p>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-accent/10 text-amber-accent border border-amber-accent/25 font-medium inline-flex items-center gap-1">
-                      <AlertTriangle size={11} /> Unassigned
-                    </span>
-                  )}
-                </div>
-              ),
+                        <p className="text-[11px] text-ink-mute">
+                          {partner.phone || partner.email}
+                        </p>
+                        {partner.logisticsProfile?.vehicleInfo?.model && (
+                          <p className="text-[10px] text-ink-soft italic">
+                            {partner.logisticsProfile.vehicleInfo.model}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-accent/10 text-amber-accent border border-amber-accent/25 font-medium inline-flex items-center gap-1">
+                        <AlertTriangle size={11} /> Unassigned
+                      </span>
+                    )}
+                  </div>
+                );
+              },
             },
             {
               key: 'status',
               label: 'Logistics Status',
               render: (j) => {
-                const s = j.currentStatus || 'unassigned';
+                const s = j.status || j.currentStatus || 'unassigned';
                 const tone =
                   s === 'delivered' || s === 'completed'
                     ? 'green'
@@ -293,29 +297,31 @@ export default function AdminLogistics() {
             },
             {
               key: 'actions',
-              label: 'Actions',
               align: 'right',
-              render: (j) => (
-                <div className="flex items-center justify-end gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setTimelineTarget(j)}
-                    className="btn-secondary btn-sm"
-                    title="View Timeline"
-                  >
-                    <Eye size={12} />
-                    Timeline
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAssign(j)}
-                    className="btn-primary btn-sm"
-                  >
-                    <Truck size={12} />
-                    {j.assignedPartner ? 'Reassign' : 'Assign'}
-                  </button>
-                </div>
-              ),
+              render: (j) => {
+                const partner = j.logisticsPartner || j.assignedPartner;
+                return (
+                  <div className="flex items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setTimelineTarget(j)}
+                      className="btn-secondary btn-sm"
+                      title="View Timeline"
+                    >
+                      <Eye size={12} />
+                      Timeline
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAssign(j)}
+                      className="btn-primary btn-sm"
+                    >
+                      <Truck size={12} />
+                      {partner ? 'Reassign' : 'Assign'}
+                    </button>
+                  </div>
+                );
+              },
             },
           ]}
         />
@@ -331,7 +337,7 @@ export default function AdminLogistics() {
                   <Truck size={16} />
                 </span>
                 <h3 className="text-base font-semibold text-ink">
-                  {assignTarget.assignedPartner ? 'Reassign Logistics Partner' : 'Dispatch Logistics Partner'}
+                  {(assignTarget.logisticsPartner || assignTarget.assignedPartner) ? 'Reassign Logistics Partner' : 'Dispatch Logistics Partner'}
                 </h3>
               </div>
               <button

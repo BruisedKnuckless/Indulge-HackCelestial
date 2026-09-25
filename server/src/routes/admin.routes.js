@@ -1664,7 +1664,29 @@ router.get(
   asyncHandler(async (req, res) => {
     const { status } = req.query;
     const filter = {};
-    if (status) filter.status = status;
+    if (status) {
+      if (status === 'active') {
+        filter.status = {
+          $in: [
+            'accepted',
+            'pickup_scheduled',
+            'arrived_at_provider',
+            'picked_up',
+            'in_transit',
+            'delivered',
+            'return_requested',
+            'return_pickup_scheduled',
+            'return_picked_up',
+            'return_in_transit',
+            'returned_to_provider',
+          ],
+        };
+      } else if (status === 'issue') {
+        filter.status = { $in: ['declined', 'cancelled'] };
+      } else {
+        filter.status = status;
+      }
+    }
 
     const [jobs, partners, stats] = await Promise.all([
       LogisticsJob.find(filter)
@@ -1686,12 +1708,20 @@ router.get(
     ]);
 
     const statusCounts = Object.fromEntries(stats.map((s) => [s._id, s.count]));
+    const totalJobsAll = stats.reduce((sum, s) => sum + s.count, 0);
+
+    const formattedJobs = jobs.map((j) => ({
+      ...j,
+      assignedPartner: j.logisticsPartner,
+      currentStatus: j.status,
+      requiresReturn: j.returnRequired,
+    }));
 
     res.json({
-      jobs,
+      jobs: formattedJobs,
       partners,
       counts: {
-        total: jobs.length,
+        total: totalJobsAll,
         unassigned: statusCounts.unassigned || 0,
         assigned: statusCounts.assigned || 0,
         active:
@@ -1700,12 +1730,17 @@ router.get(
           (statusCounts.arrived_at_provider || 0) +
           (statusCounts.picked_up || 0) +
           (statusCounts.in_transit || 0) +
+          (statusCounts.delivered || 0) +
+          (statusCounts.return_requested || 0) +
           (statusCounts.return_pickup_scheduled || 0) +
           (statusCounts.return_picked_up || 0) +
-          (statusCounts.return_in_transit || 0),
+          (statusCounts.return_in_transit || 0) +
+          (statusCounts.returned_to_provider || 0),
         delivered: statusCounts.delivered || 0,
         completed: statusCounts.completed || 0,
+        issue: (statusCounts.declined || 0) + (statusCounts.cancelled || 0),
         declined: statusCounts.declined || 0,
+        cancelled: statusCounts.cancelled || 0,
         ...statusCounts,
       },
     });
