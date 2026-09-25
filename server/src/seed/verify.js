@@ -20,6 +20,10 @@ import Review from '../models/Review.js';
 import User from '../models/User.js';
 import LogisticsJob from '../models/LogisticsJob.js';
 import Requirement from '../models/Requirement.js';
+import Transaction from '../models/Transaction.js';
+import ProcurementOrder from '../models/ProcurementOrder.js';
+import Proposal from '../models/Proposal.js';
+import { signToken } from '../middleware/auth.middleware.js';
 import {
   generateProcurementPlans,
   filterNonDominatedPlans,
@@ -2887,6 +2891,808 @@ async function main() {
   check(
     '24. same input produces deterministic ordering',
     JSON.stringify(run1) === JSON.stringify(run2)
+  );
+
+  // =========================================================================
+  // Phase 3.5: Multi-Provider Procurement Plan Execution (Tests 221 - 244)
+  // =========================================================================
+  console.log('\nPhase 3.5: Multi-Provider Procurement Plan Execution');
+
+  const seekerToken = signToken(solverSeeker._id);
+  const providerAToken = signToken(solverProviderA._id);
+  const providerBToken = signToken(solverProviderB._id);
+
+  // 1. Single-provider selected plan executes
+  const singleExecRes = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Single Exec Chiavari Chairs',
+    category: 'furniture',
+    totalQuantity: 400,
+    pricing: { basePrice: 60 },
+    status: 'active',
+  });
+  const execReq1 = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: '500 Chairs for Grand Gala',
+    category: 'furniture',
+    requiredQuantity: 300,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    maxBudget: 25000,
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+    status: 'open',
+  });
+  const singlePlan = {
+    id: 'plan-single-exec-1',
+    type: 'SINGLE_SUPPLIER',
+    fulfilledQuantity: 300,
+    requestedQuantity: 300,
+    fulfillmentPercentage: 100,
+    fullyFulfilled: true,
+    totalPrice: 18000,
+    budgetVariance: -7000,
+    supplierCount: 1,
+    averageDistanceKm: 2.0,
+    maxDistanceKm: 2.0,
+    logisticsComplexity: 'LOW',
+    labels: ['CHEAPEST', 'WITHIN_BUDGET', 'FULLY_FULFILLED'],
+    suppliers: [
+      {
+        resourceId: String(singleExecRes._id),
+        supplierId: String(solverProviderA._id),
+        supplierName: solverProviderA.businessName,
+        resourceTitle: singleExecRes.title,
+        allocatedQuantity: 300,
+        unitPrice: 60,
+        subtotal: 18000,
+        distanceKm: 2.0,
+      },
+    ],
+  };
+
+  const resExec1 = await api('POST', `/api/requirements/${execReq1._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: singlePlan },
+  });
+  check(
+    '1. single-provider selected plan executes',
+    resExec1.status === 201 &&
+      resExec1.body.procurementOrder &&
+      resExec1.body.procurementOrder.status === 'confirmed' &&
+      resExec1.body.childBookings.length === 1
+  );
+
+  // 2. Two-provider split executes
+  const splitResA = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Split Alpha Chairs',
+    category: 'furniture',
+    totalQuantity: 350,
+    pricing: { basePrice: 60 },
+    status: 'active',
+  });
+  const splitResB = await Resource.create({
+    owner: solverProviderB._id,
+    title: 'Split Beta Chairs',
+    category: 'furniture',
+    totalQuantity: 300,
+    pricing: { basePrice: 55 },
+    status: 'active',
+  });
+  const execReq2 = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: '500 Split Chairs Wedding',
+    category: 'furniture',
+    requiredQuantity: 500,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    maxBudget: 35000,
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+    status: 'open',
+  });
+  const splitPlan2 = {
+    id: 'plan-split-exec-2',
+    type: 'SPLIT_FULFILLMENT',
+    fulfilledQuantity: 500,
+    requestedQuantity: 500,
+    fulfillmentPercentage: 100,
+    fullyFulfilled: true,
+    totalPrice: 29000,
+    budgetVariance: -6000,
+    supplierCount: 2,
+    averageDistanceKm: 3.0,
+    maxDistanceKm: 4.0,
+    logisticsComplexity: 'MEDIUM',
+    labels: ['CHEAPEST', 'WITHIN_BUDGET', 'FULLY_FULFILLED'],
+    suppliers: [
+      {
+        resourceId: String(splitResA._id),
+        supplierId: String(solverProviderA._id),
+        supplierName: solverProviderA.businessName,
+        resourceTitle: splitResA.title,
+        allocatedQuantity: 300,
+        unitPrice: 60,
+        subtotal: 18000,
+        distanceKm: 2.0,
+      },
+      {
+        resourceId: String(splitResB._id),
+        supplierId: String(solverProviderB._id),
+        supplierName: solverProviderB.businessName,
+        resourceTitle: splitResB.title,
+        allocatedQuantity: 200,
+        unitPrice: 55,
+        subtotal: 11000,
+        distanceKm: 4.0,
+      },
+    ],
+  };
+
+  const resExec2 = await api('POST', `/api/requirements/${execReq2._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: splitPlan2 },
+  });
+  check(
+    '2. two-provider split executes',
+    resExec2.status === 201 &&
+      resExec2.body.procurementOrder &&
+      resExec2.body.procurementOrder.childBookings.length === 2
+  );
+
+  // 3. Three-provider split executes
+  const splitRes3A = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Trio Alpha Chairs',
+    category: 'furniture',
+    totalQuantity: 200,
+    pricing: { basePrice: 60 },
+    status: 'active',
+  });
+  const splitRes3B = await Resource.create({
+    owner: solverProviderB._id,
+    title: 'Trio Beta Chairs',
+    category: 'furniture',
+    totalQuantity: 250,
+    pricing: { basePrice: 55 },
+    status: 'active',
+  });
+  const splitRes3C = await Resource.create({
+    owner: solverProviderC._id,
+    title: 'Trio Gamma Chairs',
+    category: 'furniture',
+    totalQuantity: 200,
+    pricing: { basePrice: 85 },
+    status: 'active',
+  });
+  const execReq3 = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: '600 Trio Chairs Festival',
+    category: 'furniture',
+    requiredQuantity: 600,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    maxBudget: 45000,
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+    status: 'open',
+  });
+  const splitPlan3 = {
+    id: 'plan-split-exec-3',
+    type: 'SPLIT_FULFILLMENT',
+    fulfilledQuantity: 600,
+    requestedQuantity: 600,
+    fulfillmentPercentage: 100,
+    fullyFulfilled: true,
+    totalPrice: 38500,
+    budgetVariance: -6500,
+    supplierCount: 3,
+    averageDistanceKm: 4.6,
+    maxDistanceKm: 8.0,
+    logisticsComplexity: 'HIGH',
+    labels: ['FULLY_FULFILLED'],
+    suppliers: [
+      {
+        resourceId: String(splitRes3A._id),
+        supplierId: String(solverProviderA._id),
+        supplierName: solverProviderA.businessName,
+        resourceTitle: splitRes3A.title,
+        allocatedQuantity: 200,
+        unitPrice: 60,
+        subtotal: 12000,
+        distanceKm: 2.0,
+      },
+      {
+        resourceId: String(splitRes3B._id),
+        supplierId: String(solverProviderB._id),
+        supplierName: solverProviderB.businessName,
+        resourceTitle: splitRes3B.title,
+        allocatedQuantity: 250,
+        unitPrice: 55,
+        subtotal: 13750,
+        distanceKm: 4.0,
+      },
+      {
+        resourceId: String(splitRes3C._id),
+        supplierId: String(solverProviderC._id),
+        supplierName: solverProviderC.businessName,
+        resourceTitle: splitRes3C.title,
+        allocatedQuantity: 150,
+        unitPrice: 85,
+        subtotal: 12750,
+        distanceKm: 8.0,
+      },
+    ],
+  };
+
+  const resExec3 = await api('POST', `/api/requirements/${execReq3._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: splitPlan3 },
+  });
+  check(
+    '3. three-provider split executes',
+    resExec3.status === 201 &&
+      resExec3.body.procurementOrder &&
+      resExec3.body.procurementOrder.childBookings.length === 3
+  );
+
+  // 4. Correct quantity per child booking
+  const childBookings2 = await Booking.find({
+    _id: { $in: resExec2.body.procurementOrder.childBookings.map((b) => b._id || b) },
+  }).sort('requestedQuantity');
+  check(
+    '4. correct quantity per child booking',
+    childBookings2.length === 2 &&
+      childBookings2[0].requestedQuantity === 200 &&
+      childBookings2[1].requestedQuantity === 300
+  );
+
+  // 5. Correct subtotal per child booking
+  check(
+    '5. correct subtotal per child booking',
+    childBookings2.length === 2 &&
+      childBookings2[0].agreedPrice === 11000 &&
+      childBookings2[1].agreedPrice === 18000
+  );
+
+  // 6. Grouped total correct
+  check(
+    '6. grouped total correct',
+    resExec2.body.procurementOrder.totalPrice === 29000
+  );
+
+  // 7. Stale plan rejected before booking creation
+  const staleRes = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Stale Check Chairs',
+    category: 'furniture',
+    totalQuantity: 100,
+    pricing: { basePrice: 50 },
+    status: 'active',
+  });
+  const staleReq = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: 'Stale Plan Requirement',
+    category: 'furniture',
+    requiredQuantity: 80,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    status: 'open',
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+  });
+  // Simulate concurrent booking that takes 70 units
+  await Booking.create({
+    resource: staleRes._id,
+    provider: solverProviderA._id,
+    seeker: solverProviderB._id,
+    requestedQuantity: 70,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    status: 'confirmed',
+  });
+  // Now only 30 units are available, but plan asks for 80
+  const stalePlan = {
+    id: 'plan-stale-1',
+    type: 'SINGLE_SUPPLIER',
+    fulfilledQuantity: 80,
+    requestedQuantity: 80,
+    totalPrice: 4000,
+    supplierCount: 1,
+    suppliers: [
+      {
+        resourceId: String(staleRes._id),
+        supplierId: String(solverProviderA._id),
+        allocatedQuantity: 80,
+        unitPrice: 50,
+        subtotal: 4000,
+      },
+    ],
+  };
+  const resStale = await api('POST', `/api/requirements/${staleReq._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: stalePlan },
+  });
+  check(
+    '7. stale plan rejected before booking creation',
+    resStale.status === 409
+  );
+
+  // 8. One failed allocation leaves zero partial child bookings
+  const beforeFailBookings = await Booking.countDocuments();
+  const failReq = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: 'Fail Rollback Requirement',
+    category: 'furniture',
+    requiredQuantity: 200,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    status: 'open',
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+  });
+  const partialFailPlan = {
+    id: 'plan-partial-fail-1',
+    type: 'SPLIT_FULFILLMENT',
+    fulfilledQuantity: 200,
+    requestedQuantity: 200,
+    totalPrice: 10000,
+    supplierCount: 2,
+    suppliers: [
+      {
+        resourceId: String(singleExecRes._id), // Valid resource (has capacity)
+        supplierId: String(solverProviderA._id),
+        allocatedQuantity: 50,
+        unitPrice: 60,
+        subtotal: 3000,
+      },
+      {
+        resourceId: new mongoose.Types.ObjectId().toString(), // Non-existent resource -> will fail pre-check
+        supplierId: String(solverProviderB._id),
+        allocatedQuantity: 150,
+        unitPrice: 55,
+        subtotal: 8250,
+      },
+    ],
+  };
+  const resFail = await api('POST', `/api/requirements/${failReq._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: partialFailPlan },
+  });
+  const afterFailBookings = await Booking.countDocuments();
+  check(
+    '8. one failed allocation leaves zero partial child bookings',
+    resFail.status === 409 && afterFailBookings === beforeFailBookings
+  );
+
+  // 9. Duplicate execution is idempotent
+  const resIdempotent = await api('POST', `/api/requirements/${execReq2._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: splitPlan2 },
+  });
+  check(
+    '9. duplicate execution is idempotent',
+    resIdempotent.status === 200 && resIdempotent.body.alreadyExecuted === true
+  );
+
+  // 10. Unauthorized user cannot execute
+  const resUnauth = await api('POST', `/api/requirements/${execReq2._id}/execute-procurement-plan`, {
+    token: seasons, // Seasons is not the seeker of execReq2
+    body: { plan: splitPlan2 },
+  });
+  check(
+    '10. unauthorized user cannot execute',
+    resUnauth.status === 403
+  );
+
+  // 11. Provider sees only own child booking
+  const bookingAId = resExec2.body.procurementOrder.childBookings[0]._id;
+  const bookingBId = resExec2.body.procurementOrder.childBookings[1]._id;
+
+  const resProvAOwn = await api('GET', `/api/bookings/${bookingAId}`, { token: providerAToken });
+  const resProvAOther = await api('GET', `/api/bookings/${bookingBId}`, { token: providerAToken });
+  const resProvAOrder = await api('GET', `/api/procurement-orders/${resExec2.body.procurementOrder._id}`, { token: providerAToken });
+  check(
+    '11. provider sees only own child booking',
+    resProvAOwn.status === 200 &&
+      resProvAOther.status === 403 &&
+      resProvAOrder.status === 403
+  );
+
+  // 12. Seeker sees grouped procurement
+  const resSeekerOrder = await api('GET', `/api/procurement-orders/${resExec2.body.procurementOrder._id}`, {
+    token: seekerToken,
+  });
+  check(
+    '12. seeker sees grouped procurement',
+    resSeekerOrder.status === 200 &&
+      resSeekerOrder.body.order &&
+      resSeekerOrder.body.order.childBookings.length === 2
+  );
+
+  // 13. Full plan marks requirement fulfilled
+  const req2Reloaded = await Requirement.findById(execReq2._id);
+  check(
+    '13. full plan marks requirement fulfilled',
+    req2Reloaded.status === 'fulfilled' && req2Reloaded.fulfilledQuantity === 500
+  );
+
+  // 14. Partial execution does not mark requirement fully fulfilled
+  const partialReq = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: 'Partial Fulfillment Requirement',
+    category: 'furniture',
+    requiredQuantity: 500,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    status: 'open',
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+  });
+  const partialPlan = {
+    id: 'plan-partial-exec-1',
+    type: 'PARTIAL_FULFILLMENT',
+    fulfilledQuantity: 350,
+    requestedQuantity: 500,
+    fulfillmentPercentage: 70,
+    fullyFulfilled: false,
+    totalPrice: 21000,
+    supplierCount: 1,
+    suppliers: [
+      {
+        resourceId: String(splitResA._id),
+        supplierId: String(solverProviderA._id),
+        supplierName: solverProviderA.businessName,
+        resourceTitle: splitResA.title,
+        allocatedQuantity: 30, // splitResA has 50 left
+        unitPrice: 60,
+        subtotal: 1800,
+      },
+    ],
+  };
+  const resPartial = await api('POST', `/api/requirements/${partialReq._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: partialPlan },
+  });
+  const partialReqReloaded = await Requirement.findById(partialReq._id);
+  check(
+    '14. partial execution does not mark requirement fully fulfilled',
+    resPartial.status === 201 &&
+      partialReqReloaded.status === 'open' &&
+      partialReqReloaded.fulfilledQuantity === 350 &&
+      partialReqReloaded.remainingQuantity === 150
+  );
+
+  // 15. Concurrent availability validation preserved
+  const limitRes = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Strict Concurrency Chairs',
+    category: 'furniture',
+    totalQuantity: 100,
+    pricing: { basePrice: 50 },
+    status: 'active',
+  });
+  const limitReq = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: 'Concurrency Limit Requirement',
+    category: 'furniture',
+    requiredQuantity: 60,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    status: 'open',
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+  });
+  await Booking.create({
+    resource: limitRes._id,
+    provider: solverProviderA._id,
+    seeker: solverProviderB._id,
+    requestedQuantity: 80,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    status: 'confirmed',
+  });
+  const limitPlan = {
+    id: 'plan-limit-1',
+    type: 'SINGLE_SUPPLIER',
+    fulfilledQuantity: 60,
+    requestedQuantity: 60,
+    totalPrice: 3000,
+    supplierCount: 1,
+    suppliers: [
+      {
+        resourceId: String(limitRes._id),
+        supplierId: String(solverProviderA._id),
+        allocatedQuantity: 60, // only 20 left
+        unitPrice: 50,
+        subtotal: 3000,
+      },
+    ],
+  };
+  const resLimit = await api('POST', `/api/requirements/${limitReq._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: limitPlan },
+  });
+  check(
+    '15. concurrent availability validation preserved',
+    resLimit.status === 409
+  );
+
+  // 16. Buffer conflict detected during final execution
+  const bufConflictRes = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Buffer Conflict Chairs',
+    category: 'furniture',
+    totalQuantity: 100,
+    pricing: { basePrice: 50 },
+    bufferBeforeMinutes: 60,
+    bufferAfterMinutes: 60,
+    status: 'active',
+  });
+  const bufConflictReq = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: 'Buffer Conflict Requirement',
+    category: 'furniture',
+    requiredQuantity: 50,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    status: 'open',
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+  });
+  // Booking ending 30 minutes before targetDateStart -> conflicts with 60 min buffer
+  await Booking.create({
+    resource: bufConflictRes._id,
+    provider: solverProviderA._id,
+    seeker: solverProviderB._id,
+    requestedQuantity: 80,
+    startDateTime: new Date(targetDateStart.getTime() - 3 * 3600000),
+    endDateTime: new Date(targetDateStart.getTime() - 30 * 60000),
+    status: 'confirmed',
+  });
+  const bufConflictPlan = {
+    id: 'plan-buf-1',
+    type: 'SINGLE_SUPPLIER',
+    fulfilledQuantity: 50,
+    requestedQuantity: 50,
+    totalPrice: 2500,
+    supplierCount: 1,
+    suppliers: [
+      {
+        resourceId: String(bufConflictRes._id),
+        supplierId: String(solverProviderA._id),
+        allocatedQuantity: 50,
+        unitPrice: 50,
+        subtotal: 2500,
+      },
+    ],
+  };
+  const resBufConflict = await api('POST', `/api/requirements/${bufConflictReq._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: bufConflictPlan },
+  });
+  check(
+    '16. buffer conflict detected during final execution',
+    resBufConflict.status === 409
+  );
+
+  // 17. Owner-block conflict detected during final execution
+  const blockExecRes = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Block Conflict Chairs',
+    category: 'furniture',
+    totalQuantity: 100,
+    pricing: { basePrice: 50 },
+    status: 'active',
+    blockedPeriods: [
+      {
+        start: targetDateStart,
+        end: targetDateEnd,
+        type: 'unavailable',
+        reason: 'Reserved for family wedding',
+      },
+    ],
+  });
+  const blockReq = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: 'Block Requirement',
+    category: 'furniture',
+    requiredQuantity: 50,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    status: 'open',
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+  });
+  const blockPlan = {
+    id: 'plan-blk-1',
+    type: 'SINGLE_SUPPLIER',
+    fulfilledQuantity: 50,
+    requestedQuantity: 50,
+    totalPrice: 2500,
+    supplierCount: 1,
+    suppliers: [
+      {
+        resourceId: String(blockExecRes._id),
+        supplierId: String(solverProviderA._id),
+        allocatedQuantity: 50,
+        unitPrice: 50,
+        subtotal: 2500,
+      },
+    ],
+  };
+  const resBlock = await api('POST', `/api/requirements/${blockReq._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: blockPlan },
+  });
+  check(
+    '17. owner-block conflict detected during final execution',
+    resBlock.status === 409
+  );
+
+  // 18. Paused resource detected during final execution
+  const pausedExecRes = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Paused Check Chairs',
+    category: 'furniture',
+    totalQuantity: 100,
+    pricing: { basePrice: 50 },
+    status: 'paused',
+  });
+  const pausedPlan = {
+    id: 'plan-paused-1',
+    type: 'SINGLE_SUPPLIER',
+    fulfilledQuantity: 50,
+    requestedQuantity: 50,
+    totalPrice: 2500,
+    supplierCount: 1,
+    suppliers: [
+      {
+        resourceId: String(pausedExecRes._id),
+        supplierId: String(solverProviderA._id),
+        allocatedQuantity: 50,
+        unitPrice: 50,
+        subtotal: 2500,
+      },
+    ],
+  };
+  const resPaused = await api('POST', `/api/requirements/${blockReq._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: pausedPlan },
+  });
+  check(
+    '18. paused resource detected during final execution',
+    resPaused.status === 409
+  );
+
+  // 19. Logistics-required child creates/permits correct logistics job
+  const jobsCreated = await LogisticsJob.find({
+    booking: { $in: resExec2.body.procurementOrder.childBookings.map((b) => b._id || b) },
+  });
+  check(
+    '19. logistics-required child creates/permits correct logistics job',
+    jobsCreated.length === 2
+  );
+
+  // 20. Non-logistics child does not create unnecessary logistics job
+  const stationaryRes = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Shared Commercial Prep Kitchen',
+    category: 'kitchen_capacity',
+    totalQuantity: 2,
+    pricing: { basePrice: 1200 },
+    status: 'active',
+  });
+  const stationaryReq = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: 'Stationary Kitchen Requirement',
+    category: 'kitchen_capacity',
+    requiredQuantity: 1,
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    status: 'open',
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+  });
+  const stationaryPlan = {
+    id: 'plan-stat-1',
+    type: 'SINGLE_SUPPLIER',
+    fulfilledQuantity: 1,
+    requestedQuantity: 1,
+    fullyFulfilled: true,
+    totalPrice: 1200,
+    supplierCount: 1,
+    suppliers: [
+      {
+        resourceId: String(stationaryRes._id),
+        supplierId: String(solverProviderA._id),
+        allocatedQuantity: 1,
+        unitPrice: 1200,
+        subtotal: 1200,
+      },
+    ],
+  };
+  const resStationary = await api('POST', `/api/requirements/${stationaryReq._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: stationaryPlan },
+  });
+  const stationaryBookingId = resStationary.body.procurementOrder.childBookings[0]._id;
+  const stationaryJob = await LogisticsJob.findOne({ booking: stationaryBookingId });
+  check(
+    '20. non-logistics child does not create unnecessary logistics job',
+    resStationary.status === 201 && stationaryJob === null
+  );
+
+  // 21. Individual transaction records stay correct
+  const txs = await Transaction.find({
+    booking: { $in: resExec2.body.procurementOrder.childBookings.map((b) => b._id || b) },
+  }).sort('amount');
+  check(
+    '21. individual transaction records stay correct',
+    txs.length === 2 &&
+      txs[0].amount === 11000 &&
+      txs[0].status === 'simulated_paid' &&
+      txs[1].amount === 18000 &&
+      txs[1].status === 'simulated_paid'
+  );
+
+  // 22. Existing direct booking flow remains unchanged
+  const directRes = await api('POST', '/api/bookings', {
+    token: orchid,
+    body: {
+      resourceId: singleExecRes._id,
+      quantity: 10,
+      startDateTime: at(15, 10),
+      endDateTime: at(15, 18),
+    },
+  });
+  check(
+    '22. existing direct booking flow remains unchanged',
+    directRes.status === 201 && directRes.body.booking && directRes.body.booking.status === 'pending'
+  );
+
+  // 23. Existing RFQ proposal acceptance remains unchanged
+  const rfqRes = await Resource.create({
+    owner: solverProviderB._id,
+    title: 'RFQ Dedicated Chairs',
+    category: 'furniture',
+    totalQuantity: 100,
+    pricing: { basePrice: 50 },
+    status: 'active',
+  });
+  const rfqReq = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: 'Direct RFQ Proposal Requirement',
+    category: 'furniture',
+    requiredQuantity: 50,
+    startDateTime: at(20, 10),
+    endDateTime: at(20, 18),
+    status: 'open',
+    location: { city: 'Thane', coordinates: [72.978, 19.218] },
+  });
+  const rfqProposal = await Proposal.create({
+    requirement: rfqReq._id,
+    provider: solverProviderB._id,
+    resource: rfqRes._id,
+    quotedPrice: 2500,
+    status: 'submitted',
+  });
+  const acceptRfqRes = await api(
+    'POST',
+    `/api/requirements/${rfqReq._id}/proposals/${rfqProposal._id}/accept`,
+    {
+      token: seekerToken,
+    }
+  );
+  check(
+    '23. existing RFQ proposal acceptance remains unchanged',
+    acceptRfqRes.status === 201 &&
+      acceptRfqRes.body.booking &&
+      acceptRfqRes.body.booking.status === 'confirmed' &&
+      acceptRfqRes.body.requirement.status === 'fulfilled'
+  );
+
+  // 24. Executing same plan twice creates no duplicate bookings
+  const p35CountBefore = await Booking.countDocuments();
+  await api('POST', `/api/requirements/${execReq2._id}/execute-procurement-plan`, {
+    token: seekerToken,
+    body: { plan: splitPlan2 },
+  });
+  const p35CountAfter = await Booking.countDocuments();
+  check(
+    '24. executing same plan twice creates no duplicate bookings',
+    p35CountBefore === p35CountAfter
   );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

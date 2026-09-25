@@ -16,6 +16,7 @@ import requirementRoutes from './routes/requirement.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import logisticsRoutes from './routes/logistics.routes.js';
+import procurementOrderRoutes from './routes/procurement-order.routes.js';
 
 export function createApp() {
   const app = express();
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api/reviews', reviewRoutes);
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/requirements', requirementRoutes);
+  app.use('/api/procurement-orders', procurementOrderRoutes);
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/logistics', logisticsRoutes);

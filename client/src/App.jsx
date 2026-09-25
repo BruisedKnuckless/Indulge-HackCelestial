@@ -37,6 +37,7 @@ import HowItWorks from './pages/HowItWorks';
 import Admin from './pages/Admin';
 import AdminLocked from './components/admin/AdminLocked';
 import LogisticsDashboard from './pages/LogisticsDashboard';
+import ProcurementOrderDetail from './pages/ProcurementOrderDetail';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -206,6 +207,14 @@ export default function App() {
                   element={
                     <RequireBusinessAuth>
                       <Payment />
+                    </RequireBusinessAuth>
+                  }
+                />
+                <Route
+                  path="/procurement-orders/:id"
+                  element={
+                    <RequireBusinessAuth>
+                      <ProcurementOrderDetail />
                     </RequireBusinessAuth>
                   }
                 />

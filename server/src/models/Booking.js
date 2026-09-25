@@ -89,6 +89,8 @@ const bookingSchema = new mongoose.Schema(
     // send it twice even if the endpoint is called multiple times.
     rentalExpiryNotified: { type: Boolean, default: false },
     isSample: { type: Boolean, default: false },
+    procurementOrder: { type: mongoose.Schema.Types.ObjectId, ref: 'ProcurementOrder', index: true },
+    sourceRequirement: { type: mongoose.Schema.Types.ObjectId, ref: 'Requirement', index: true },
   },
   { timestamps: true }
 );

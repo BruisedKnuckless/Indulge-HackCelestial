@@ -11,6 +11,7 @@ import { scoreSingleResource } from '../services/matching.service.js';
 import { notify } from '../services/notification.service.js';
 import { isPlatformAdmin } from '../config/admin.js';
 import { solveRequirementProcurement } from '../services/procurement-solver.service.js';
+import { executeProcurementPlan } from '../services/procurement-execution.service.js';
 
 const router = Router();
 
@@ -416,6 +417,34 @@ router.post(
       message: 'Procurement plan saved. Multi-provider allocation recorded for coordination.',
       note: 'Multi-provider direct split bookings will be created as providers confirm quotes.',
     });
+  })
+);
+
+/**
+ * POST /api/requirements/:id/execute-procurement-plan
+ * Executes a selected procurement plan:
+ * - Live re-validation of inventory for all suppliers
+ * - All-or-nothing execution with compensating rollback
+ * - Distinct child bookings per provider
+ * - Grouped parent ProcurementOrder
+ * - Idempotency protection
+ */
+router.post(
+  '/:id/execute-procurement-plan',
+  requireAuth,
+  requireBusinessUser,
+  asyncHandler(async (req, res) => {
+    const { plan, idempotencyKey, paymentMethod } = req.body;
+
+    const result = await executeProcurementPlan({
+      requirementId: req.params.id,
+      seekerId: req.user._id,
+      plan,
+      idempotencyKey,
+      paymentMethod,
+    });
+
+    res.status(result.alreadyExecuted ? 200 : 201).json(result);
   })
 );
 

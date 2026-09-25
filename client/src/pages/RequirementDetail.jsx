@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Pencil, Check, Layers, ChevronRight } from 'lucide-react';
+import { Pencil, Check, Layers, ChevronRight, Truck, Package, ShieldCheck, AlertCircle, X, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRequirement, useRequirementActions } from '../hooks/queries';
@@ -28,6 +28,7 @@ export default function RequirementDetail() {
   const { data, isLoading } = useRequirement(id);
   const { acceptOffer, withdrawOffer, close, cancel } = useRequirementActions();
   const [busy, setBusy] = useState('');
+  const [confirmingPlan, setConfirmingPlan] = useState(null);
 
   const r = data?.requirement;
   const isOwner = String(r?.seeker?._id) === String(user?._id);
@@ -49,6 +50,22 @@ export default function RequirementDetail() {
     onSuccess: (resData) => {
       toast.success(resData?.message || 'Procurement option selected!');
       qc.invalidateQueries({ queryKey: ['requirement', id] });
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+
+  const executePlanMutation = useMutation({
+    mutationFn: async (plan) => {
+      const res = await api.post(`/requirements/${id}/execute-procurement-plan`, { plan });
+      return res.data;
+    },
+    onSuccess: (resData) => {
+      toast.success(resData?.message || 'Procurement plan executed successfully!');
+      qc.invalidateQueries({ queryKey: ['requirement', id] });
+      setConfirmingPlan(null);
+      if (resData?.procurementOrder?._id) {
+        navigate(`/procurement-orders/${resData.procurementOrder._id}`);
+      }
     },
     onError: (err) => toast.error(errorMessage(err)),
   });
@@ -212,6 +229,28 @@ export default function RequirementDetail() {
             )}
           </div>
 
+          {r.procurementOrder && (
+            <div className="card p-4 mb-5 border-line bg-surface-sunk/60 flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-green-500/10 text-green-accent flex items-center justify-center shrink-0">
+                  <Check size={16} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-ink">Grouped Procurement Order Active</p>
+                  <p className="text-xs text-ink-soft">
+                    Multi-provider inventory has been secured across child bookings.
+                  </p>
+                </div>
+              </div>
+              <Link
+                to={`/procurement-orders/${r.procurementOrder._id || r.procurementOrder}`}
+                className="btn-primary btn-sm text-xs inline-flex items-center gap-1"
+              >
+                View Grouped Order <ArrowRight size={12} />
+              </Link>
+            </div>
+          )}
+
           {procLoading ? (
             <div className="p-8 text-center text-xs text-ink-soft">
               <Spinner label="Evaluating feasible supplier combinations…" />
@@ -336,27 +375,124 @@ export default function RequirementDetail() {
                       ))}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => selectPlanMutation.mutate(opt)}
-                      disabled={selectPlanMutation.isPending}
-                      className={`btn-sm text-xs ${
-                        r.selectedProcurementPlan?.id === opt.id
-                          ? 'btn-secondary text-green-accent border-green-500/40'
-                          : 'btn-primary'
-                      }`}
-                    >
-                      {r.selectedProcurementPlan?.id === opt.id ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Check size={13} /> Selected Strategy
-                        </span>
-                      ) : (
-                        'Select Option'
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => selectPlanMutation.mutate(opt)}
+                        disabled={selectPlanMutation.isPending}
+                        className={`btn-sm text-xs ${
+                          r.selectedProcurementPlan?.id === opt.id
+                            ? 'btn-secondary text-green-accent border-green-500/40'
+                            : 'btn-ghost'
+                        }`}
+                      >
+                        {r.selectedProcurementPlan?.id === opt.id ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Check size={13} /> Selected
+                          </span>
+                        ) : (
+                          'Select Option'
+                        )}
+                      </button>
+
+                      {r.selectedProcurementPlan?.id === opt.id && r.status === 'open' && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingPlan(opt)}
+                          className="btn-primary btn-sm text-xs inline-flex items-center gap-1"
+                        >
+                          Continue with this plan <ArrowRight size={13} />
+                        </button>
                       )}
-                    </button>
+                    </div>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Modal / Dialog for explicit execution confirmation */}
+          {confirmingPlan && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-sm animate-in fade-in">
+              <div className="card max-w-xl w-full p-6 md:p-7 border-line bg-surface shadow-2xl relative">
+                <button
+                  type="button"
+                  onClick={() => setConfirmingPlan(null)}
+                  className="absolute top-4 right-4 p-1.5 rounded-lg text-ink-mute hover:text-ink hover:bg-surface-sunk"
+                >
+                  <X size={18} />
+                </button>
+
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded bg-brand/10 text-brand">
+                    {confirmingPlan.type.replace('_', ' ')}
+                  </span>
+                  <span className="text-xs text-ink-mute">Review & Confirm</span>
+                </div>
+
+                <h3 className="text-xl font-bold text-ink mb-1">
+                  Execute Procurement Strategy
+                </h3>
+                <p className="text-xs text-ink-soft mb-5">
+                  Live inventory will be verified across all {confirmingPlan.suppliers.length} providers before creating individual contracts.
+                </p>
+
+                {/* Suppliers breakdown */}
+                <div className="space-y-2 mb-5 max-h-56 overflow-y-auto pr-1">
+                  {confirmingPlan.suppliers.map((s, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-surface-sunk/70 border border-line flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-semibold text-ink">{s.providerName}</p>
+                        <p className="text-[11px] text-ink-soft">{s.resourceTitle} {s.distanceKm != null ? `· ${s.distanceKm} km away` : ''}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-ink">{s.allocatedQuantity} {r.unit || 'units'}</p>
+                        <p className="text-[11px] text-ink-soft">{inr(s.totalPrice)} ({inr(s.unitPrice)}/ea)</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Summary Box */}
+                <div className="p-4 rounded-xl border border-line bg-surface-sunk/30 space-y-2 text-xs mb-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-ink-soft">Target Fulfillment:</span>
+                    <span className="font-semibold text-ink">{confirmingPlan.fulfilledQuantity} / {confirmingPlan.requestedQuantity} {r.unit || 'units'} ({confirmingPlan.fulfillmentPercentage}%)</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-ink-soft">Logistics Jobs Expected:</span>
+                    <span className="font-semibold text-ink">{confirmingPlan.logisticsJobsRequired || confirmingPlan.supplierCount} pickup dispatch(es)</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-ink-soft">Execution Window:</span>
+                    <span className="font-semibold text-ink">{dateRange(r.startDateTime, r.endDateTime)}</span>
+                  </div>
+                  <div className="border-t border-line/60 pt-2 flex items-center justify-between text-sm font-bold text-ink">
+                    <span>Grouped Order Total:</span>
+                    <span className="text-brand text-base">{inr(confirmingPlan.totalPrice)}</span>
+                  </div>
+                </div>
+
+                {/* Confirmation Actions */}
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingPlan(null)}
+                    disabled={executePlanMutation.isPending}
+                    className="btn-ghost btn-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => executePlanMutation.mutate(confirmingPlan)}
+                    disabled={executePlanMutation.isPending}
+                    className="btn-primary btn-sm inline-flex items-center gap-1.5"
+                  >
+                    {executePlanMutation.isPending ? 'Executing Strategy…' : 'Confirm & Execute Plan'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </section>

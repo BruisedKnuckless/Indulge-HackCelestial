@@ -132,6 +132,17 @@ const requirementSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
+    procurementOrder: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ProcurementOrder',
+    },
+    fulfilledQuantity: {
+      type: Number,
+      default: 0,
+    },
+    remainingQuantity: {
+      type: Number,
+    },
   },
   { timestamps: true }
 );
