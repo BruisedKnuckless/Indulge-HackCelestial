@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Building2,
@@ -12,8 +13,13 @@ import {
   Handshake,
   Megaphone,
   Calendar,
+  ShieldCheck,
+  Award,
+  ChevronDown,
+  ChevronUp,
+  Zap,
 } from 'lucide-react';
-import { useProviderProfile, useUserReviews, useSearch } from '../hooks/queries';
+import { useProviderProfile, useUserReviews, useSearch, usePublicReputation } from '../hooks/queries';
 import { Stars, Spinner, Price, EmptyState } from '../components/ui';
 import {
   BUSINESS_TYPES,
@@ -151,6 +157,9 @@ export default function ProviderProfile() {
 
   const { data: profileData, isLoading: profileLoading } = useProviderProfile(id);
   const { data: reviewData, isLoading: reviewsLoading } = useUserReviews(id);
+  const { data: repData } = usePublicReputation(id);
+  const rep = repData?.profile;
+  const [showWhy, setShowWhy] = useState(false);
 
   // Pull listings for this provider from the search index
   const { data: searchData } = useSearch({ limit: 100, radiusKm: 500 });
@@ -349,8 +358,110 @@ export default function ProviderProfile() {
             </div>
           </div>
 
-          {/* ── RIGHT: Reviews ─────────────────────────────────────────────── */}
+          {/* ── RIGHT: Reputation & Reviews ─────────────────────────────────────────────── */}
           <div className="space-y-4">
+            {/* ── Marketplace Reputation Card ── */}
+            {rep && (
+              <div className="card border-line bg-surface p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-indigo/10 text-indigo flex items-center justify-center">
+                      <ShieldCheck size={18} />
+                    </span>
+                    <div>
+                      <h2 className="text-base font-bold text-ink">Marketplace Reputation</h2>
+                      <p className="text-[11px] text-ink-mute">Deterministic Trust &amp; Contribution</p>
+                    </div>
+                  </div>
+                  <span
+                    className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wide border ${
+                      rep.tier === 'PREFERRED'
+                        ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
+                        : rep.tier === 'TRUSTED'
+                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                        : rep.tier === 'ACTIVE'
+                        ? 'bg-blue-500/10 text-blue-500 border-blue-500/30'
+                        : 'bg-surface-sunk text-ink-soft border-line'
+                    }`}
+                  >
+                    {rep.tier} Tier
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-surface-sunk/60 border border-line/60 mb-4 text-center">
+                  <div>
+                    <span className="text-[10px] text-ink-mute uppercase tracking-wide block font-semibold">Trust</span>
+                    <span className="text-xl font-bold text-ink">{rep.trustScore}</span>
+                    <span className="text-[10px] text-ink-soft block">/ 100</span>
+                  </div>
+                  <div className="border-x border-line/60">
+                    <span className="text-[10px] text-ink-mute uppercase tracking-wide block font-semibold">Contribution</span>
+                    <span className="text-xl font-bold text-indigo">{rep.contributionScore}</span>
+                    <span className="text-[10px] text-ink-soft block">/ 100</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-ink-mute uppercase tracking-wide block font-semibold">Quality</span>
+                    <span className="text-xl font-bold text-ink">{rep.resourceQuality?.averageRating ? rep.resourceQuality.averageRating.toFixed(1) : '—'}</span>
+                    <span className="text-[10px] text-ink-soft block">/ 5</span>
+                  </div>
+                </div>
+
+                {rep.fulfillmentRate > 0 && (
+                  <div className="flex items-center justify-between text-xs text-ink-soft pb-3 mb-3 border-b border-line/60">
+                    <span>Fulfillment Reliability:</span>
+                    <span className="font-semibold text-ink">{Math.round(rep.fulfillmentRate * 100)}%</span>
+                  </div>
+                )}
+
+                {/* Badges list */}
+                {rep.badges && rep.badges.length > 0 && (
+                  <div className="mb-3">
+                    <span className="text-[11px] text-ink-mute uppercase tracking-wider font-semibold block mb-2">
+                      Verified Badges
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {rep.badges.map((b) => (
+                        <span
+                          key={b.id}
+                          title={b.description}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-surface-sunk border border-line text-ink"
+                        >
+                          <Award size={12} className="text-amber-500 shrink-0" />
+                          {b.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Why / breakdown toggle */}
+                <div className="pt-2 border-t border-line/60">
+                  <button
+                    type="button"
+                    onClick={() => setShowWhy(!showWhy)}
+                    className="flex items-center justify-between w-full text-xs text-ink-soft hover:text-ink transition-colors font-medium"
+                  >
+                    <span>How is this calculated?</span>
+                    {showWhy ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+
+                  {showWhy && (
+                    <div className="mt-2.5 p-3 rounded-lg bg-surface-sunk text-xs text-ink-soft space-y-1.5 leading-relaxed">
+                      <p>
+                        <strong className="text-ink">Trust ({rep.trustScore}/100):</strong> Evaluates operational execution, on-time delivery, and low cancellation rates.
+                      </p>
+                      <p>
+                        <strong className="text-ink">Contribution ({rep.contributionScore}/100):</strong> Reflects proactive marketplace participation, including sharing idle inventory, responding to urgent requirements, and capacity recovery.
+                      </p>
+                      <p>
+                        <strong className="text-ink">Resource Quality:</strong> Aggregated directly from verified client reviews across all listed items.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="card">
               <h2 className="h-section mb-4">
                 Reviews

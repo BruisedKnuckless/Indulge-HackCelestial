@@ -37,6 +37,13 @@ import {
   getProviderRecoveryOverview,
   getAdminRecoveryMetrics,
 } from '../services/capacity-recovery.service.js';
+import {
+  calculateContributionProfile,
+  getPublicReputationProfile,
+  CONTRIBUTION_TIERS,
+  BADGE_DEFINITIONS,
+  invalidateContributionCache,
+} from '../services/contribution.service.js';
 
 let base = '';
 let passed = 0;
@@ -4363,6 +4370,541 @@ async function main() {
   check(
     '28. identical input produces deterministic results',
     syncRun1.length === syncRun2.length && ids1 === ids2
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Phase 5: Positive Contribution Intelligence
+  // ══════════════════════════════════════════════════════════════════════════
+  console.log('\n--- Phase 5: Positive Contribution Intelligence ---');
+
+  const p5Seeker = await User.create({
+    businessName: 'Phase 5 Seeker Grand Events',
+    email: 'p5-seeker@grandevents.in',
+    passwordHash: 'dummyhash',
+    businessType: 'event_organizer',
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.076] },
+  });
+  const p5SeekerToken = signToken(p5Seeker._id);
+
+  const p5ProviderA = await User.create({
+    businessName: 'Phase 5 Provider Apex Banquets',
+    email: 'p5-provider-a@apexbanquets.in',
+    passwordHash: 'dummyhash',
+    businessType: 'banquet_venue',
+    location: { city: 'Mumbai', coordinates: [72.878, 19.077] },
+  });
+  const p5ProviderAToken = signToken(p5ProviderA._id);
+
+  const p5ProviderB = await User.create({
+    businessName: 'Phase 5 Provider Blue AV',
+    email: 'p5-provider-b@blueav.in',
+    passwordHash: 'dummyhash',
+    businessType: 'other',
+    location: { city: 'Mumbai', coordinates: [72.879, 19.078] },
+  });
+  const p5ProviderBToken = signToken(p5ProviderB._id);
+
+  // 1. new business receives neutral/new contribution state
+  const newProfile = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '1. new business receives neutral/new contribution state',
+    newProfile &&
+      newProfile.tier === 'NEW' &&
+      newProfile.contributionScore === 0 &&
+      newProfile.trustScore === 50 &&
+      newProfile.signals.successfulFulfillments === 0 &&
+      newProfile.signals.fulfillmentRate === 0 &&
+      newProfile.badges.length === 0
+  );
+
+  const p5ResourceA = await Resource.create({
+    owner: p5ProviderA._id,
+    title: 'Apex Grand Ballroom P5',
+    category: 'banquet_space',
+    totalQuantity: 1,
+    pricing: { basePrice: 50000, priceUnit: 'per_day' },
+    location: { city: 'Mumbai', coordinates: [72.878, 19.077] },
+    status: 'active',
+  });
+
+  // 2. successful fulfillment increases contribution signal
+  const p5Booking1 = await Booking.create({
+    resource: p5ResourceA._id,
+    provider: p5ProviderA._id,
+    seeker: p5Seeker._id,
+    requestedQuantity: 1,
+    startDateTime: new Date(at(10, 10)),
+    endDateTime: new Date(at(10, 18)),
+    status: 'completed',
+    agreedPrice: 50000,
+    urgency: 'medium',
+  });
+  const profAfterB1 = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '2. successful fulfillment increases contribution signal',
+    profAfterB1.signals.successfulFulfillments === 1 &&
+      profAfterB1.signals.fulfillmentRate === 1.0 &&
+      profAfterB1.contributionScore > newProfile.contributionScore
+  );
+
+  // 3. failed/cancelled fulfillment affects reliability correctly
+  const bCancelled = await Booking.create({
+    resource: p5ResourceA._id,
+    provider: p5ProviderA._id,
+    seeker: p5Seeker._id,
+    requestedQuantity: 1,
+    startDateTime: new Date(at(11, 10)),
+    endDateTime: new Date(at(11, 18)),
+    status: 'cancelled',
+    cancellationReason: 'Provider emergency maintenance',
+    agreedPrice: 50000,
+  });
+  const profAfterCancel = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '3. failed/cancelled fulfillment affects reliability correctly',
+    profAfterCancel.signals.providerCancellations === 1 &&
+      profAfterCancel.signals.cancellationRate === 0.5 &&
+      profAfterCancel.signals.fulfillmentRate === 0.5 &&
+      profAfterCancel.breakdown.fulfillmentReliability < profAfterB1.breakdown.fulfillmentReliability
+  );
+
+  // 4. multiple successful bookings improve fulfillment rate
+  await Booking.create([
+    {
+      resource: p5ResourceA._id,
+      provider: p5ProviderA._id,
+      seeker: p5Seeker._id,
+      requestedQuantity: 1,
+      startDateTime: new Date(at(12, 10)),
+      endDateTime: new Date(at(12, 18)),
+      status: 'completed',
+      agreedPrice: 50000,
+    },
+    {
+      resource: p5ResourceA._id,
+      provider: p5ProviderA._id,
+      seeker: p5Seeker._id,
+      requestedQuantity: 1,
+      startDateTime: new Date(at(13, 10)),
+      endDateTime: new Date(at(13, 18)),
+      status: 'completed',
+      agreedPrice: 50000,
+    },
+    {
+      resource: p5ResourceA._id,
+      provider: p5ProviderA._id,
+      seeker: p5Seeker._id,
+      requestedQuantity: 1,
+      startDateTime: new Date(at(14, 10)),
+      endDateTime: new Date(at(14, 18)),
+      status: 'completed',
+      agreedPrice: 50000,
+    },
+  ]);
+  const profAfterMore = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '4. multiple successful bookings improve fulfillment rate',
+    profAfterMore.signals.fulfillmentRate === 0.8 &&
+      profAfterMore.signals.cancellationRate === 0.2 &&
+      profAfterMore.signals.fulfillmentRate > profAfterCancel.signals.fulfillmentRate
+  );
+
+  // 5. recovery conversion counted
+  const p5Req = await Requirement.create({
+    seeker: p5Seeker._id,
+    title: 'P5 Recovery Conversion Requirement',
+    category: 'banquet_space',
+    requiredQuantity: 1,
+    startDateTime: new Date(at(15, 10)),
+    endDateTime: new Date(at(15, 18)),
+    location: { address: 'Colaba', city: 'Mumbai', coordinates: [72.878, 19.077] },
+    status: 'fulfilled',
+  });
+  await CapacityRecoveryOpportunity.create({
+    resource: p5ResourceA._id,
+    provider: p5ProviderA._id,
+    requirement: p5Req._id,
+    availableQuantity: 1,
+    requiredQuantity: 1,
+    opportunityStart: new Date(at(15, 10)),
+    opportunityEnd: new Date(at(15, 18)),
+    hoursUntilExpiry: 12,
+    recoveryPriorityScore: 85,
+    status: 'converted',
+    expiresAt: new Date(at(15, 18)),
+  });
+  const profAfterRec = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '5. recovery conversion counted',
+    profAfterRec.signals.recoveryConversions === 1 &&
+      profAfterRec.breakdown.capacitySharing >= 5
+  );
+
+  // 6. recovery conversion not double-counted
+  const profAfterRec2 = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '6. recovery conversion not double-counted',
+    profAfterRec2.signals.recoveryConversions === 1 &&
+      profAfterRec2.signals.successfulFulfillments === 4 &&
+      profAfterRec2.contributionScore === profAfterRec.contributionScore
+  );
+
+  // 7. urgent requirement fulfillment counted if data supports it
+  const urgentBooking = await Booking.create({
+    resource: p5ResourceA._id,
+    provider: p5ProviderA._id,
+    seeker: p5Seeker._id,
+    requestedQuantity: 1,
+    startDateTime: new Date(at(16, 10)),
+    endDateTime: new Date(at(16, 18)),
+    status: 'completed',
+    urgency: 'high',
+    agreedPrice: 50000,
+  });
+  const profAfterUrgent = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '7. urgent requirement fulfillment counted if data supports it',
+    profAfterUrgent.signals.urgentRequestsHelped >= 1 &&
+      profAfterUrgent.breakdown.urgentAssistance > 0
+  );
+
+  // 8. resource rating aggregated correctly
+  await Review.create([
+    {
+      booking: p5Booking1._id,
+      resource: p5ResourceA._id,
+      reviewer: p5Seeker._id,
+      reviewee: p5ProviderA._id,
+      rating: 5,
+      title: 'Flawless venue',
+      comment: 'Top tier hospitality',
+    },
+    {
+      booking: urgentBooking._id,
+      resource: p5ResourceA._id,
+      reviewer: p5Seeker._id,
+      reviewee: p5ProviderA._id,
+      rating: 4,
+      title: 'Very good',
+      comment: 'Prompt delivery',
+    },
+  ]);
+  const profAfterReviews = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '8. resource rating aggregated correctly',
+    profAfterReviews.resourceQuality.reviewCount === 2 &&
+      profAfterReviews.resourceQuality.averageRating === 4.5 &&
+      profAfterReviews.breakdown.resourceQuality > 0
+  );
+
+  // 9. trust score differs conceptually from contribution score
+  check(
+    '9. trust score differs conceptually from contribution score',
+    typeof profAfterReviews.trustScore === 'number' &&
+      typeof profAfterReviews.contributionScore === 'number' &&
+      profAfterReviews.trustScore !== profAfterReviews.contributionScore
+  );
+
+  // 10. contribution score bounded 0–100
+  check(
+    '10. contribution score bounded 0–100',
+    profAfterReviews.contributionScore >= 0 && profAfterReviews.contributionScore <= 100
+  );
+
+  // 11. trust score bounded 0–100
+  check(
+    '11. trust score bounded 0–100',
+    profAfterReviews.trustScore >= 0 && profAfterReviews.trustScore <= 100
+  );
+
+  // 12. minimum sample requirement prevents instant Preferred status
+  const oneTxBiz = await User.create({
+    businessName: 'One Transaction Wonders',
+    email: 'onetx@wonders.in',
+    passwordHash: 'dummyhash',
+    businessType: 'other',
+  });
+  const oneTxRes = await Resource.create({
+    owner: oneTxBiz._id,
+    title: 'One Hit Wonder Resource',
+    category: 'furniture',
+    pricing: { basePrice: 100 },
+    location: { city: 'Mumbai', coordinates: [72.87, 19.07] },
+    status: 'active',
+  });
+  const oneTxBooking = await Booking.create({
+    resource: oneTxRes._id,
+    provider: oneTxBiz._id,
+    seeker: p5Seeker._id,
+    status: 'completed',
+    startDateTime: new Date(at(17, 10)),
+    endDateTime: new Date(at(17, 18)),
+  });
+  await Review.create({
+    booking: oneTxBooking._id,
+    resource: oneTxRes._id,
+    reviewer: p5Seeker._id,
+    reviewee: oneTxBiz._id,
+    rating: 5,
+  });
+  const oneTxProfile = await calculateContributionProfile(oneTxBiz._id, { bypassCache: true });
+  check(
+    '12. minimum sample requirement prevents instant Preferred status',
+    oneTxProfile.tier !== 'PREFERRED' && oneTxProfile.tier !== 'TRUSTED'
+  );
+
+  // 13. Reliable Fulfiller badge rule correct
+  const reliableBefore = profAfterReviews.badges.some((b) => b.id === 'RELIABLE_FULFILLER');
+  for (let i = 0; i < 6; i++) {
+    await Booking.create({
+      resource: p5ResourceA._id,
+      provider: p5ProviderA._id,
+      seeker: p5Seeker._id,
+      requestedQuantity: 1,
+      startDateTime: new Date(at(20 + i, 10)),
+      endDateTime: new Date(at(20 + i, 18)),
+      status: 'completed',
+    });
+  }
+  const profReliable = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  const reliableAfter = profReliable.badges.some((b) => b.id === 'RELIABLE_FULFILLER');
+  check(
+    '13. Reliable Fulfiller badge rule correct',
+    !reliableBefore && reliableAfter && profReliable.signals.fulfillmentRate >= 0.9
+  );
+
+  // 14. Capacity Contributor badge rule correct
+  await Resource.create([
+    {
+      owner: p5ProviderA._id,
+      title: 'P5 Banquet Lounge',
+      category: 'banquet_space',
+      pricing: { basePrice: 20000 },
+      location: { city: 'Mumbai', coordinates: [72.878, 19.077] },
+      status: 'active',
+    },
+    {
+      owner: p5ProviderA._id,
+      title: 'P5 Terrace Garden',
+      category: 'banquet_space',
+      pricing: { basePrice: 30000 },
+      location: { city: 'Mumbai', coordinates: [72.878, 19.077] },
+      status: 'active',
+    },
+  ]);
+  const profCapacity = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '14. Capacity Contributor badge rule correct',
+    profCapacity.badges.some((b) => b.id === 'CAPACITY_CONTRIBUTOR') &&
+      profCapacity.signals.activeListings >= 3
+  );
+
+  // 15. Recovery Champion badge rule correct
+  check(
+    '15. Recovery Champion badge rule correct',
+    profCapacity.badges.some((b) => b.id === 'RECOVERY_CHAMPION') &&
+      profCapacity.signals.recoveryConversions >= 1
+  );
+
+  // 16. Preferred Partner requires sufficient trust/activity
+  const unreviewedB = await Booking.findOne({
+    provider: p5ProviderA._id,
+    status: 'completed',
+    _id: { $nin: [p5Booking1._id, urgentBooking._id] },
+  });
+  await Review.create({
+    booking: unreviewedB._id,
+    resource: p5ResourceA._id,
+    reviewer: p5Seeker._id,
+    reviewee: p5ProviderA._id,
+    rating: 5,
+    title: 'Excellence',
+  });
+  await Proposal.create([
+    {
+      requirement: p5Req._id,
+      provider: p5ProviderA._id,
+      resource: p5ResourceA._id,
+      quotedPrice: 45000,
+      status: 'accepted',
+    },
+  ]);
+  const profPreferred = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '16. Preferred Partner requires sufficient trust/activity',
+    profPreferred.signals.completedTransactions >= 10 &&
+      profPreferred.trustScore >= 80 &&
+      profPreferred.tier === 'PREFERRED' &&
+      profPreferred.badges.some((b) => b.id === 'PREFERRED_PARTNER')
+  );
+
+  // 17. public profile exposes sanitized reputation
+  const publicRes = await api('GET', `/api/contribution/business/${p5ProviderA._id}`);
+  check(
+    '17. public profile exposes sanitized reputation',
+    publicRes.status === 200 &&
+      publicRes.body.profile?.businessId === String(p5ProviderA._id) &&
+      typeof publicRes.body.profile?.contributionScore === 'number' &&
+      typeof publicRes.body.profile?.trustScore === 'number' &&
+      publicRes.body.profile?.tier === 'PREFERRED' &&
+      Array.isArray(publicRes.body.profile?.badges) &&
+      typeof publicRes.body.profile?.fulfillmentRate === 'number'
+  );
+
+  // 18. public profile does not expose private incidents
+  check(
+    '18. public profile does not expose private incidents',
+    publicRes.body.profile?.signals === undefined &&
+      publicRes.body.profile?.breakdown === undefined &&
+      publicRes.body.profile?.improvementHints === undefined &&
+      publicRes.body.profile?.providerCancellations === undefined
+  );
+
+  // 19. provider can view own detailed breakdown
+  const p5MeRes = await api('GET', '/api/contribution/me', { token: p5ProviderAToken });
+  check(
+    '19. provider can view own detailed breakdown',
+    p5MeRes.status === 200 &&
+      p5MeRes.body.profile?.businessId === String(p5ProviderA._id) &&
+      p5MeRes.body.profile?.signals?.providerCancellations === 1 &&
+      p5MeRes.body.profile?.breakdown?.fulfillmentReliability !== undefined &&
+      Array.isArray(p5MeRes.body.profile?.improvementHints)
+  );
+
+  // 20. unrelated business cannot retrieve private detailed signals
+  const detailedUnauthorized = await api(
+    'GET',
+    `/api/contribution/business/${p5ProviderA._id}/detailed`,
+    { token: p5ProviderBToken }
+  );
+  check(
+    '20. unrelated business cannot retrieve private detailed signals',
+    detailedUnauthorized.status === 403
+  );
+
+  // 21. admin can inspect aggregate contribution data
+  const adminContribRes = await api('GET', '/api/admin/contribution', { token: orchid });
+  check(
+    '21. admin can inspect aggregate contribution data',
+    adminContribRes.status === 200 &&
+      adminContribRes.body.summary?.totalBusinesses > 0 &&
+      typeof adminContribRes.body.summary?.avgContribution === 'number' &&
+      typeof adminContribRes.body.summary?.avgTrust === 'number' &&
+      Array.isArray(adminContribRes.body.profiles) &&
+      adminContribRes.body.profiles.some((p) => p.businessId === String(p5ProviderA._id))
+  );
+
+  // 22. operational matching score remains unchanged
+  const matchTestRes = await Resource.create({
+    owner: p5ProviderB._id,
+    title: 'Benchmark Match Sound System P5',
+    category: 'av_equipment',
+    totalQuantity: 10,
+    pricing: { basePrice: 5000 },
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.076] },
+    status: 'active',
+  });
+  const matchResult = await rankResources([matchTestRes], {
+    category: 'av_equipment',
+    start: new Date(at(30, 10)),
+    end: new Date(at(30, 18)),
+    quantity: 2,
+  });
+  check(
+    '22. operational matching score remains unchanged',
+    Array.isArray(matchResult) &&
+      matchResult.length === 1 &&
+      typeof matchResult[0].matchScore === 'number' &&
+      matchResult[0].matchBreakdown?.priceFit !== undefined &&
+      matchResult[0].matchBreakdown?.distanceFit !== undefined
+  );
+
+  // 23. procurement solver remains unchanged
+  const p5SolverPlans = await generateProcurementPlans({
+    requestedQuantity: 4,
+    requestedDates: { start: new Date(at(30, 10)), end: new Date(at(30, 18)) },
+    candidates: [matchTestRes],
+  });
+  check(
+    '23. procurement solver remains unchanged',
+    Array.isArray(p5SolverPlans) &&
+      p5SolverPlans.length >= 1 &&
+      p5SolverPlans[0].id.startsWith('plan-')
+  );
+
+  // 24. capacity recovery score remains unchanged
+  const p5RecoveryScore = calculateRecoveryPriorityScore({
+    hoursUntilExpiry: 12,
+    availableQuantity: 5,
+    requiredQuantity: 5,
+    utilizationGain: 50,
+    distanceKm: 2,
+    estimatedRevenue: 5000,
+    maxBudget: 6000,
+  });
+  check(
+    '24. capacity recovery score remains unchanged',
+    typeof p5RecoveryScore.recoveryPriorityScore === 'number' &&
+      p5RecoveryScore.recoveryPriorityScore >= 0 &&
+      p5RecoveryScore.recoveryPriorityScore <= 100 &&
+      p5RecoveryScore.scoreBreakdown !== undefined
+  );
+
+  // 25. identical marketplace records produce deterministic score
+  const det1 = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  const det2 = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '25. identical marketplace records produce deterministic score',
+    det1.contributionScore === det2.contributionScore &&
+      det1.trustScore === det2.trustScore &&
+      det1.tier === det2.tier &&
+      det1.signals.fulfillmentRate === det2.signals.fulfillmentRate
+  );
+
+  // 26. deleting/recalculating review updates quality aggregate
+  const badReview = await Review.create({
+    booking: bCancelled._id,
+    resource: p5ResourceA._id,
+    reviewer: p5Seeker._id,
+    reviewee: p5ProviderA._id,
+    rating: 1,
+    title: 'Disappointed',
+  });
+  const profWithBad = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  await Review.deleteOne({ _id: badReview._id });
+  const profAfterDelete = await calculateContributionProfile(p5ProviderA._id, { bypassCache: true });
+  check(
+    '26. deleting/recalculating review updates quality aggregate',
+    profWithBad.resourceQuality.averageRating < profAfterDelete.resourceQuality.averageRating &&
+      profAfterDelete.resourceQuality.reviewCount === profWithBad.resourceQuality.reviewCount - 1
+  );
+
+  // 27. cancellation rate calculation correct
+  check(
+    '27. cancellation rate calculation correct',
+    profAfterDelete.signals.cancellationRate === Math.round((1 / 12) * 1000) / 1000 &&
+      profAfterDelete.signals.providerCancellations === 1
+  );
+
+  // 28. zero-activity edge cases do not divide by zero
+  const emptyUser = await User.create({
+    businessName: 'Zero Activity Enterprises',
+    email: 'zero@activity.in',
+    passwordHash: 'dummyhash',
+    businessType: 'other',
+  });
+  const zeroProfile = await calculateContributionProfile(emptyUser._id, { bypassCache: true });
+  check(
+    '28. zero-activity edge cases do not divide by zero',
+    zeroProfile &&
+      !isNaN(zeroProfile.contributionScore) &&
+      !isNaN(zeroProfile.trustScore) &&
+      !isNaN(zeroProfile.signals.fulfillmentRate) &&
+      !isNaN(zeroProfile.signals.cancellationRate) &&
+      !isNaN(zeroProfile.resourceQuality.averageRating) &&
+      zeroProfile.signals.fulfillmentRate === 0 &&
+      zeroProfile.signals.cancellationRate === 0 &&
+      zeroProfile.trustScore === 50
   );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

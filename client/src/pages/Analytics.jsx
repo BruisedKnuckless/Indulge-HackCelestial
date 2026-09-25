@@ -6,8 +6,9 @@ import {
 } from 'recharts';
 import {
   LayoutGrid, Activity, Clock, TrendingUp, ShoppingBag,
+  ShieldCheck, Award, Zap, CheckCircle2, AlertCircle, ArrowUpRight,
 } from 'lucide-react';
-import { useAnalytics } from '../hooks/queries';
+import { useAnalytics, useMyContribution } from '../hooks/queries';
 import { useTheme } from '../context/ThemeContext';
 import { Spinner, EmptyState } from '../components/ui';
 import { CATEGORY_LABELS } from '../lib/constants';
@@ -183,6 +184,8 @@ export default function Analytics() {
   const { data: util } = useAnalytics('utilization', { days: 30 });
   const { data: revenue } = useAnalytics('revenue');
   const { data: funnel } = useAnalytics('funnel');
+  const { data: contribData } = useMyContribution();
+  const contrib = contribData?.profile;
 
   if (isLoading) return <Spinner label="Crunching your numbers" />;
 
@@ -251,6 +254,143 @@ export default function Analytics() {
           accentClass="icon-box-violet"
         />
       </div>
+ 
+      {/* ── Contribution Intelligence Section (Deterministic) ── */}
+      {contrib && (
+        <section className="mb-8 p-6 rounded-2xl border border-indigo-500/20 bg-surface-alt/40">
+          <div className="flex items-center justify-between gap-4 mb-5 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo flex items-center justify-center">
+                <ShieldCheck size={22} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-ink">Contribution Intelligence</h2>
+                  <span
+                    className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wide border ${
+                      contrib.tier === 'PREFERRED'
+                        ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
+                        : contrib.tier === 'TRUSTED'
+                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                        : contrib.tier === 'ACTIVE'
+                        ? 'bg-blue-500/10 text-blue-500 border-blue-500/30'
+                        : 'bg-surface-sunk text-ink-soft border-line'
+                    }`}
+                  >
+                    {contrib.tier} Tier
+                  </span>
+                </div>
+                <p className="text-xs text-ink-soft mt-0.5">
+                  Deterministic trust and marketplace participation metrics derived from real transactions.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6 text-sm">
+              <div className="text-right">
+                <span className="text-[11px] text-ink-mute uppercase tracking-wider block font-semibold">Trust Score</span>
+                <span className="text-2xl font-bold text-ink tabular-nums">{contrib.trustScore}</span>
+                <span className="text-xs text-ink-mute"> / 100</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[11px] text-ink-mute uppercase tracking-wider block font-semibold">Contribution</span>
+                <span className="text-2xl font-bold text-indigo tabular-nums">{contrib.contributionScore}</span>
+                <span className="text-xs text-ink-mute"> / 100</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Core Metrics Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+            <div className="p-3 rounded-xl bg-surface border border-line">
+              <span className="text-[10px] text-ink-mute uppercase tracking-wide block font-semibold">Fulfillment Rate</span>
+              <span className="text-lg font-bold text-ink tabular-nums">
+                {Math.round(contrib.signals.fulfillmentRate * 100)}%
+              </span>
+              <span className="text-[10px] text-ink-mute block">{contrib.signals.successfulFulfillments} completed</span>
+            </div>
+            <div className="p-3 rounded-xl bg-surface border border-line">
+              <span className="text-[10px] text-ink-mute uppercase tracking-wide block font-semibold">Capacity Recovered</span>
+              <span className="text-lg font-bold text-amber-500 tabular-nums">
+                {contrib.signals.recoveryConversions}
+              </span>
+              <span className="text-[10px] text-ink-mute block">perishable conversions</span>
+            </div>
+            <div className="p-3 rounded-xl bg-surface border border-line">
+              <span className="text-[10px] text-ink-mute uppercase tracking-wide block font-semibold">Successful RFQs</span>
+              <span className="text-lg font-bold text-emerald-500 tabular-nums">
+                {contrib.signals.successfulRfqs}
+              </span>
+              <span className="text-[10px] text-ink-mute block">accepted proposals</span>
+            </div>
+            <div className="p-3 rounded-xl bg-surface border border-line">
+              <span className="text-[10px] text-ink-mute uppercase tracking-wide block font-semibold">Cancellations</span>
+              <span className={`text-lg font-bold tabular-nums ${contrib.signals.providerCancellations > 0 ? 'text-danger' : 'text-ink'}`}>
+                {contrib.signals.providerCancellations}
+              </span>
+              <span className="text-[10px] text-ink-mute block">({Math.round(contrib.signals.cancellationRate * 100)}% rate)</span>
+            </div>
+            <div className="p-3 rounded-xl bg-surface border border-line">
+              <span className="text-[10px] text-ink-mute uppercase tracking-wide block font-semibold">Resource Rating</span>
+              <span className="text-lg font-bold text-ink tabular-nums">
+                {contrib.signals.averageResourceRating ? contrib.signals.averageResourceRating.toFixed(1) : '—'} ★
+              </span>
+              <span className="text-[10px] text-ink-mute block">{contrib.resourceQuality.reviewCount} verified</span>
+            </div>
+            <div className="p-3 rounded-xl bg-surface border border-line">
+              <span className="text-[10px] text-ink-mute uppercase tracking-wide block font-semibold">Urgent Helped</span>
+              <span className="text-lg font-bold text-indigo tabular-nums">
+                {contrib.signals.urgentRequestsHelped}
+              </span>
+              <span className="text-[10px] text-ink-mute block">urgent demands</span>
+            </div>
+          </div>
+
+          {/* Badges + Improvement Hints */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-line/60">
+            {/* Badges Column */}
+            <div>
+              <span className="text-[11px] text-ink-mute uppercase tracking-wider font-semibold block mb-2">
+                Earned Badges ({contrib.badges.length})
+              </span>
+              {contrib.badges.length === 0 ? (
+                <p className="text-xs text-ink-mute italic">No badges earned yet. Complete bookings and share capacity to unlock badges.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {contrib.badges.map((b) => (
+                    <div
+                      key={b.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-surface border border-line text-ink"
+                    >
+                      <Award size={13} className="text-amber-500 shrink-0" />
+                      <span>{b.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Improvement Hints Column */}
+            <div>
+              <span className="text-[11px] text-ink-mute uppercase tracking-wider font-semibold block mb-2">
+                Actionable Recommendations (Deterministic)
+              </span>
+              {contrib.improvementHints && contrib.improvementHints.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {contrib.improvementHints.map((hint, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-xs text-ink-soft">
+                      <CheckCircle2 size={13} className="text-indigo shrink-0 mt-0.5" />
+                      <span>{hint}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-ink-mute italic">Your contribution standing is in excellent shape.</p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {!hasAnything ? (
         <EmptyState

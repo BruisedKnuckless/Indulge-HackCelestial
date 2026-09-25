@@ -347,6 +347,11 @@ export default function RequirementDetail() {
                           {s.distanceKm != null && (
                             <span className="text-ink-mute ml-2">· {s.distanceKm} km away</span>
                           )}
+                          {s.reputation?.tier && (
+                            <span className="ml-2 text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-indigo/10 text-indigo">
+                              {s.reputation.tier} Provider
+                            </span>
+                          )}
                         </div>
                         <div className="text-right">
                           <span className="font-bold text-ink">
@@ -534,20 +539,33 @@ export default function RequirementDetail() {
                     >
                       {res.title}
                     </Link>
-                    <p className="text-sm muted mt-0.5">
-                      <Link to={`/provider/${o.provider?._id}`} className="link-quiet">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <Link to={`/provider/${o.provider?._id}`} className="text-sm link-quiet font-medium">
                         {o.provider?.businessName}
                       </Link>
-                      {isMine && ' · your offer'}
-                    </p>
-                    {o.provider?.ratingCount > 0 && (
-                      <Stars
-                        rating={o.provider.ratingAvg}
-                        count={o.provider.ratingCount}
-                        size={13}
-                        className="mt-1"
-                      />
-                    )}
+                      {isMine && <span className="text-xs muted">· your offer</span>}
+                      {o.provider?.reputation?.tier && (
+                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo/10 text-indigo border border-indigo/20">
+                          {o.provider.reputation.tier} Provider
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-ink-soft">
+                      {o.provider?.ratingCount > 0 ? (
+                        <Stars
+                          rating={o.provider.ratingAvg}
+                          count={o.provider.ratingCount}
+                          size={12}
+                        />
+                      ) : (
+                        <span className="text-ink-mute">No reviews yet</span>
+                      )}
+                      {o.provider?.reputation?.fulfillmentRate != null && (
+                        <span className="text-ink-mute">
+                          · {Math.round(o.provider.reputation.fulfillmentRate * 100)}% fulfillment
+                        </span>
+                      )}
+                    </div>
                     {o.message && <p className="text-sm muted mt-2 max-w-prose">“{o.message}”</p>}
                     <p className="text-xs text-ink-mute mt-2">
                       {relative(o.createdAt)}

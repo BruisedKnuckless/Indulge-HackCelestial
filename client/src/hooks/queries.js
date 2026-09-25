@@ -471,3 +471,30 @@ export function useAdminActions() {
     ),
   };
 }
+
+/* -------------------------------------------------------- Contribution Intelligence */
+
+export function useMyContribution() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['contribution', 'me'],
+    queryFn: async () => (await api.get('/contribution/me')).data,
+    enabled: Boolean(user) && user?.userType !== 'logistics_partner',
+  });
+}
+
+export function usePublicReputation(businessId) {
+  return useQuery({
+    queryKey: ['contribution', 'business', businessId],
+    queryFn: async () => (await api.get(`/contribution/business/${businessId}`)).data,
+    enabled: Boolean(businessId),
+  });
+}
+
+export function useAdminContribution(params) {
+  return useQuery({
+    queryKey: ['admin', 'contribution', params],
+    queryFn: async () => (await api.get('/admin/contribution', { params })).data,
+  });
+}
+

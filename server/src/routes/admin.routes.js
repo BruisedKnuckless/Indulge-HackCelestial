@@ -18,6 +18,7 @@ import { runIntegrityAudit, recomputeRatings } from '../services/audit.service.j
 import { notify } from '../services/notification.service.js';
 import { isPlatformAdmin } from '../config/admin.js';
 import { getAdminRecoveryMetrics } from '../services/capacity-recovery.service.js';
+import { calculateContributionProfile } from '../services/contribution.service.js';
 
 /**
  * Platform administration — the eagle-eye console.
@@ -1758,6 +1759,75 @@ router.patch(
         { path: 'resource', select: 'title category location unit images' },
         { path: 'booking', select: 'status startDateTime endDateTime agreedPrice' },
       ]),
+    });
+  })
+);
+
+/**
+ * GET /api/admin/contribution
+ * Aggregated contribution intelligence inspection for Admin.
+ * Returns profiles, trust scores, cancellation rates, badges, and underlying signals.
+ */
+router.get(
+  '/contribution',
+  asyncHandler(async (req, res) => {
+    const { sort, tier, q, page = 1, limit = 50 } = req.query;
+    const query = { userType: { $ne: 'logistics_partner' } };
+    if (q) {
+      query.businessName = { $regex: String(q).trim(), $options: 'i' };
+    }
+
+    const businesses = await User.find(query).select('_id businessName businessType ratingAvg ratingCount').lean();
+
+    const profiles = await Promise.all(
+      businesses.map((b) => calculateContributionProfile(b._id))
+    );
+
+    let filtered = profiles.filter(Boolean);
+    if (tier) {
+      filtered = filtered.filter((p) => p.tier === String(tier).toUpperCase());
+    }
+
+    if (sort === 'contribution_asc') {
+      filtered.sort((a, b) => a.contributionScore - b.contributionScore);
+    } else if (sort === 'trust_desc') {
+      filtered.sort((a, b) => b.trustScore - a.trustScore);
+    } else if (sort === 'trust_asc') {
+      filtered.sort((a, b) => a.trustScore - b.trustScore);
+    } else if (sort === 'cancellations_desc') {
+      filtered.sort((a, b) => b.signals.cancellationRate - a.signals.cancellationRate);
+    } else {
+      filtered.sort((a, b) => b.contributionScore - a.contributionScore);
+    }
+
+    const total = filtered.length;
+    const pNum = Math.max(1, parseInt(page, 10));
+    const lNum = Math.max(1, parseInt(limit, 10));
+    const paginated = filtered.slice((pNum - 1) * lNum, pNum * lNum);
+
+    const tierCounts = { NEW: 0, ACTIVE: 0, TRUSTED: 0, PREFERRED: 0 };
+    let sumContribution = 0;
+    let sumTrust = 0;
+    for (const p of filtered) {
+      if (tierCounts[p.tier] !== undefined) tierCounts[p.tier]++;
+      sumContribution += p.contributionScore;
+      sumTrust += p.trustScore;
+    }
+
+    const avgContribution = total > 0 ? Math.round((sumContribution / total) * 10) / 10 : 0;
+    const avgTrust = total > 0 ? Math.round((sumTrust / total) * 10) / 10 : 0;
+
+    res.json({
+      summary: {
+        totalBusinesses: total,
+        tierCounts,
+        avgContribution,
+        avgTrust,
+      },
+      profiles: paginated,
+      page: pNum,
+      limit: lNum,
+      totalPages: Math.ceil(total / lNum) || 1,
     });
   })
 );
