@@ -6,7 +6,8 @@ import Logo from '../components/layout/Logo';
 import { Alert } from '../components/ui';
 
 const DEMO_ACCOUNTS = [
-  { email: 'ops@grandorchid.in', label: 'The Grand Orchid Hotel', note: 'listings + incoming requests' },
+  { email: 'ops@grandorchid.in', label: 'The Grand Orchid Hotel (Admin)', note: 'listings + incoming requests' },
+  { email: 'nitishgupta7009@gmail.com', label: 'Nitish Gupta (Admin)', note: 'platform admin console' },
   { email: 'events@seasonsbanquet.in', label: 'Seasons Banquet', note: 'owns the flagship ballroom' },
   { email: 'desk@kalpataruevents.in', label: 'Kalpataru Events', note: 'active seeker, has history' },
   { email: 'dispatch@swiftfleet.in', label: 'SwiftFleet Logistics', note: 'verified logistics partner' },

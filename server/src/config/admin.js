@@ -20,7 +20,7 @@ import { env } from './env.js';
  * who read the repo. Production therefore requires ADMIN_EMAILS to be set
  * explicitly — see adminEmails() below.
  */
-const DEFAULT_ADMIN_EMAILS = ['ops@grandorchid.in'];
+const DEFAULT_ADMIN_EMAILS = ['ops@grandorchid.in', 'nitishgupta7009@gmail.com'];
 
 /**
  * Accepted names for the allowlist variable.
