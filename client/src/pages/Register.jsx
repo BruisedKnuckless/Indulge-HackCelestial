@@ -53,6 +53,24 @@ export default function Register() {
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  const fillDemoPartner = () => {
+    const randomSuffix = Math.floor(100 + Math.random() * 900);
+    setForm({
+      businessName: `SwiftFleet Cargo ${randomSuffix}`,
+      email: `dispatch${randomSuffix}@swiftfleet.in`,
+      password: 'indulge123',
+      phone: '+91 98200 11099',
+      businessType: 'other',
+      address: 'Majiwada, Eastern Express Hwy',
+      cityIndex: 0,
+      serviceArea: 'Mumbai, Thane, Navi Mumbai',
+      vehicleType: VEHICLE_TYPE_PRESETS[0],
+      vehicleModel: 'Tata Ace Gold Diesel',
+      licensePlate: `MH-04-SF-${randomSuffix}`,
+      vehicleCapacity: '1200',
+    });
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError('');
@@ -166,6 +184,22 @@ export default function Register() {
               Logistics Partner
             </button>
           </div>
+ 
+          {isPartner && (
+            <div className="flex items-center justify-between p-2.5 rounded-lg border border-indigo/25 bg-indigo/5 mb-4">
+              <div>
+                <p className="text-xs font-semibold text-indigo">Testing Logistics Registration?</p>
+                <p className="text-[11px] text-ink-mute">Prefill demo partner credentials with 1-click.</p>
+              </div>
+              <button
+                type="button"
+                onClick={fillDemoPartner}
+                className="btn-secondary btn-sm text-xs py-1 px-2.5 font-medium border-indigo/30 hover:bg-indigo/10 shrink-0"
+              >
+                ⚡ Fill Demo
+              </button>
+            </div>
+          )}
 
           {error && (
             <Alert tone="error" className="mb-3">

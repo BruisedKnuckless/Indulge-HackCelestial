@@ -21,6 +21,20 @@ import { useAuth } from '../context/AuthContext';
 import { Spinner, EmptyState, Panel, Alert } from '../components/ui';
 import { dateTime } from '../lib/format';
 
+function formatVehicleInfo(info) {
+  if (!info) return 'Standard Van Fleet';
+  if (typeof info === 'string') return info;
+  if (typeof info === 'object') {
+    const parts = [];
+    if (info.model) parts.push(info.model);
+    else if (info.vehicleType) parts.push(info.vehicleType);
+    if (info.licensePlate) parts.push(`(${info.licensePlate})`);
+    if (info.capacityKg) parts.push(`· ${info.capacityKg} kg payload`);
+    return parts.join(' ') || info.vehicleType || 'Standard Van Fleet';
+  }
+  return String(info);
+}
+
 export default function LogisticsDashboard() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -208,8 +222,13 @@ export default function LogisticsDashboard() {
           <div className="p-3.5 rounded-xl border border-line bg-surface-alt/40">
             <p className="text-xs text-ink-mute uppercase tracking-wide font-medium">Fleet Vehicles</p>
             <p className="text-sm font-semibold text-ink mt-1">
-              {user.logisticsProfile.vehicleInfo || 'Standard Van Fleet'}
+              {formatVehicleInfo(user.logisticsProfile.vehicleInfo)}
             </p>
+            {user.logisticsProfile.capacityDescription && (
+              <p className="text-xs text-ink-mute mt-0.5">
+                {user.logisticsProfile.capacityDescription}
+              </p>
+            )}
           </div>
           <div className="p-3.5 rounded-xl border border-line bg-surface-alt/40">
             <p className="text-xs text-ink-mute uppercase tracking-wide font-medium">Service Coverage</p>

@@ -2,10 +2,42 @@ import { format, formatDistanceToNowStrict, isSameDay } from 'date-fns';
 
 export const inr = (n) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
 
-export const shortDate = (d) => format(new Date(d), 'EEE, d MMM');
-export const longDate = (d) => format(new Date(d), 'd MMMM yyyy');
-export const dateTime = (d) => format(new Date(d), "d MMM yyyy, h:mm a");
-export const timeOnly = (d) => format(new Date(d), 'h:mm a');
+export const shortDate = (d) => {
+  if (!d) return '—';
+  try {
+    const parsed = new Date(d);
+    return isNaN(parsed.getTime()) ? '—' : format(parsed, 'EEE, d MMM');
+  } catch {
+    return '—';
+  }
+};
+export const longDate = (d) => {
+  if (!d) return '—';
+  try {
+    const parsed = new Date(d);
+    return isNaN(parsed.getTime()) ? '—' : format(parsed, 'd MMMM yyyy');
+  } catch {
+    return '—';
+  }
+};
+export const dateTime = (d) => {
+  if (!d) return '—';
+  try {
+    const parsed = new Date(d);
+    return isNaN(parsed.getTime()) ? '—' : format(parsed, "d MMM yyyy, h:mm a");
+  } catch {
+    return '—';
+  }
+};
+export const timeOnly = (d) => {
+  if (!d) return '—';
+  try {
+    const parsed = new Date(d);
+    return isNaN(parsed.getTime()) ? '—' : format(parsed, 'h:mm a');
+  } catch {
+    return '—';
+  }
+};
 
 /** "Sat, 12 Oct · 10:00 AM – 10:00 PM" collapsing to one line for same-day ranges. */
 export function dateRange(start, end) {

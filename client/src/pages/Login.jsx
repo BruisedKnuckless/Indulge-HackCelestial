@@ -109,18 +109,32 @@ export default function Login() {
         <div className="w-full max-w-[350px] mt-4">
           <p className="text-xs font-semibold text-ink-soft mb-1.5">Demo accounts</p>
           <div className="space-y-1.5">
-            {DEMO_ACCOUNTS.map((a) => (
-              <button
-                key={a.email}
-                onClick={() => useDemo(a.email)}
-                className="w-full text-left border border-line rounded px-3 py-2 hover:bg-surface-sunk"
-              >
-                <span className="text-base font-semibold block">{a.label}</span>
-                <span className="text-xs text-ink-soft">
-                  {a.email} · {a.note}
-                </span>
-              </button>
-            ))}
+            {DEMO_ACCOUNTS.map((a) => {
+              const isLogistics = a.email.includes('swiftfleet');
+              return (
+                <button
+                  key={a.email}
+                  onClick={() => useDemo(a.email)}
+                  className={`w-full text-left border rounded px-3 py-2 transition-all ${
+                    isLogistics
+                      ? 'border-indigo/40 bg-indigo/5 hover:bg-indigo/10'
+                      : 'border-line hover:bg-surface-sunk'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold block text-ink">{a.label}</span>
+                    {isLogistics && (
+                      <span className="badge badge-indigo text-[10px] py-0.5 px-1.5 uppercase font-bold tracking-wide">
+                        Logistics Partner
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs text-ink-soft">
+                    {a.email} · {a.note}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           <p className="text-xs text-ink-mute mt-1.5">
             All demo accounts use the password <span className="font-semibold">indulge123</span>.

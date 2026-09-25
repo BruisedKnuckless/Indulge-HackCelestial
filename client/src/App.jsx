@@ -6,6 +6,7 @@ import useNotificationSocket from './hooks/useNotificationSocket';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import ScrollToTop from './components/ScrollToTop';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import { Spinner } from './components/ui';
 
 import Home from './pages/Home';
@@ -69,7 +70,9 @@ function Shell({ children }) {
   return (
     <div className="min-h-screen flex flex-col bg-surface">
       <Header />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1">
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </main>
       <Footer />
     </div>
   );
