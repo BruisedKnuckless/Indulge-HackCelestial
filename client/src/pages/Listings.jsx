@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
-import { BarChart2, Pencil, Eye, Trash2 } from 'lucide-react';
+import { BarChart2, Pencil, Eye, Trash2, Pause, Play } from 'lucide-react';
 import api, { errorMessage } from '../api/client';
 import { useMyListings, useAnalytics } from '../hooks/queries';
 import { Price, Stars, Spinner, EmptyState } from '../components/ui';
@@ -18,11 +18,22 @@ export default function Listings() {
     (util?.rows || []).map((r) => [String(r.resourceId), r])
   );
 
+  const toggleStatus = async (id, currentStatus, title) => {
+    const nextStatus = currentStatus === 'active' ? 'paused' : 'active';
+    try {
+      await api.patch(`/resources/${id}/status`, { status: nextStatus });
+      toast.success(nextStatus === 'paused' ? `"${title}" paused` : `"${title}" reactivated`);
+      qc.invalidateQueries({ queryKey: ['listings'] });
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  };
+
   const archive = async (id, title) => {
-    if (!window.confirm(`Remove "${title}" from your listings?`)) return;
+    if (!window.confirm(`Archive "${title}"? This hides it from search and prevents new bookings. Existing confirmed bookings will remain protected.`)) return;
     try {
       await api.delete(`/resources/${id}`);
-      toast.success('Listing removed');
+      toast.success('Listing archived');
       qc.invalidateQueries({ queryKey: ['listings'] });
     } catch (err) {
       toast.error(errorMessage(err));
@@ -104,9 +115,22 @@ export default function Listings() {
                         />
                         {r.ratingCount > 0 && <Stars rating={r.ratingAvg} count={r.ratingCount} size={13} />}
                       </div>
-                      {r.status !== 'active' && (
-                        <span className="badge badge-red mt-1.5 capitalize">{r.status}</span>
-                      )}
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        {r.status === 'active' && (
+                          <span className="badge badge-green text-xs capitalize">Active</span>
+                        )}
+                        {r.status === 'paused' && (
+                          <span className="badge badge-amber text-xs capitalize">Paused</span>
+                        )}
+                        {r.status === 'archived' && (
+                          <span className="badge badge-red text-xs capitalize">Archived</span>
+                        )}
+                        {r.availabilityMode && (
+                          <span className="text-xs text-ink-mute capitalize">
+                            • {r.availabilityMode.replace('_', ' ')}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Performance stats */}
@@ -126,7 +150,7 @@ export default function Listings() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2 mt-3">
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
                     <Link to={`/listings/${r._id}/edit`} className="btn-secondary btn-sm gap-1">
                       <Pencil size={12} />
                       Edit
@@ -135,13 +159,36 @@ export default function Listings() {
                       <Eye size={12} />
                       View
                     </Link>
-                    <button
-                      onClick={() => archive(r._id, r.title)}
-                      className="btn-danger btn-sm gap-1"
-                    >
-                      <Trash2 size={12} />
-                      Remove
-                    </button>
+                    {r.status === 'active' && (
+                      <button
+                        onClick={() => toggleStatus(r._id, r.status, r.title)}
+                        className="btn-secondary btn-sm gap-1 text-amber-accent hover:text-amber-500"
+                        title="Temporarily pause listing without affecting existing bookings"
+                      >
+                        <Pause size={12} />
+                        Pause
+                      </button>
+                    )}
+                    {r.status === 'paused' && (
+                      <button
+                        onClick={() => toggleStatus(r._id, r.status, r.title)}
+                        className="btn-secondary btn-sm gap-1 text-green-accent hover:text-green-500"
+                        title="Reactivate listing to accept new bookings"
+                      >
+                        <Play size={12} />
+                        Reactivate
+                      </button>
+                    )}
+                    {r.status !== 'archived' && (
+                      <button
+                        onClick={() => archive(r._id, r.title)}
+                        className="btn-danger btn-sm gap-1"
+                        title="Archive listing safely"
+                      >
+                        <Trash2 size={12} />
+                        Archive
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

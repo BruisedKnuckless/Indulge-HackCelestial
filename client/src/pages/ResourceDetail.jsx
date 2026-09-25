@@ -241,18 +241,20 @@ export default function ResourceDetail() {
               <Price amount={resource.pricing?.basePrice} unit={unit} size="md" />
 
               <p
-                className={`text-lg mt-2 mb-3 ${enough && !tooShort ? 'text-success' : 'text-danger'}`}
+                className={`text-lg mt-2 mb-3 ${resource.status === 'paused' ? 'text-amber-accent font-medium' : enough && !tooShort ? 'text-success' : 'text-danger'}`}
               >
-                {tooShort
-                  ? `Minimum hire is ${minHours} hours`
-                  : enough
-                    ? 'Available for your dates'
-                    : available > 0
-                      ? `Only ${available} available`
-                      : 'Fully booked for these dates'}
+                {resource.status === 'paused'
+                  ? 'Listing currently paused by provider'
+                  : tooShort
+                    ? `Minimum hire is ${minHours} hours`
+                    : enough
+                      ? 'Available for your dates'
+                      : available > 0
+                        ? `Only ${available} available`
+                        : 'Unavailable for these dates'}
               </p>
 
-              {check && (
+              {check && resource.status === 'active' && (
                 <p className="text-base text-ink-soft mb-3">
                   {check.available} of {check.total} {resource.unit}
                   {check.total > 1 ? 's' : ''} free in this window
@@ -315,7 +317,11 @@ export default function ResourceDetail() {
                 </p>
               )}
 
-              {isOwn ? (
+              {resource.status === 'paused' ? (
+                <Alert tone="warn" className="mb-3 text-sm">
+                  This listing is temporarily paused and is not accepting new requests. Existing bookings remain protected.
+                </Alert>
+              ) : isOwn ? (
                 <Alert tone="info">
                   This is your own listing.{' '}
                   <Link to={`/listings/${resource._id}/edit`} className="link">
@@ -371,7 +377,7 @@ export default function ResourceDetail() {
         {/* ---------------------------------------------- availability */}
         <div className="mt-8">
           <h2 className="h-section mb-5">Availability calendar</h2>
-          <AvailabilityCalendar resourceId={resource._id} />
+          <AvailabilityCalendar resourceId={resource._id} isOwner={isOwn} />
         </div>
 
         {/* --------------------------------------------------- reviews */}

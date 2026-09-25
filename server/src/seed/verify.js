@@ -22,10 +22,20 @@ let passed = 0;
 let failed = 0;
 
 const DAY = 24 * 3600 * 1000;
-function at(daysFromNow, hour = 9) {
+function at(daysFromNow, hour = 9, minute = 0) {
   const d = new Date(Date.now() + daysFromNow * DAY);
-  d.setHours(hour, 0, 0, 0);
+  d.setHours(hour, minute, 0, 0);
   return d.toISOString();
+}
+
+function nextDayOfWeek(targetDay, hour = 10, minute = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() !== targetDay) {
+    d.setDate(d.getDate() + 1);
+  }
+  d.setHours(hour, minute, 0, 0);
+  return d;
 }
 
 async function api(method, path, { token, body } = {}) {
@@ -1079,10 +1089,561 @@ async function main() {
     (await api('POST', '/api/admin/broadcast', { token: orchid, body: { title: 'x' } })).status === 400
   );
 
+  // =========================================================================
+  // Resource Availability & Listing Lifecycle 2.0
+  // =========================================================================
+  console.log('\nResource Availability & Listing Lifecycle 2.0');
+
+  // 1. Indefinite listing remains reusable across bookings
+  const indefRes = await api('POST', '/api/resources', {
+    token: orchid,
+    body: {
+      title: 'Grand Ballroom Indefinite',
+      category: 'banquet_space',
+      pricing: { basePrice: 40000, priceUnit: 'per_day', minRentalPeriodHours: 1 },
+      totalQuantity: 1,
+      availabilityMode: 'indefinite',
+    },
+  });
+  const indefId = indefRes.body.resource._id;
+  check(
+    'indefinite listing is created with indefinite mode',
+    indefRes.status === 201 && indefRes.body.resource.availabilityMode === 'indefinite'
+  );
+
+  const b1 = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: indefId,
+      quantity: 1,
+      startDateTime: at(50, 10),
+      endDateTime: at(50, 18),
+    },
+  });
+  check('indefinite listing accepts first booking', b1.status === 201);
+
+  const b2 = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: indefId,
+      quantity: 1,
+      startDateTime: at(52, 10),
+      endDateTime: at(52, 18),
+    },
+  });
+  check('indefinite listing remains reusable across subsequent bookings', b2.status === 201);
+
+  // 2 & 3. Available-until accepts before cutoff, rejects after cutoff
+  const untilRes = await api('POST', '/api/resources', {
+    token: orchid,
+    body: {
+      title: 'Seasonal Pavilion',
+      category: 'banquet_space',
+      pricing: { basePrice: 30000, priceUnit: 'per_day' },
+      totalQuantity: 1,
+      availabilityMode: 'until_date',
+      availableUntil: at(60, 23),
+    },
+  });
+  const untilId = untilRes.body.resource._id;
+
+  const bBeforeCutoff = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: untilId,
+      quantity: 1,
+      startDateTime: at(58, 10),
+      endDateTime: at(58, 18),
+    },
+  });
+  check('available-until accepts booking before cutoff date', bBeforeCutoff.status === 201);
+
+  const bAfterCutoff = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: untilId,
+      quantity: 1,
+      startDateTime: at(62, 10),
+      endDateTime: at(62, 18),
+    },
+  });
+  check('available-until rejects booking after cutoff date', bAfterCutoff.status === 409);
+
+  // 4 & 5. Recurring schedule allows valid day/time, rejects invalid day/time
+  const recurRes = await api('POST', '/api/resources', {
+    token: orchid,
+    body: {
+      title: 'Executive Conference Suite',
+      category: 'banquet_space',
+      pricing: { basePrice: 15000, priceUnit: 'per_day' },
+      totalQuantity: 1,
+      availabilityMode: 'recurring',
+      recurringSchedule: {
+        daysOfWeek: [1, 2, 3, 4, 5], // Mon - Fri
+        startTime: '09:00',
+        endTime: '18:00',
+      },
+    },
+  });
+  const recurId = recurRes.body.resource._id;
+
+  // Next Monday 10:00 to 17:00 (valid weekday within hours)
+  const mondayValidStart = nextDayOfWeek(1, 10);
+  const mondayValidEnd = new Date(mondayValidStart);
+  mondayValidEnd.setHours(17, 0, 0, 0);
+
+  const bRecurValid = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: recurId,
+      quantity: 1,
+      startDateTime: mondayValidStart.toISOString(),
+      endDateTime: mondayValidEnd.toISOString(),
+    },
+  });
+  check('recurring schedule allows valid day and operating hours', bRecurValid.status === 201);
+
+  // Next Sunday 10:00 to 17:00 (invalid day)
+  const sundayStart = nextDayOfWeek(0, 10);
+  const sundayEnd = new Date(sundayStart);
+  sundayEnd.setHours(17, 0, 0, 0);
+
+  const bRecurSun = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: recurId,
+      quantity: 1,
+      startDateTime: sundayStart.toISOString(),
+      endDateTime: sundayEnd.toISOString(),
+    },
+  });
+  check('recurring schedule rejects booking on disallowed day (weekend)', bRecurSun.status === 409);
+
+  // Next Tuesday 07:00 to 12:00 (invalid hour before 09:00)
+  const tueEarlyStart = nextDayOfWeek(2, 7);
+  const tueEarlyEnd = new Date(tueEarlyStart);
+  tueEarlyEnd.setHours(12, 0, 0, 0);
+
+  const bRecurEarly = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: recurId,
+      quantity: 1,
+      startDateTime: tueEarlyStart.toISOString(),
+      endDateTime: tueEarlyEnd.toISOString(),
+    },
+  });
+  check('recurring schedule rejects booking outside operating hours', bRecurEarly.status === 409);
+
+  // 6 & 7. Owner block rejects overlapping booking, allows booking outside block
+  const blockRes = await api('POST', `/api/resources/${indefId}/blocks`, {
+    token: orchid,
+    body: {
+      start: at(70, 10),
+      end: at(70, 18),
+      type: 'internal_use',
+      reason: 'Annual Executive Strategy Retreat',
+    },
+  });
+  check('owner can create an internal use block', blockRes.status === 201 && blockRes.body.ok);
+
+  const bOverBlock = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: indefId,
+      quantity: 1,
+      startDateTime: at(70, 12),
+      endDateTime: at(70, 16),
+    },
+  });
+  check('owner block rejects overlapping booking attempt', bOverBlock.status === 409);
+
+  const bOutsideBlock = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: indefId,
+      quantity: 1,
+      startDateTime: at(71, 10),
+      endDateTime: at(71, 18),
+    },
+  });
+  check('owner block allows booking outside the blocked period', bOutsideBlock.status === 201);
+
+  // 8. Cannot create owner block over confirmed booking
+  const bToConfirm = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: indefId,
+      quantity: 1,
+      startDateTime: at(75, 10),
+      endDateTime: at(75, 18),
+    },
+  });
+  const confirmedBookingRes = await api('PATCH', `/api/bookings/${bToConfirm.body.booking._id}/accept`, {
+    token: orchid,
+    body: {},
+  });
+  check(
+    'booking accepted and hard-reserved',
+    confirmedBookingRes.status === 200 && confirmedBookingRes.body.booking.status === 'accepted'
+  );
+
+  const blockOverBooking = await api('POST', `/api/resources/${indefId}/blocks`, {
+    token: orchid,
+    body: {
+      start: at(75, 12),
+      end: at(75, 16),
+      type: 'internal_use',
+      reason: 'Conflicting event',
+    },
+  });
+  check(
+    'cannot create owner block over existing confirmed booking',
+    blockOverBooking.status === 409
+  );
+
+  // 9. Maintenance window prevents booking
+  const maintBlock = await api('POST', `/api/resources/${indefId}/blocks`, {
+    token: orchid,
+    body: {
+      start: at(78, 8),
+      end: at(78, 20),
+      type: 'maintenance',
+      reason: 'HVAC and Acoustics Overhaul',
+    },
+  });
+  check('owner can schedule maintenance window', maintBlock.status === 201);
+
+  const bMaintOverlap = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: indefId,
+      quantity: 1,
+      startDateTime: at(78, 10),
+      endDateTime: at(78, 14),
+    },
+  });
+  check('maintenance window prevents booking during maintenance period', bMaintOverlap.status === 409);
+
+  // 10. Buffer-after prevents immediate back-to-back booking
+  const bufAfterRes = await api('POST', '/api/resources', {
+    token: orchid,
+    body: {
+      title: 'Buffering Banquet Hall',
+      category: 'banquet_space',
+      pricing: { basePrice: 35000, priceUnit: 'per_day' },
+      totalQuantity: 1,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 120, // 2 hour cleanup turnaround
+    },
+  });
+  const bufAfterId = bufAfterRes.body.resource._id;
+
+  const bBase1 = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: bufAfterId,
+      quantity: 1,
+      startDateTime: at(80, 10),
+      endDateTime: at(80, 16), // ends at 16:00, turnaround until 18:00
+    },
+  });
+  await api('PATCH', `/api/bookings/${bBase1.body.booking._id}/accept`, { token: orchid, body: {} });
+
+  const bImmediateBackToBack = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: bufAfterId,
+      quantity: 1,
+      startDateTime: at(80, 16), // starts right at 16:00 when booking 1 ends
+      endDateTime: at(80, 20),
+    },
+  });
+  check(
+    'buffer-after prevents immediate back-to-back booking during cleanup turnaround',
+    bImmediateBackToBack.status === 409
+  );
+
+  // 11. Buffer-before prevents conflicting setup interval
+  const bufBeforeRes = await api('POST', '/api/resources', {
+    token: orchid,
+    body: {
+      title: 'Setup Buffer Suite',
+      category: 'banquet_space',
+      pricing: { basePrice: 28000, priceUnit: 'per_day' },
+      totalQuantity: 1,
+      bufferBeforeMinutes: 60, // 1 hour setup buffer required
+      bufferAfterMinutes: 0,
+    },
+  });
+  const bufBeforeId = bufBeforeRes.body.resource._id;
+
+  const bBase2 = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: bufBeforeId,
+      quantity: 1,
+      startDateTime: at(82, 10),
+      endDateTime: at(82, 14), // ends at 14:00
+    },
+  });
+  await api('PATCH', `/api/bookings/${bBase2.body.booking._id}/accept`, { token: orchid, body: {} });
+
+  const bSetupConflict = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: bufBeforeId,
+      quantity: 1,
+      startDateTime: at(82, 14), // starts at 14:00, but needs setup starting at 13:00
+      endDateTime: at(82, 18),
+    },
+  });
+  check(
+    'buffer-before prevents conflicting setup interval with prior booking',
+    bSetupConflict.status === 409
+  );
+
+  // 12. Touching booking allowed only when buffer permits
+  const bufBothRes = await api('POST', '/api/resources', {
+    token: orchid,
+    body: {
+      title: 'Precision Turnaround Lounge',
+      category: 'banquet_space',
+      pricing: { basePrice: 25000, priceUnit: 'per_day' },
+      totalQuantity: 1,
+      bufferBeforeMinutes: 30, // 30 min prep
+      bufferAfterMinutes: 60, // 60 min cleanup
+    },
+  });
+  const bufBothId = bufBothRes.body.resource._id;
+
+  const bBase3 = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: bufBothId,
+      quantity: 1,
+      startDateTime: at(85, 10),
+      endDateTime: at(85, 14), // ends at 14:00, cleanup until 15:00
+    },
+  });
+  await api('PATCH', `/api/bookings/${bBase3.body.booking._id}/accept`, { token: orchid, body: {} });
+
+  // Starting at 15:00 requires 30m prep starting at 14:30 -> conflicts with cleanup until 15:00!
+  const bTouchingTooEarly = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: bufBothId,
+      quantity: 1,
+      startDateTime: at(85, 15),
+      endDateTime: at(85, 18),
+    },
+  });
+  check(
+    'booking rejected when prep buffer encroaches on previous cleanup buffer',
+    bTouchingTooEarly.status === 409
+  );
+
+  // Starting at 15:30 (prep from 15:00 to 15:30, cleanup finished at 15:00) -> perfectly touches!
+  const bTouchingPermitted = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: bufBothId,
+      quantity: 1,
+      startDateTime: at(85, 15, 30),
+      endDateTime: at(85, 18),
+    },
+  });
+  check('touching booking allowed only when buffer permits', bTouchingPermitted.status === 201);
+
+  // 13. Quantity-aware sweep-line still works with buffers
+  const chairsBufRes = await api('POST', '/api/resources', {
+    token: orchid,
+    body: {
+      title: 'Banquet Chiavari Chairs Stock',
+      category: 'furniture',
+      pricing: { basePrice: 100, priceUnit: 'per_unit' },
+      totalQuantity: 300,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 60, // 1 hour inspection buffer after return
+    },
+  });
+  const chairsBufId = chairsBufRes.body.resource._id;
+
+  const bChairs1 = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: chairsBufId,
+      quantity: 200,
+      startDateTime: at(88, 10),
+      endDateTime: at(88, 14), // buffered until 15:00
+    },
+  });
+  await api('PATCH', `/api/bookings/${bChairs1.body.booking._id}/accept`, { token: orchid, body: {} });
+
+  const bChairs2 = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: chairsBufId,
+      quantity: 50,
+      startDateTime: at(88, 12),
+      endDateTime: at(88, 16), // buffered until 17:00
+    },
+  });
+  await api('PATCH', `/api/bookings/${bChairs2.body.booking._id}/accept`, { token: orchid, body: {} });
+
+  // Between 14:00 and 15:00: chairs 1 buffer (200) + chairs 2 active (50) = 250 occupied, 50 free.
+  const bChairsFit = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: chairsBufId,
+      quantity: 50,
+      startDateTime: at(88, 14),
+      endDateTime: at(88, 16),
+    },
+  });
+  check(
+    'quantity-aware sweep-line accepts booking within remaining buffered capacity',
+    bChairsFit.status === 201
+  );
+
+  const bChairsExceed = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: chairsBufId,
+      quantity: 100,
+      startDateTime: at(88, 14),
+      endDateTime: at(88, 16),
+    },
+  });
+  check(
+    'quantity-aware sweep-line rejects booking exceeding remaining buffered capacity',
+    bChairsExceed.status === 409
+  );
+
+  // 14. Pause blocks new bookings
+  const pauseUpdate = await api('PATCH', `/api/resources/${indefId}/status`, {
+    token: orchid,
+    body: { status: 'paused' },
+  });
+  check(
+    'owner can pause listing to stop new bookings',
+    pauseUpdate.status === 200 && pauseUpdate.body.resource.status === 'paused'
+  );
+
+  const bWhilePaused = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: indefId,
+      quantity: 1,
+      startDateTime: at(90, 10),
+      endDateTime: at(90, 18),
+    },
+  });
+  check(
+    'pause blocks new booking requests',
+    bWhilePaused.status === 404 || bWhilePaused.status === 409
+  );
+
+  // 15. Pause does not destroy existing booking
+  const existingBookingCheck = await api('GET', `/api/bookings/${bToConfirm.body.booking._id}`, {
+    token: orchid,
+  });
+  check(
+    'pause retains existing accepted and confirmed bookings intact',
+    existingBookingCheck.status === 200 && existingBookingCheck.body.booking.status === 'accepted'
+  );
+
+  // 16. Reactivation restores bookability
+  const reactivateRes = await api('PATCH', `/api/resources/${indefId}/status`, {
+    token: orchid,
+    body: { status: 'active' },
+  });
+  check(
+    'owner can reactivate paused listing',
+    reactivateRes.status === 200 && reactivateRes.body.resource.status === 'active'
+  );
+
+  const bAfterReactivation = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: indefId,
+      quantity: 1,
+      startDateTime: at(92, 10),
+      endDateTime: at(92, 18),
+    },
+  });
+  check('reactivation immediately restores bookability', bAfterReactivation.status === 201);
+
+  // 17. Archive protection with future bookings
+  // indefId has future booking bToConfirm (status: accepted on day 75)
+  const archiveAttempt = await api('PATCH', `/api/resources/${indefId}/status`, {
+    token: orchid,
+    body: { status: 'archived' },
+  });
+  check(
+    'archive is rejected when active or future commitments exist',
+    archiveAttempt.status === 400 &&
+      /commitments|active|upcoming/i.test(archiveAttempt.body.error || archiveAttempt.body.message)
+  );
+
+  // 18. Another provider cannot modify availability
+  const hijackAttempt = await api('PATCH', `/api/resources/${indefId}/availability`, {
+    token: seasons,
+    body: { availabilityMode: 'indefinite' },
+  });
+  check('another provider cannot modify availability policy', hijackAttempt.status === 403);
+
+  const hijackBlock = await api('POST', `/api/resources/${indefId}/blocks`, {
+    token: seasons,
+    body: { start: at(95, 10), end: at(95, 18), type: 'unavailable' },
+  });
+  check('another provider cannot create blocks on another listing', hijackBlock.status === 403);
+
+  // 19. Public calendar does not leak private booking identity
+  const publicCal = await api(
+    'GET',
+    `/api/resources/${indefId}/availability?start=${at(70, 0)}&end=${at(71, 0)}`
+  );
+  check(
+    'anonymous calendar has isOwner false and does not expose private block detail',
+    publicCal.status === 200 && publicCal.body.isOwner === false && !publicCal.body.days[0]?.blocks
+  );
+
+  const ownerCal = await api(
+    'GET',
+    `/api/resources/${indefId}/availability?start=${at(70, 0)}&end=${at(71, 0)}`,
+    { token: orchid }
+  );
+  check(
+    'owner calendar exposes isOwner true and operational block breakdown',
+    ownerCal.status === 200 &&
+      ownerCal.body.isOwner === true &&
+      ownerCal.body.days[0]?.blocks?.length > 0
+  );
+
+  // 20. Old resources without new fields still work
+  const oldRes = await Resource.create({
+    owner: (await Resource.findById(indefId)).owner,
+    title: 'Legacy Audio Visual System',
+    category: 'av_equipment',
+    pricing: { basePrice: 5000, priceUnit: 'per_day' },
+    totalQuantity: 2,
+  });
+  const checkOld = await api(
+    'GET',
+    `/api/resources/${oldRes._id}/check?start=${at(100, 10)}&end=${at(100, 18)}`
+  );
+  check(
+    'old resource without new fields defaults safely to full availability',
+    checkOld.status === 200 && checkOld.body.available === 2
+  );
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
 
   server.close();
-  await disconnectDB();
+  try {
+    await disconnectDB();
+  } catch {}
   process.exit(failed ? 1 : 0);
 }
 

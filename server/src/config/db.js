@@ -36,5 +36,11 @@ export async function connectDB() {
 
 export async function disconnectDB() {
   await mongoose.disconnect();
-  if (memoryServer) await memoryServer.stop();
+  if (memoryServer) {
+    try {
+      await memoryServer.stop();
+    } catch {
+      // ignore memory-server shutdown errors on Windows
+    }
+  }
 }

@@ -54,6 +54,41 @@ const resourceSchema = new mongoose.Schema(
     // means "always open"; bookings are still checked against each other.
     availabilityWindows: [{ start: Date, end: Date }],
 
+    // Availability mode: indefinite, until_date, date_range, recurring, custom
+    availabilityMode: {
+      type: String,
+      enum: ['indefinite', 'until_date', 'date_range', 'recurring', 'custom'],
+      default: 'indefinite',
+      index: true,
+    },
+    availableUntil: { type: Date, default: null },
+    recurringSchedule: {
+      daysOfWeek: [{ type: Number, min: 0, max: 6 }], // 0 = Sun, 1 = Mon ... 6 = Sat
+      startHour: { type: Number, min: 0, max: 23, default: 0 },
+      endHour: { type: Number, min: 1, max: 24, default: 24 },
+      startTime: { type: String, default: '00:00' },
+      endTime: { type: String, default: '23:59' },
+    },
+
+    // Turnaround and cleaning buffers (in minutes)
+    bufferBeforeMinutes: { type: Number, default: 0, min: 0 },
+    bufferAfterMinutes: { type: Number, default: 0, min: 0 },
+
+    // Provider-blocked periods (internal use, maintenance, private events)
+    blockedPeriods: [
+      {
+        start: { type: Date, required: true },
+        end: { type: Date, required: true },
+        type: {
+          type: String,
+          enum: ['internal_use', 'maintenance', 'private_event', 'unavailable', 'other'],
+          default: 'unavailable',
+        },
+        reason: { type: String, trim: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+
     conditions: String,
     tags: [String],
     images: [String],
