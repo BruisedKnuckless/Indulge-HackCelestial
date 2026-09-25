@@ -237,7 +237,8 @@
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-indigo/30 ring-offset-2 ring-offset-surface rounded;
+    @apply outline-none ring-2 ring-offset-2 ring-offset-surface rounded;
+    --tw-ring-color: rgb(var(--color-indigo) / 0.3);
   }
 }
 
@@ -309,9 +310,17 @@
   }
 
   .btn-danger {
-    @apply btn bg-danger/10 border-danger/30 text-danger
-           hover:bg-danger/20 hover:-translate-y-[1px]
-           active:bg-danger/25 active:translate-y-0;
+    @apply btn text-danger;
+    background-color: rgb(var(--color-danger) / 0.1);
+    border-color: rgb(var(--color-danger) / 0.3);
+  }
+  .btn-danger:hover {
+    background-color: rgb(var(--color-danger) / 0.2);
+    transform: translateY(-1px);
+  }
+  .btn-danger:active {
+    background-color: rgb(var(--color-danger) / 0.25);
+    transform: translateY(0);
   }
 
   .btn-accent {
@@ -472,30 +481,45 @@
     @apply w-full h-10 px-3 text-base bg-surface-sunk rounded-lg
            border border-line-strong outline-none
            placeholder:text-ink-mute
-           hover:border-indigo/40
-           focus:border-indigo focus:ring-2 focus:ring-indigo/15
            transition-all duration-150;
+  }
+  .field:hover {
+    border-color: rgb(var(--color-indigo) / 0.4);
+  }
+  .field:focus {
+    border-color: rgb(var(--color-indigo));
+    box-shadow: 0 0 0 2px rgb(var(--color-indigo) / 0.15);
   }
 
   .field-area {
     @apply w-full px-3 py-2.5 text-base bg-surface-sunk rounded-lg
            border border-line-strong outline-none
            placeholder:text-ink-mute
-           hover:border-indigo/40
-           focus:border-indigo focus:ring-2 focus:ring-indigo/15
            transition-all duration-150;
+  }
+  .field-area:hover {
+    border-color: rgb(var(--color-indigo) / 0.4);
+  }
+  .field-area:focus {
+    border-color: rgb(var(--color-indigo));
+    box-shadow: 0 0 0 2px rgb(var(--color-indigo) / 0.15);
   }
 
   .field-select {
     @apply h-10 pl-3 pr-9 text-base bg-surface-sunk rounded-lg
            border border-line-strong cursor-pointer outline-none
            appearance-none
-           hover:border-indigo/40
-           focus:border-indigo focus:ring-2 focus:ring-indigo/15
            transition-all duration-150;
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238E8E93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
     background-position: right 12px center;
     background-repeat: no-repeat;
+  }
+  .field-select:hover {
+    border-color: rgb(var(--color-indigo) / 0.4);
+  }
+  .field-select:focus {
+    border-color: rgb(var(--color-indigo));
+    box-shadow: 0 0 0 2px rgb(var(--color-indigo) / 0.15);
   }
 
   .label {
@@ -528,23 +552,33 @@
   }
 
   .badge-indigo {
-    @apply badge bg-indigo/10 border-indigo/25 text-indigo;
+    @apply badge text-indigo;
+    background-color: rgb(var(--color-indigo) / 0.1);
+    border-color: rgb(var(--color-indigo) / 0.25);
   }
 
   .badge-teal {
-    @apply badge bg-teal/10 border-teal/25 text-teal;
+    @apply badge text-teal;
+    background-color: rgb(var(--color-teal) / 0.1);
+    border-color: rgb(var(--color-teal) / 0.25);
   }
 
   .badge-amber {
-    @apply badge bg-amber-accent/10 border-amber-accent/30 text-amber-accent;
+    @apply badge text-amber-accent;
+    background-color: rgb(var(--color-amber-accent) / 0.1);
+    border-color: rgb(var(--color-amber-accent) / 0.3);
   }
 
   .badge-green {
-    @apply badge bg-green-accent/10 border-green-accent/30 text-green-accent;
+    @apply badge text-green-accent;
+    background-color: rgb(var(--color-green-accent) / 0.1);
+    border-color: rgb(var(--color-green-accent) / 0.3);
   }
 
   .badge-red {
-    @apply badge bg-red-accent/10 border-red-accent/30 text-red-accent;
+    @apply badge text-red-accent;
+    background-color: rgb(var(--color-red-accent) / 0.1);
+    border-color: rgb(var(--color-red-accent) / 0.3);
   }
 
   .badge-muted {
@@ -552,17 +586,49 @@
   }
 
   /* Requirement / booking status pills */
-  .status-open       { @apply badge bg-indigo/10 border-indigo/25 text-indigo; }
-  .status-pending    { @apply badge bg-amber-accent/10 border-amber-accent/25 text-amber-accent; }
-  .status-negotiating{ @apply badge bg-amber-accent/10 border-amber-accent/25 text-amber-accent; }
-  .status-accepted   { @apply badge bg-green-accent/10 border-green-accent/25 text-green-accent; }
-  .status-confirmed  { @apply badge bg-green-accent/10 border-green-accent/25 text-green-accent; }
+  .status-open       {
+    @apply badge text-indigo;
+    background-color: rgb(var(--color-indigo) / 0.1);
+    border-color: rgb(var(--color-indigo) / 0.25);
+  }
+  .status-pending    {
+    @apply badge text-amber-accent;
+    background-color: rgb(var(--color-amber-accent) / 0.1);
+    border-color: rgb(var(--color-amber-accent) / 0.25);
+  }
+  .status-negotiating{
+    @apply badge text-amber-accent;
+    background-color: rgb(var(--color-amber-accent) / 0.1);
+    border-color: rgb(var(--color-amber-accent) / 0.25);
+  }
+  .status-accepted   {
+    @apply badge text-green-accent;
+    background-color: rgb(var(--color-green-accent) / 0.1);
+    border-color: rgb(var(--color-green-accent) / 0.25);
+  }
+  .status-confirmed  {
+    @apply badge text-green-accent;
+    background-color: rgb(var(--color-green-accent) / 0.1);
+    border-color: rgb(var(--color-green-accent) / 0.25);
+  }
   .status-completed  { @apply badge bg-surface-sunk border-line-strong text-ink-mute; }
   .status-expired    { @apply badge bg-surface-sunk border-line-strong text-ink-mute; }
-  .status-fulfilled  { @apply badge bg-green-accent/10 border-green-accent/25 text-green-accent; }
+  .status-fulfilled  {
+    @apply badge text-green-accent;
+    background-color: rgb(var(--color-green-accent) / 0.1);
+    border-color: rgb(var(--color-green-accent) / 0.25);
+  }
   .status-closed     { @apply badge bg-surface-sunk border-line-strong text-ink-soft; }
-  .status-rejected   { @apply badge bg-red-accent/10 border-red-accent/25 text-red-accent; }
-  .status-cancelled  { @apply badge bg-red-accent/10 border-red-accent/25 text-red-accent; }
+  .status-rejected   {
+    @apply badge text-red-accent;
+    background-color: rgb(var(--color-red-accent) / 0.1);
+    border-color: rgb(var(--color-red-accent) / 0.25);
+  }
+  .status-cancelled  {
+    @apply badge text-red-accent;
+    background-color: rgb(var(--color-red-accent) / 0.1);
+    border-color: rgb(var(--color-red-accent) / 0.25);
+  }
 
   /* ── Icon containers ──────────────────────────────────────── */
   .icon-box {
@@ -570,23 +636,43 @@
   }
 
   .icon-box-indigo {
-    @apply icon-box bg-indigo/10 dark:bg-indigo/20 text-indigo;
+    @apply icon-box text-indigo;
+    background-color: rgb(var(--color-indigo) / 0.1);
+  }
+  .dark .icon-box-indigo {
+    background-color: rgb(var(--color-indigo) / 0.2);
   }
 
   .icon-box-teal {
-    @apply icon-box bg-teal/10 dark:bg-teal/20 text-teal;
+    @apply icon-box text-teal;
+    background-color: rgb(var(--color-teal) / 0.1);
+  }
+  .dark .icon-box-teal {
+    background-color: rgb(var(--color-teal) / 0.2);
   }
 
   .icon-box-amber {
-    @apply icon-box bg-amber-accent/10 dark:bg-amber-accent/15 text-amber-accent;
+    @apply icon-box text-amber-accent;
+    background-color: rgb(var(--color-amber-accent) / 0.1);
+  }
+  .dark .icon-box-amber {
+    background-color: rgb(var(--color-amber-accent) / 0.15);
   }
 
   .icon-box-green {
-    @apply icon-box bg-green-accent/10 dark:bg-green-accent/15 text-green-accent;
+    @apply icon-box text-green-accent;
+    background-color: rgb(var(--color-green-accent) / 0.1);
+  }
+  .dark .icon-box-green {
+    background-color: rgb(var(--color-green-accent) / 0.15);
   }
 
   .icon-box-violet {
-    @apply icon-box bg-violet/10 dark:bg-violet/20 text-violet;
+    @apply icon-box text-violet;
+    background-color: rgb(var(--color-violet) / 0.1);
+  }
+  .dark .icon-box-violet {
+    background-color: rgb(var(--color-violet) / 0.2);
   }
 
   .icon-box-muted {
@@ -595,7 +681,8 @@
 
   /* ── Section / visual dividers ────────────────────────────── */
   .section-divider {
-    @apply border-0 border-t-2 border-line/60 my-8;
+    @apply border-0 border-t-2 my-8;
+    border-color: rgb(var(--color-line) / 0.6);
   }
 
   /* ── Gradient accents ─────────────────────────────────────── */
@@ -604,7 +691,10 @@
   }
 
   .soft-accent {
-    @apply bg-indigo/5 dark:bg-indigo/10;
+    background-color: rgb(var(--color-indigo) / 0.05);
+  }
+  .dark .soft-accent {
+    background-color: rgb(var(--color-indigo) / 0.1);
   }
 
   /* ── Nav item ─────────────────────────────────────────────── */
@@ -614,18 +704,27 @@
   }
 
   .nav-item-active {
-    @apply nav-item font-medium text-ink bg-surface-sunk dark:bg-white/20;
+    @apply nav-item font-medium text-ink bg-surface-sunk;
+  }
+  .dark .nav-item-active {
+    background-color: rgba(255, 255, 255, 0.2);
   }
 
   .nav-item-inactive {
-    @apply nav-item text-ink/65 hover:text-ink hover:bg-surface-sunk dark:hover:bg-white/15;
+    @apply nav-item hover:text-ink hover:bg-surface-sunk;
+    color: rgb(var(--color-ink) / 0.65);
+  }
+  .dark .nav-item-inactive:hover {
+    background-color: rgba(255, 255, 255, 0.15);
   }
 
   /* ── Icon button ──────────────────────────────────────────── */
   .icon-button {
     @apply grid place-items-center w-9 h-9 rounded-lg text-ink
-           hover:bg-surface-sunk dark:hover:bg-white/10
-           transition-all duration-200;
+           hover:bg-surface-sunk transition-all duration-200;
+  }
+  .dark .icon-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
   }
 
   /* ── Notification / count badges ─────────────────────────── */
@@ -651,9 +750,13 @@
   /* ── Empty state ──────────────────────────────────────────── */
   .empty-state-icon {
     @apply inline-flex items-center justify-center w-14 h-14 rounded-2xl
-           bg-indigo/5 dark:bg-indigo/10
-           border border-indigo/20 dark:border-indigo/30
-           mb-5 mx-auto text-indigo;
+           mb-5 mx-auto text-indigo border;
+    background-color: rgb(var(--color-indigo) / 0.05);
+    border-color: rgb(var(--color-indigo) / 0.2);
+  }
+  .dark .empty-state-icon {
+    background-color: rgb(var(--color-indigo) / 0.1);
+    border-color: rgb(var(--color-indigo) / 0.3);
   }
 }
 

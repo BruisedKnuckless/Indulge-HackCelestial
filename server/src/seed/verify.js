@@ -8,6 +8,8 @@
  */
 import http from 'http';
 import { execFileSync } from 'child_process';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { createApp } from '../app.js';
 import { connectDB, disconnectDB } from '../config/db.js';
 import { runSeed } from './seed.js';
@@ -698,7 +700,7 @@ async function main() {
           'process.stdout.write(JSON.stringify(m.adminConfigStatus()));',
       ],
       {
-        cwd: new URL('../../', import.meta.url).pathname,
+        cwd: path.resolve(fileURLToPath(new URL('../../', import.meta.url))),
         env: { ...process.env, ADMIN_EMAILS: '', ADMIN_EMAIL: '', NODE_ENV: '', ...envOverrides },
         encoding: 'utf8',
       }
