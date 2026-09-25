@@ -12,6 +12,7 @@ import { notify } from '../services/notification.service.js';
 import { isPlatformAdmin } from '../config/admin.js';
 import { solveRequirementProcurement } from '../services/procurement-solver.service.js';
 import { executeProcurementPlan } from '../services/procurement-execution.service.js';
+import CapacityRecoveryOpportunity from '../models/CapacityRecoveryOpportunity.js';
 
 const router = Router();
 
@@ -836,6 +837,27 @@ router.post(
     requirement.resultingBooking = booking._id;
     requirement.fulfilledBooking = booking._id;
     await requirement.save();
+
+    // Convert any matching capacity recovery opportunity
+    try {
+      await CapacityRecoveryOpportunity.findOneAndUpdate(
+        {
+          $or: [
+            { resultingProposal: proposal._id },
+            {
+              requirement: requirement._id,
+              resource: proposal.resource?._id || proposal.resource,
+              status: { $in: ['active', 'claimed'] },
+            },
+          ],
+        },
+        {
+          status: 'converted',
+          resultingProposal: proposal._id,
+          resultingBooking: booking._id,
+        }
+      );
+    } catch {}
 
     // 6. Notify Winning Provider
     await notify({

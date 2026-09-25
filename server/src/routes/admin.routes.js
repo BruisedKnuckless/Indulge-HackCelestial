@@ -17,6 +17,7 @@ import { validateBookingRequest } from '../services/availability.service.js';
 import { runIntegrityAudit, recomputeRatings } from '../services/audit.service.js';
 import { notify } from '../services/notification.service.js';
 import { isPlatformAdmin } from '../config/admin.js';
+import { getAdminRecoveryMetrics } from '../services/capacity-recovery.service.js';
 
 /**
  * Platform administration — the eagle-eye console.
@@ -50,6 +51,20 @@ const parsePage = (req, fallbackLimit = 50) => {
 
 /** Case-insensitive contains, escaped so a user's "." doesn't become a wildcard. */
 const rx = (value) => new RegExp(String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+/* ═══════════════════════════════════════════════════════════════ CAPACITY RECOVERY */
+
+/**
+ * GET /api/admin/capacity-recovery
+ * Marketplace-wide metrics for time-bound idle capacity recovery.
+ */
+router.get(
+  '/capacity-recovery',
+  asyncHandler(async (_req, res) => {
+    const metrics = await getAdminRecoveryMetrics();
+    res.json({ metrics });
+  })
+);
 
 /* ═══════════════════════════════════════════════════════════════ OVERVIEW */
 

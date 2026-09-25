@@ -23,6 +23,7 @@ import Requirement from '../models/Requirement.js';
 import Transaction from '../models/Transaction.js';
 import ProcurementOrder from '../models/ProcurementOrder.js';
 import Proposal from '../models/Proposal.js';
+import CapacityRecoveryOpportunity from '../models/CapacityRecoveryOpportunity.js';
 import { signToken } from '../middleware/auth.middleware.js';
 import {
   generateProcurementPlans,
@@ -30,6 +31,12 @@ import {
   doesPlanDominate,
 } from '../services/procurement-solver.service.js';
 import { rankResources } from '../services/matching.service.js';
+import {
+  scanAndSyncCapacityRecovery,
+  calculateRecoveryPriorityScore,
+  getProviderRecoveryOverview,
+  getAdminRecoveryMetrics,
+} from '../services/capacity-recovery.service.js';
 
 let base = '';
 let passed = 0;
@@ -3693,6 +3700,669 @@ async function main() {
   check(
     '24. executing same plan twice creates no duplicate bookings',
     p35CountBefore === p35CountAfter
+  );
+
+  /* =========================================================================
+   * PHASE 4: TIME-BOUND CAPACITY RECOVERY VERIFICATION (Tests 1 - 28)
+   * ========================================================================= */
+  console.log('\n--- Phase 4: Time-Bound Capacity Recovery ---');
+
+  // Test setup: Users
+  const crProviderUser = await User.create({
+    businessName: 'Grand Horizon Venues & Gear',
+    email: 'recovery-provider@indulge.in',
+    passwordHash: 'dummy',
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    userType: 'business',
+  });
+  const crProviderToken = signToken(crProviderUser._id);
+
+  const crSeekerUser = await User.create({
+    businessName: 'Apex Corporate Planners',
+    email: 'recovery-seeker@indulge.in',
+    passwordHash: 'dummy',
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    userType: 'business',
+  });
+  const crSeekerToken = signToken(crSeekerUser._id);
+
+  const crOtherProviderUser = await User.create({
+    businessName: 'Other Unrelated Provider',
+    email: 'other-provider@indulge.in',
+    passwordHash: 'dummy',
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    userType: 'business',
+  });
+  const crOtherProviderToken = signToken(crOtherProviderUser._id);
+
+  // 1. available unused resource creates recovery opportunity
+  const banquetRes = await Resource.create({
+    owner: crProviderUser._id,
+    title: 'Grand Banquet Hall A',
+    category: 'banquet_space',
+    capacity: 300,
+    totalQuantity: 1,
+    pricing: { basePrice: 50000, priceUnit: 'per_day' },
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'active',
+  });
+
+  const corporateReq = await Requirement.create({
+    seeker: crSeekerUser._id,
+    title: 'Corporate Summit Hall Needed',
+    category: 'banquet_space',
+    minCapacity: 250,
+    requiredQuantity: 1,
+    startDateTime: at(1, 10),
+    endDateTime: at(1, 20),
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    maxPrice: 60000,
+    status: 'open',
+  });
+
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp1 = await CapacityRecoveryOpportunity.findOne({
+    resource: banquetRes._id,
+    requirement: corporateReq._id,
+  });
+  check(
+    '1. available unused resource creates recovery opportunity',
+    opp1 !== null && opp1.status === 'active' && opp1.availableQuantity === 300
+  );
+
+  // 2. booked resource does not show fully idle opportunity
+  const banquetBooking = await Booking.create({
+    resource: banquetRes._id,
+    provider: crProviderUser._id,
+    seeker: crSeekerUser._id,
+    startDateTime: at(1, 9),
+    endDateTime: at(1, 21),
+    requestedQuantity: 1,
+    status: 'confirmed',
+    agreedPrice: 50000,
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp2 = await CapacityRecoveryOpportunity.findOne({
+    resource: banquetRes._id,
+    requirement: corporateReq._id,
+  });
+  check(
+    '2. booked resource does not show fully idle opportunity',
+    opp2 === null || opp2.status === 'expired'
+  );
+  // Cleanup booking so we can test other conditions
+  await Booking.findByIdAndDelete(banquetBooking._id);
+
+  // 3. partially booked quantity exposes only remaining capacity
+  const projectorFleet = await Resource.create({
+    owner: crProviderUser._id,
+    title: '4K Laser Projectors Fleet',
+    category: 'av_equipment',
+    totalQuantity: 10,
+    pricing: { basePrice: 2000, priceUnit: 'per_day' },
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'active',
+  });
+  await Booking.create({
+    resource: projectorFleet._id,
+    provider: crProviderUser._id,
+    seeker: crSeekerUser._id,
+    startDateTime: at(1, 8),
+    endDateTime: at(1, 22),
+    requestedQuantity: 4,
+    status: 'confirmed',
+    agreedPrice: 8000,
+  });
+  const projReq = await Requirement.create({
+    seeker: crSeekerUser._id,
+    title: 'Need 5 Projectors for Workshop',
+    category: 'av_equipment',
+    requiredQuantity: 5,
+    startDateTime: at(1, 10),
+    endDateTime: at(1, 18),
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    maxPrice: 15000,
+    status: 'open',
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp3 = await CapacityRecoveryOpportunity.findOne({
+    resource: projectorFleet._id,
+    requirement: projReq._id,
+  });
+  check(
+    '3. partially booked quantity exposes only remaining capacity',
+    opp3 !== null && opp3.availableQuantity === 6 && opp3.status === 'active'
+  );
+
+  // 4. paused resource excluded
+  projectorFleet.status = 'paused';
+  await projectorFleet.save();
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp4 = await CapacityRecoveryOpportunity.findOne({
+    resource: projectorFleet._id,
+    requirement: projReq._id,
+  });
+  check(
+    '4. paused resource excluded',
+    opp4.status === 'expired'
+  );
+  projectorFleet.status = 'active';
+  await projectorFleet.save();
+
+  // 5. archived resource excluded
+  projectorFleet.status = 'archived';
+  await projectorFleet.save();
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp5 = await CapacityRecoveryOpportunity.findOne({
+    resource: projectorFleet._id,
+    requirement: projReq._id,
+  });
+  check(
+    '5. archived resource excluded',
+    opp5.status === 'expired'
+  );
+  projectorFleet.status = 'active';
+  await projectorFleet.save();
+
+  // 6. owner-blocked interval excluded
+  const crBlockedRes = await Resource.create({
+    owner: crProviderUser._id,
+    title: 'VIP Studio blocked by owner',
+    category: 'banquet_space',
+    capacity: 50,
+    totalQuantity: 1,
+    pricing: { basePrice: 10000, priceUnit: 'per_day' },
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'active',
+    blockedPeriods: [{
+      start: new Date(at(1, 8)),
+      end: new Date(at(1, 22)),
+      type: 'private_event',
+      reason: 'Owner private function',
+    }],
+  });
+  const crBlockedReq = await Requirement.create({
+    seeker: crSeekerUser._id,
+    title: 'Studio Needed',
+    category: 'banquet_space',
+    requiredQuantity: 1,
+    startDateTime: at(1, 10),
+    endDateTime: at(1, 18),
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'open',
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp6 = await CapacityRecoveryOpportunity.findOne({
+    resource: crBlockedRes._id,
+    requirement: crBlockedReq._id,
+  });
+  check(
+    '6. owner-blocked interval excluded',
+    opp6 === null || opp6.status === 'expired'
+  );
+
+  // 7. maintenance excluded
+  const crMaintRes = await Resource.create({
+    owner: crProviderUser._id,
+    title: 'Sound Studio under Maintenance',
+    category: 'banquet_space',
+    capacity: 40,
+    totalQuantity: 1,
+    pricing: { basePrice: 12000, priceUnit: 'per_day' },
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'active',
+    blockedPeriods: [{
+      start: new Date(at(1, 8)),
+      end: new Date(at(1, 22)),
+      type: 'maintenance',
+      reason: 'Acoustic wall paneling',
+    }],
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp7 = await CapacityRecoveryOpportunity.findOne({
+    resource: crMaintRes._id,
+    requirement: crBlockedReq._id,
+  });
+  check(
+    '7. maintenance excluded',
+    opp7 === null || opp7.status === 'expired'
+  );
+
+  // 8. buffer conflict respected
+  const crBufferRes = await Resource.create({
+    owner: crProviderUser._id,
+    title: 'Quick Turnaround Hall',
+    category: 'banquet_space',
+    capacity: 100,
+    totalQuantity: 1,
+    pricing: { basePrice: 20000, priceUnit: 'per_day' },
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'active',
+    bufferBeforeMinutes: 180,
+    bufferAfterMinutes: 180,
+  });
+  // Booking ends at 12:00
+  await Booking.create({
+    resource: crBufferRes._id,
+    provider: crProviderUser._id,
+    seeker: crSeekerUser._id,
+    startDateTime: at(1, 8),
+    endDateTime: at(1, 12),
+    requestedQuantity: 1,
+    status: 'confirmed',
+    agreedPrice: 10000,
+  });
+  // Requirement starts at 13:00 (only 1 hour buffer available, but 3 hours needed)
+  const crBufferReq = await Requirement.create({
+    seeker: crSeekerUser._id,
+    title: 'Buffer Conflict Requirement',
+    category: 'banquet_space',
+    requiredQuantity: 1,
+    startDateTime: at(1, 13),
+    endDateTime: at(1, 18),
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'open',
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp8 = await CapacityRecoveryOpportunity.findOne({
+    resource: crBufferRes._id,
+    requirement: crBufferReq._id,
+  });
+  check(
+    '8. buffer conflict respected',
+    opp8 === null || opp8.status === 'expired'
+  );
+
+  // 9. recurring schedule respected
+  const targetDay = new Date(at(1, 10)).getDay();
+  const differentDay = (targetDay + 2) % 7;
+  const crSchedRes = await Resource.create({
+    owner: crProviderUser._id,
+    title: 'Weekend Only Space',
+    category: 'banquet_space',
+    capacity: 150,
+    totalQuantity: 1,
+    pricing: { basePrice: 25000, priceUnit: 'per_day' },
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'active',
+    availabilityMode: 'recurring',
+    recurringSchedule: {
+      daysOfWeek: [differentDay],
+      startTime: '08:00',
+      endTime: '22:00',
+    },
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp9 = await CapacityRecoveryOpportunity.findOne({
+    resource: crSchedRes._id,
+    requirement: crBlockedReq._id,
+  });
+  check(
+    '9. recurring schedule respected',
+    opp9 === null || opp9.status === 'expired'
+  );
+
+  // 10. available-until respected
+  const crUntilRes = await Resource.create({
+    owner: crProviderUser._id,
+    title: 'Lease Expiring Venue',
+    category: 'banquet_space',
+    capacity: 120,
+    totalQuantity: 1,
+    pricing: { basePrice: 20000, priceUnit: 'per_day' },
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'active',
+    availabilityMode: 'until_date',
+    availableUntil: new Date(at(1, 12)), // available only until 12:00
+  });
+  // Requirement needs 14:00 - 20:00
+  const crUntilReq = await Requirement.create({
+    seeker: crSeekerUser._id,
+    title: 'Afternoon Venue Need',
+    category: 'banquet_space',
+    requiredQuantity: 1,
+    startDateTime: at(1, 14),
+    endDateTime: at(1, 20),
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'open',
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp10 = await CapacityRecoveryOpportunity.findOne({
+    resource: crUntilRes._id,
+    requirement: crUntilReq._id,
+  });
+  check(
+    '10. available-until respected',
+    opp10 === null || opp10.status === 'expired'
+  );
+
+  // 11. matching open requirement creates opportunity
+  const validAvRes = await Resource.create({
+    owner: crProviderUser._id,
+    title: 'Pro Audio Systems',
+    category: 'av_equipment',
+    totalQuantity: 5,
+    pricing: { basePrice: 3000, priceUnit: 'per_day' },
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'active',
+  });
+  const validAvReq = await Requirement.create({
+    seeker: crSeekerUser._id,
+    title: 'Sound System for Gala',
+    category: 'av_equipment',
+    requiredQuantity: 2,
+    startDateTime: at(2, 10),
+    endDateTime: at(2, 22),
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'open',
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp11 = await CapacityRecoveryOpportunity.findOne({
+    resource: validAvRes._id,
+    requirement: validAvReq._id,
+  });
+  check(
+    '11. matching open requirement creates opportunity',
+    opp11 !== null && opp11.status === 'active' && opp11.availableQuantity === 5
+  );
+
+  // 12. wrong category requirement excluded
+  const crFurnitureReq = await Requirement.create({
+    seeker: crSeekerUser._id,
+    title: 'Chairs for Reception',
+    category: 'furniture',
+    requiredQuantity: 50,
+    startDateTime: at(2, 10),
+    endDateTime: at(2, 22),
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'open',
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp12 = await CapacityRecoveryOpportunity.findOne({
+    resource: validAvRes._id,
+    requirement: crFurnitureReq._id,
+  });
+  check(
+    '12. wrong category requirement excluded',
+    opp12 === null
+  );
+
+  // 13. incompatible timing excluded
+  const farAwayReq = await Requirement.create({
+    seeker: crSeekerUser._id,
+    title: 'Far Future Requirement (10 days out)',
+    category: 'av_equipment',
+    requiredQuantity: 2,
+    startDateTime: at(10, 10),
+    endDateTime: at(10, 22),
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'open',
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp13 = await CapacityRecoveryOpportunity.findOne({
+    resource: validAvRes._id,
+    requirement: farAwayReq._id,
+  });
+  check(
+    '13. incompatible timing excluded',
+    opp13 === null
+  );
+
+  // 14. excessive distance excluded if configured
+  const distantReq = await Requirement.create({
+    seeker: crSeekerUser._id,
+    title: 'Distant Requirement with tight radius',
+    category: 'av_equipment',
+    requiredQuantity: 2,
+    startDateTime: at(2, 10),
+    endDateTime: at(2, 22),
+    location: { city: 'Pune', coordinates: [73.8567, 18.5204] }, // ~120 km from Mumbai
+    radiusKm: 15,
+    status: 'open',
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp14 = await CapacityRecoveryOpportunity.findOne({
+    resource: validAvRes._id,
+    requirement: distantReq._id,
+  });
+  check(
+    '14. excessive distance excluded if configured',
+    opp14 === null
+  );
+
+  // 15. hours-until-expiry calculated correctly
+  const nowMs = Date.now();
+  const startMs = new Date(validAvReq.startDateTime).getTime();
+  const expectedHours = Math.max(0, Math.round((startMs - nowMs) / 3600000));
+  check(
+    '15. hours-until-expiry calculated correctly',
+    opp11 !== null && Math.abs(opp11.hoursUntilExpiry - expectedHours) <= 1
+  );
+
+  // 16. utilization gain correct
+  // Resource banquetRes has capacity 300, corporateReq needs 250 -> 250/300 = 83%
+  const opp1Updated = await CapacityRecoveryOpportunity.findOne({
+    resource: banquetRes._id,
+    requirement: corporateReq._id,
+  });
+  check(
+    '16. utilization gain correct',
+    opp1Updated !== null && opp1Updated.utilizationGain === 83
+  );
+
+  // 17. recovery score deterministic
+  const crScoreA = calculateRecoveryPriorityScore({
+    hoursUntilExpiry: 22,
+    availableQuantity: 300,
+    requiredQuantity: 250,
+    utilizationGain: 83,
+    distanceKm: 2.1,
+    estimatedRevenue: 50000,
+    maxBudget: 60000,
+  });
+  const crScoreB = calculateRecoveryPriorityScore({
+    hoursUntilExpiry: 22,
+    availableQuantity: 300,
+    requiredQuantity: 250,
+    utilizationGain: 83,
+    distanceKm: 2.1,
+    estimatedRevenue: 50000,
+    maxBudget: 60000,
+  });
+  check(
+    '17. recovery score deterministic',
+    crScoreA.recoveryPriorityScore === crScoreB.recoveryPriorityScore &&
+      crScoreA.scoreBreakdown.urgencyScore === crScoreB.scoreBreakdown.urgencyScore &&
+      crScoreA.scoreBreakdown.quantityScore === crScoreB.scoreBreakdown.quantityScore &&
+      crScoreA.recoveryPriorityScore >= 80
+  );
+
+  // 18. opportunity expires after time window
+  const pastReq = await Requirement.create({
+    seeker: crSeekerUser._id,
+    title: 'Already Started Requirement',
+    category: 'av_equipment',
+    requiredQuantity: 1,
+    startDateTime: at(-0.1, 10),
+    endDateTime: at(1, 10),
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'open',
+  });
+  await CapacityRecoveryOpportunity.create({
+    resource: validAvRes._id,
+    provider: crProviderUser._id,
+    requirement: pastReq._id,
+    availableQuantity: 5,
+    requiredQuantity: 1,
+    opportunityStart: new Date(at(-0.1, 10)),
+    opportunityEnd: new Date(at(1, 10)),
+    expiresAt: new Date(at(-0.1, 10)),
+    hoursUntilExpiry: 0,
+    recoveryPriorityScore: 50,
+    status: 'active',
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const expiredPastOpp = await CapacityRecoveryOpportunity.findOne({
+    resource: validAvRes._id,
+    requirement: pastReq._id,
+  });
+  check(
+    '18. opportunity expires after time window',
+    expiredPastOpp !== null && expiredPastOpp.status === 'expired'
+  );
+
+  // 19. fulfilled requirement invalidates opportunity
+  corporateReq.status = 'fulfilled';
+  await corporateReq.save();
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp1Invalidated = await CapacityRecoveryOpportunity.findOne({
+    resource: banquetRes._id,
+    requirement: corporateReq._id,
+  });
+  check(
+    '19. fulfilled requirement invalidates opportunity',
+    opp1Invalidated.status === 'expired'
+  );
+  corporateReq.status = 'open';
+  await corporateReq.save();
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+
+  // 20. new booking invalidates/reduces opportunity
+  const fillBooking = await Booking.create({
+    resource: validAvRes._id,
+    provider: crProviderUser._id,
+    seeker: crSeekerUser._id,
+    startDateTime: at(2, 9),
+    endDateTime: at(2, 23),
+    requestedQuantity: 5, // takes all 5 units
+    status: 'confirmed',
+    agreedPrice: 15000,
+  });
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const opp11AfterBooking = await CapacityRecoveryOpportunity.findOne({
+    resource: validAvRes._id,
+    requirement: validAvReq._id,
+  });
+  check(
+    '20. new booking invalidates/reduces opportunity',
+    opp11AfterBooking === null || opp11AfterBooking.status === 'expired'
+  );
+  await Booking.findByIdAndDelete(fillBooking._id);
+  await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+
+  // 21. provider can view own opportunity
+  const oppToTest = await CapacityRecoveryOpportunity.findOne({
+    provider: crProviderUser._id,
+    status: 'active',
+  });
+  const viewMineRes = await api('GET', '/api/capacity-recovery/mine', {
+    token: crProviderToken,
+  });
+  const viewDetailRes = await api('GET', `/api/capacity-recovery/${oppToTest._id}`, {
+    token: crProviderToken,
+  });
+  check(
+    '21. provider can view own opportunity',
+    viewMineRes.status === 200 &&
+      viewMineRes.body.opportunities?.length > 0 &&
+      viewDetailRes.status === 200 &&
+      viewDetailRes.body.opportunity?._id === String(oppToTest._id)
+  );
+
+  // 22. unrelated provider cannot access
+  const forbiddenRes = await api('GET', `/api/capacity-recovery/${oppToTest._id}`, {
+    token: crOtherProviderToken,
+  });
+  check(
+    '22. unrelated provider cannot access',
+    forbiddenRes.status === 403
+  );
+
+  // 23. provider response reuses existing proposal flow
+  const respondRes = await api('POST', `/api/capacity-recovery/${oppToTest._id}/respond`, {
+    token: crProviderToken,
+    body: {
+      quotedPrice: 48000,
+      notes: 'Special recovery window rate for immediate confirmation',
+    },
+  });
+  const oppAfterRespond = await CapacityRecoveryOpportunity.findById(oppToTest._id);
+  check(
+    '23. provider response reuses existing proposal flow',
+    respondRes.status === 201 &&
+      respondRes.body.proposal &&
+      respondRes.body.proposal.quotedPrice === 48000 &&
+      oppAfterRespond.status === 'claimed' &&
+      String(oppAfterRespond.resultingProposal) === String(respondRes.body.proposal._id)
+  );
+  const createdProposalId = respondRes.body.proposal._id;
+
+  // 24. accepted proposal converts opportunity
+  const acceptProposalRes = await api(
+    'POST',
+    `/api/requirements/${oppToTest.requirement}/proposals/${createdProposalId}/accept`,
+    {
+      token: crSeekerToken,
+    }
+  );
+  const oppAfterAccept = await CapacityRecoveryOpportunity.findById(oppToTest._id);
+  check(
+    '24. accepted proposal converts opportunity',
+    acceptProposalRes.status === 201 &&
+      acceptProposalRes.body.booking &&
+      oppAfterAccept.status === 'converted' &&
+      String(oppAfterAccept.resultingBooking) === String(acceptProposalRes.body.booking._id)
+  );
+
+  // 25. analytics recovered-capacity metrics correct
+  const crOverview = await getProviderRecoveryOverview(crProviderUser._id);
+  check(
+    '25. analytics recovered-capacity metrics correct',
+    crOverview.analytics.opportunitiesConverted >= 1 &&
+      crOverview.analytics.recoveredQuantity > 0 &&
+      crOverview.analytics.estimatedRecoveredRevenue > 0
+  );
+
+  // 26. existing procurement solver unchanged
+  const solverTestRes = await Resource.create({
+    owner: crProviderUser._id,
+    title: 'Benchmark Solver Chairs',
+    category: 'furniture',
+    totalQuantity: 200,
+    pricing: { basePrice: 100 },
+    location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
+    status: 'active',
+  });
+  const solverPlans = await generateProcurementPlans({
+    requestedQuantity: 50,
+    requestedDates: { start: new Date(at(5, 10)), end: new Date(at(5, 20)) },
+    candidates: [solverTestRes],
+  });
+  check(
+    '26. existing procurement solver unchanged',
+    Array.isArray(solverPlans) && solverPlans.length >= 1 && solverPlans[0].id.startsWith('plan-')
+  );
+
+  // 27. existing normal matching unchanged
+  const crRanked = await rankResources([solverTestRes], {
+    category: 'furniture',
+    start: new Date(at(5, 10)),
+    end: new Date(at(5, 20)),
+    quantity: 50,
+  });
+  check(
+    '27. existing normal matching unchanged',
+    Array.isArray(crRanked) && crRanked.length === 1 && typeof crRanked[0].matchScore === 'number'
+  );
+
+  // 28. identical input produces deterministic results
+  const syncRun1 = await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const syncRun2 = await scanAndSyncCapacityRecovery({ horizonHours: 72 });
+  const ids1 = syncRun1.map((o) => `${o._id}-${o.recoveryPriorityScore}`).join('|');
+  const ids2 = syncRun2.map((o) => `${o._id}-${o.recoveryPriorityScore}`).join('|');
+  check(
+    '28. identical input produces deterministic results',
+    syncRun1.length === syncRun2.length && ids1 === ids2
   );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);
