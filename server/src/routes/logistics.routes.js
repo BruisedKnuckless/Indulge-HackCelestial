@@ -235,6 +235,206 @@ router.patch(
 );
 
 /**
+ * PATCH /api/logistics/jobs/:id/claim
+ * Active logistics partner self-assigns an unassigned or declined job.
+ */
+router.patch(
+  '/jobs/:id/claim',
+  requireAuth,
+  requireLogisticsPartner,
+  asyncHandler(async (req, res) => {
+    const job = await LogisticsJob.findById(req.params.id);
+    if (!job) throw new HttpError(404, 'Logistics job not found.');
+
+    if (job.status !== 'unassigned' && job.status !== 'declined') {
+      throw new HttpError(400, `This job is not open for dispatch claiming (currently ${job.status}).`);
+    }
+
+    job.logisticsPartner = req.user._id;
+    job.status = 'assigned';
+    job.timeline.push({
+      status: 'assigned',
+      timestamp: new Date(),
+      updatedBy: req.user._id,
+      notes: `Claimed by ${req.user.businessName}`,
+    });
+    await job.save();
+
+    await notify({
+      user: req.user._id,
+      type: 'logistics_assignment',
+      title: 'Dispatch Job Claimed',
+      message: `You have successfully claimed transport for booking #${String(job.booking).slice(-6)}.`,
+      relatedBooking: job.booking,
+      relatedLogisticsJob: job._id,
+    });
+
+    res.json({ job: await job.populate(JOB_POPULATE) });
+  })
+);
+
+/**
+ * POST /api/logistics/sample-jobs
+ * Seeds interactive sample dispatch jobs for the active partner to explore the full lifecycle.
+ */
+router.post(
+  '/sample-jobs',
+  requireAuth,
+  requireLogisticsPartner,
+  asyncHandler(async (req, res) => {
+    let resource = await Resource.findOne({ category: { $in: ['furniture', 'av_equipment', 'decor'] } });
+    if (!resource) resource = await Resource.findOne();
+    if (!resource) throw new HttpError(400, 'No resources available to create logistics jobs.');
+
+    let seeker = await User.findOne({ _id: { $ne: req.user._id }, userType: 'business' });
+    let provider = (await User.findOne({ _id: { $nin: [req.user._id, seeker?._id] }, userType: 'business' })) || seeker;
+    if (!seeker || !provider) {
+      throw new HttpError(400, 'Insufficient business users in system.');
+    }
+
+    const createdJobs = [];
+    const now = Date.now();
+
+    // 1. Pending Assignment Job
+    const b1 = await Booking.create({
+      resource: resource._id,
+      provider: provider._id,
+      seeker: seeker._id,
+      quantity: 50,
+      startDateTime: new Date(now + 24 * 3600000),
+      endDateTime: new Date(now + 48 * 3600000),
+      status: 'confirmed',
+      agreedPrice: 7500,
+      paymentStatus: 'paid',
+    });
+    const job1 = await LogisticsJob.create({
+      booking: b1._id,
+      seeker: seeker._id,
+      provider: provider._id,
+      logisticsPartner: req.user._id,
+      resource: resource._id,
+      quantity: 50,
+      pickupLocation: provider.location || { address: 'Grand Orchid Loading Bay, Powai', city: 'Mumbai' },
+      deliveryLocation: seeker.location || { address: 'Seasons Terrace, Thane West', city: 'Thane' },
+      scheduledPickupTime: new Date(now + 22 * 3600000),
+      requiredDeliveryTime: new Date(now + 24 * 3600000),
+      returnRequired: true,
+      operationalNotes: 'Fragile banquet setup gear. Handle with care.',
+      status: 'assigned',
+      timeline: [
+        { status: 'unassigned', timestamp: new Date(now - 3600000), notes: 'Job initialized' },
+        { status: 'assigned', timestamp: new Date(), notes: `Assigned to ${req.user.businessName}` },
+      ],
+    });
+    createdJobs.push(job1);
+
+    // 2. Active Delivery Job (In Transit)
+    const b2 = await Booking.create({
+      resource: resource._id,
+      provider: provider._id,
+      seeker: seeker._id,
+      quantity: 20,
+      startDateTime: new Date(now + 4 * 3600000),
+      endDateTime: new Date(now + 20 * 3600000),
+      status: 'confirmed',
+      agreedPrice: 3200,
+      paymentStatus: 'paid',
+      fulfillment: { status: 'out_for_delivery', outForDeliveryAt: new Date() },
+    });
+    const job2 = await LogisticsJob.create({
+      booking: b2._id,
+      seeker: seeker._id,
+      provider: provider._id,
+      logisticsPartner: req.user._id,
+      resource: resource._id,
+      quantity: 20,
+      pickupLocation: provider.location || { address: 'Warehouse Hub 3, Mulund', city: 'Mumbai' },
+      deliveryLocation: seeker.location || { address: 'Kalpataru Banquet, Vashi', city: 'Navi Mumbai' },
+      scheduledPickupTime: new Date(now - 2 * 3600000),
+      requiredDeliveryTime: new Date(now + 2 * 3600000),
+      returnRequired: true,
+      operationalNotes: 'Express delivery. Destination contact ready at gate.',
+      status: 'in_transit',
+      timeline: [
+        { status: 'assigned', timestamp: new Date(now - 4 * 3600000), notes: 'Assigned' },
+        { status: 'accepted', timestamp: new Date(now - 3 * 3600000), notes: 'Accepted' },
+        { status: 'picked_up', timestamp: new Date(now - 2 * 3600000), notes: 'Picked up' },
+        { status: 'in_transit', timestamp: new Date(now - 3600000), notes: 'In transit to seeker' },
+      ],
+    });
+    createdJobs.push(job2);
+
+    // 3. Return in progress job
+    const b3 = await Booking.create({
+      resource: resource._id,
+      provider: provider._id,
+      seeker: seeker._id,
+      quantity: 35,
+      startDateTime: new Date(now - 24 * 3600000),
+      endDateTime: new Date(now - 2 * 3600000),
+      status: 'confirmed',
+      agreedPrice: 5000,
+      paymentStatus: 'paid',
+      fulfillment: { status: 'delivered', deliveredAt: new Date(now - 24 * 3600000) },
+      return: { status: 'return_requested', returnRequestedAt: new Date(now - 2 * 3600000) },
+    });
+    const job3 = await LogisticsJob.create({
+      booking: b3._id,
+      seeker: seeker._id,
+      provider: provider._id,
+      logisticsPartner: req.user._id,
+      resource: resource._id,
+      quantity: 35,
+      pickupLocation: seeker.location || { address: 'Kalpataru Banquet, Vashi', city: 'Navi Mumbai' },
+      deliveryLocation: provider.location || { address: 'Grand Orchid Loading Bay, Powai', city: 'Mumbai' },
+      scheduledPickupTime: new Date(now + 2 * 3600000),
+      requiredDeliveryTime: new Date(now + 6 * 3600000),
+      returnRequired: true,
+      operationalNotes: 'Event concluded. Return inspection and inventory check required.',
+      status: 'return_requested',
+      timeline: [
+        { status: 'delivered', timestamp: new Date(now - 24 * 3600000), notes: 'Forward delivery completed' },
+        { status: 'return_requested', timestamp: new Date(now - 2 * 3600000), notes: 'Return transport requested' },
+      ],
+    });
+    createdJobs.push(job3);
+
+    // 4. Open Unassigned Job (to test Claiming)
+    const b4 = await Booking.create({
+      resource: resource._id,
+      provider: provider._id,
+      seeker: seeker._id,
+      quantity: 10,
+      startDateTime: new Date(now + 36 * 3600000),
+      endDateTime: new Date(now + 72 * 3600000),
+      status: 'confirmed',
+      agreedPrice: 2000,
+      paymentStatus: 'paid',
+    });
+    const job4 = await LogisticsJob.create({
+      booking: b4._id,
+      seeker: seeker._id,
+      provider: provider._id,
+      resource: resource._id,
+      quantity: 10,
+      pickupLocation: provider.location || { address: 'Silverline Caterers Depot, Thane', city: 'Thane' },
+      deliveryLocation: seeker.location || { address: 'Coastal Kitchens, Powai', city: 'Mumbai' },
+      scheduledPickupTime: new Date(now + 30 * 3600000),
+      requiredDeliveryTime: new Date(now + 36 * 3600000),
+      returnRequired: false,
+      operationalNotes: 'Catering warmer boxes. Direct one-way transfer.',
+      status: 'unassigned',
+      timeline: [
+        { status: 'unassigned', timestamp: new Date(), notes: 'Broadcasted to logistics network' },
+      ],
+    });
+    createdJobs.push(job4);
+
+    res.status(201).json({ count: createdJobs.length, message: 'Sample jobs created' });
+  })
+);
+
+/**
  * PATCH /api/logistics/jobs/:id/accept
  * Assigned partner accepts the job assignment.
  */

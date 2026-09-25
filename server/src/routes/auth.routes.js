@@ -88,9 +88,26 @@ router.patch(
   '/me',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const allowed = ['businessName', 'phone', 'businessType', 'location', 'gstNumber', 'preferences'];
+    const allowed = [
+      'businessName',
+      'phone',
+      'businessType',
+      'location',
+      'gstNumber',
+      'preferences',
+      'logisticsProfile',
+    ];
     for (const key of allowed) {
-      if (req.body[key] !== undefined) req.user[key] = req.body[key];
+      if (req.body[key] !== undefined) {
+        if (key === 'logisticsProfile' && typeof req.body[key] === 'object' && req.body[key] !== null) {
+          req.user.logisticsProfile = {
+            ...(req.user.logisticsProfile?.toObject?.() || req.user.logisticsProfile || {}),
+            ...req.body.logisticsProfile,
+          };
+        } else {
+          req.user[key] = req.body[key];
+        }
+      }
     }
     await req.user.save();
     res.json({ user: sessionUser(req.user) });
