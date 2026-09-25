@@ -273,6 +273,7 @@ export default function LogisticsDashboard({ view: viewProp }) {
     onSuccess: (data, variables) => {
       toast.success(`Job advanced to ${variables.status.replace(/_/g, ' ')}`);
       qc.invalidateQueries({ queryKey: ['logistics-my-jobs'] });
+      qc.invalidateQueries({ queryKey: ['me'] });
       if (data?.job) {
         setSelectedJob(data.job);
       } else if (selectedJob && String(selectedJob._id) === String(variables.jobId)) {
@@ -288,9 +289,10 @@ export default function LogisticsDashboard({ view: viewProp }) {
       return res.data;
     },
     onSuccess: (data) => {
-      toast.success(`${data.count || 4} sample dispatch jobs loaded!`);
+      toast.success(`${data.count || 5} sample dispatch jobs loaded!`);
       qc.invalidateQueries({ queryKey: ['logistics-my-jobs'] });
       qc.invalidateQueries({ queryKey: ['logistics-available-jobs'] });
+      qc.invalidateQueries({ queryKey: ['me'] });
     },
     onError: (err) => toast.error(errorMessage(err)),
   });
@@ -717,7 +719,7 @@ export default function LogisticsDashboard({ view: viewProp }) {
               </div>
               <div>
                 <p className="text-2xl font-bold text-ink leading-tight">
-                  {user?.logisticsProfile?.completedJobs || countMap.completed}
+                  {countMap.completed}
                 </p>
                 <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider mt-0.5">
                   Completed Jobs
@@ -766,7 +768,7 @@ export default function LogisticsDashboard({ view: viewProp }) {
               <div className="p-3.5 rounded-xl border border-line bg-surface-alt/40">
                 <p className="text-xs text-ink-mute uppercase tracking-wide font-medium">Completed Deliveries</p>
                 <p className="text-sm font-semibold text-green-accent mt-1">
-                  {user.logisticsProfile.completedJobs || 0} successfully delivered
+                  {countMap.completed} successfully delivered
                 </p>
               </div>
             </div>

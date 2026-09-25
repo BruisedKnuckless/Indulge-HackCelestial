@@ -2289,6 +2289,18 @@ async function main() {
       lpRoute === '/logistics'
   );
 
+  // 12. completed jobs synchronize accurately with partner completedJobs metric and completed filter
+  const swiftFleetUser = await User.findOne({ email: 'dispatch@swiftfleet.in' });
+  const swiftCompletedJobs = await LogisticsJob.countDocuments({
+    logisticsPartner: swiftFleetUser._id,
+    status: 'completed',
+  });
+  check(
+    '12. completed jobs synchronize accurately with partner completedJobs metric and completed filter',
+    swiftFleetUser?.logisticsProfile?.completedJobs === swiftCompletedJobs &&
+      swiftCompletedJobs >= 2
+  );
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
 
   server.close();

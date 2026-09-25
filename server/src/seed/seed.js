@@ -285,6 +285,72 @@ export async function runSeed({ quiet = false } = {}) {
       rating: p.rating,
       comment: p.comment,
     });
+
+    if (users.swiftFleet && p.r._id.equals(chairs._id) && p.seeker._id.equals(users.grandOrchid._id)) {
+      await LogisticsJob.create({
+        booking: booking._id,
+        seeker: p.seeker._id,
+        provider: p.r.owner,
+        logisticsPartner: users.swiftFleet._id,
+        resource: p.r._id,
+        quantity: p.quantity ?? 150,
+        pickupLocation: p.r.location,
+        deliveryLocation: p.seeker.location,
+        scheduledPickupTime: at(p.d, 7),
+        requiredDeliveryTime: at(p.d, 9),
+        returnRequired: true,
+        operationalNotes: 'Handled with white glove service for banquet setup.',
+        status: 'completed',
+        timeline: [
+          { status: 'unassigned', timestamp: at(p.d - 1, 9), notes: 'Job created' },
+          { status: 'assigned', timestamp: at(p.d - 1, 10), notes: 'Assigned to SwiftFleet Logistics' },
+          { status: 'accepted', timestamp: at(p.d - 1, 11), notes: 'SwiftFleet accepted assignment' },
+          { status: 'picked_up', timestamp: at(p.d, 7), notes: 'Picked up from Silverline depot' },
+          { status: 'delivered', timestamp: at(p.d, 9), notes: 'Delivered to Grand Orchid' },
+          { status: 'return_picked_up', timestamp: at(p.d + 1, 8), notes: 'Return pickup from venue' },
+          { status: 'returned_to_provider', timestamp: at(p.d + 1, 11), notes: 'Returned to Silverline depot' },
+          { status: 'completed', timestamp: at(p.d + 1, 12), notes: 'Inventory inspected and cleared. Zero damage reported.' },
+        ],
+      });
+    }
+
+    if (users.swiftFleet && p.r._id.equals(pa._id) && p.seeker._id.equals(users.blueBay._id)) {
+      await LogisticsJob.create({
+        booking: booking._id,
+        seeker: p.seeker._id,
+        provider: p.r.owner,
+        logisticsPartner: users.swiftFleet._id,
+        resource: p.r._id,
+        quantity: p.quantity ?? 1,
+        pickupLocation: p.r.location,
+        deliveryLocation: p.seeker.location,
+        scheduledPickupTime: at(p.d, 7),
+        requiredDeliveryTime: at(p.d, 9),
+        returnRequired: true,
+        operationalNotes: 'Outdoor audio system transit and soundcheck dispatch.',
+        status: 'completed',
+        timeline: [
+          { status: 'unassigned', timestamp: at(p.d - 1, 9), notes: 'Job created' },
+          { status: 'assigned', timestamp: at(p.d - 1, 10), notes: 'Assigned to SwiftFleet Logistics' },
+          { status: 'accepted', timestamp: at(p.d - 1, 11), notes: 'SwiftFleet accepted assignment' },
+          { status: 'picked_up', timestamp: at(p.d, 7), notes: 'Picked up from Grand Orchid' },
+          { status: 'delivered', timestamp: at(p.d, 9), notes: 'Delivered to Blue Bay lawn' },
+          { status: 'return_picked_up', timestamp: at(p.d + 1, 8), notes: 'De-rigged and loaded' },
+          { status: 'returned_to_provider', timestamp: at(p.d + 1, 11), notes: 'Returned to Grand Orchid store' },
+          { status: 'completed', timestamp: at(p.d + 1, 12), notes: 'Audio gear check completed, zero faults.' },
+        ],
+      });
+    }
+  }
+
+  if (users.swiftFleet) {
+    const completedCount = await LogisticsJob.countDocuments({
+      logisticsPartner: users.swiftFleet._id,
+      status: 'completed',
+    });
+    await User.findByIdAndUpdate(users.swiftFleet._id, {
+      'logisticsProfile.completedJobs': completedCount,
+    });
   }
 
   // Roll the seeded reviews up into the denormalized rating fields.

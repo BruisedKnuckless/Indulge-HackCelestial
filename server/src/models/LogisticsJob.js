@@ -28,7 +28,7 @@ export const LOGISTICS_STATUS_TRANSITIONS = {
   arrived_at_provider: ['picked_up', 'cancelled'],
   picked_up: ['in_transit', 'delivered', 'cancelled'],
   in_transit: ['delivered', 'cancelled'],
-  delivered: ['return_requested', 'completed'],
+  delivered: ['return_requested', 'return_pickup_scheduled', 'completed'],
   return_requested: ['return_pickup_scheduled', 'return_picked_up', 'completed'],
   return_pickup_scheduled: ['return_picked_up', 'cancelled'],
   return_picked_up: ['return_in_transit', 'returned_to_provider', 'cancelled'],

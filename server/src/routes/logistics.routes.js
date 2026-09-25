@@ -430,6 +430,50 @@ router.post(
     });
     createdJobs.push(job4);
 
+    // 5. Completed Job (to test Completed History tab)
+    const b5 = await Booking.create({
+      resource: resource._id,
+      provider: provider._id,
+      seeker: seeker._id,
+      quantity: 40,
+      startDateTime: new Date(now - 72 * 3600000),
+      endDateTime: new Date(now - 48 * 3600000),
+      status: 'completed',
+      agreedPrice: 6000,
+      paymentStatus: 'paid',
+      fulfillment: { status: 'delivered', deliveredAt: new Date(now - 70 * 3600000) },
+      return: { status: 'return_completed', returnCompletedAt: new Date(now - 48 * 3600000) },
+    });
+    const job5 = await LogisticsJob.create({
+      booking: b5._id,
+      seeker: seeker._id,
+      provider: provider._id,
+      logisticsPartner: req.user._id,
+      resource: resource._id,
+      quantity: 40,
+      pickupLocation: provider.location || { address: 'Grand Orchid Loading Bay, Powai', city: 'Mumbai' },
+      deliveryLocation: seeker.location || { address: 'Seasons Terrace, Thane West', city: 'Thane' },
+      scheduledPickupTime: new Date(now - 72 * 3600000),
+      requiredDeliveryTime: new Date(now - 70 * 3600000),
+      returnRequired: true,
+      operationalNotes: 'Completed banquet furniture dispatch and return inspection.',
+      status: 'completed',
+      timeline: [
+        { status: 'assigned', timestamp: new Date(now - 73 * 3600000), notes: `Assigned to ${req.user.businessName}` },
+        { status: 'accepted', timestamp: new Date(now - 72.5 * 3600000), notes: 'Partner accepted assignment' },
+        { status: 'picked_up', timestamp: new Date(now - 72 * 3600000), notes: 'Loaded at origin' },
+        { status: 'delivered', timestamp: new Date(now - 70 * 3600000), notes: 'Delivered to venue' },
+        { status: 'return_picked_up', timestamp: new Date(now - 49 * 3600000), notes: 'Return pickup completed' },
+        { status: 'returned_to_provider', timestamp: new Date(now - 48.5 * 3600000), notes: 'Returned to provider dock' },
+        { status: 'completed', timestamp: new Date(now - 48 * 3600000), notes: 'Return inspection passed, job closed' },
+      ],
+    });
+    createdJobs.push(job5);
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $inc: { 'logisticsProfile.completedJobs': 1 },
+    });
+
     res.status(201).json({ count: createdJobs.length, message: 'Sample jobs created' });
   })
 );

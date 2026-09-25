@@ -85,7 +85,7 @@ export const BUSINESSES = [
       operatingStatus: 'active',
       vehicleInfo: '3x Tata 407 (2.5T), 2x Mahindra Bolero Maxi Truck',
       capacityDescription: 'Dry & refrigerated transport for catering, furniture and AV gear',
-      completedJobs: 42,
+      completedJobs: 2,
       rating: 4.9,
     },
   },
