@@ -253,7 +253,23 @@ export default function App() {
                   path="/logistics"
                   element={
                     <RequireLogisticsPartner>
-                      <LogisticsDashboard />
+                      <LogisticsDashboard view="dashboard" />
+                    </RequireLogisticsPartner>
+                  }
+                />
+                <Route
+                  path="/logistics/jobs"
+                  element={
+                    <RequireLogisticsPartner>
+                      <LogisticsDashboard view="jobs" />
+                    </RequireLogisticsPartner>
+                  }
+                />
+                <Route
+                  path="/logistics/schedule"
+                  element={
+                    <RequireLogisticsPartner>
+                      <LogisticsDashboard view="schedule" />
                     </RequireLogisticsPartner>
                   }
                 />

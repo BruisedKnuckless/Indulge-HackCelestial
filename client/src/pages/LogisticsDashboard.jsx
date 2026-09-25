@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useLocation, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
@@ -20,6 +20,8 @@ import {
   Edit3,
   X,
   Eye,
+  Search,
+  Filter,
 } from 'lucide-react';
 import api, { errorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -57,17 +59,38 @@ function formatVehicleInfo(info) {
   return String(info);
 }
 
-export default function LogisticsDashboard() {
+export default function LogisticsDashboard({ view: viewProp }) {
   const { user, updateUser } = useAuth();
   const qc = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTabParam = searchParams.get('tab') || 'assigned';
 
-  const [tab, setTab] = useState(activeTabParam); // 'assigned', 'available', 'active', 'returns', 'completed'
+  // Determine active view from prop, pathname, or searchParam
+  const activeView = useMemo(() => {
+    if (viewProp) return viewProp;
+    if (location.pathname.endsWith('/jobs')) return 'jobs';
+    if (location.pathname.endsWith('/schedule')) return 'schedule';
+    const viewParam = searchParams.get('view');
+    if (viewParam) return viewParam;
+    return 'dashboard';
+  }, [viewProp, location.pathname, searchParams]);
+
+  // Tab for Jobs view: 'assigned', 'available', 'active', 'returns', 'completed'
+  const tabParam = searchParams.get('tab') || 'assigned';
+  const [tab, setTab] = useState(tabParam);
+  const [jobSearchQuery, setJobSearchQuery] = useState('');
   const [editFleetOpen, setEditFleetOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
 
-  // Sync tab with URL if URL changes
+  // Sync tab with URL search parameter whenever it changes
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab && currentTab !== tab) {
+      setTab(currentTab);
+    }
+  }, [searchParams]);
+
   const handleTabChange = (newTab) => {
     setTab(newTab);
     setSearchParams({ tab: newTab });
@@ -138,8 +161,8 @@ export default function LogisticsDashboard() {
     [myJobs]
   );
 
-  // Today's Operations: all active, assigned, and return jobs chronologically
-  const todaysOperationsJobs = useMemo(() => {
+  // Today's & Upcoming scheduled jobs chronologically
+  const scheduledOperationsJobs = useMemo(() => {
     return myJobs
       .filter((j) => !['completed', 'declined', 'cancelled'].includes(j.status))
       .sort((a, b) => {
@@ -157,20 +180,36 @@ export default function LogisticsDashboard() {
     completed: completedJobs.length,
   };
 
-  const currentJobs =
-    tab === 'available'
-      ? availableJobs
-      : tab === 'active'
-      ? activeJobs
-      : tab === 'returns'
-      ? returnsJobs
-      : tab === 'completed'
-      ? completedJobs
-      : assignedJobs;
+  // Jobs under the currently selected tab in Jobs view
+  const currentTabJobs = useMemo(() => {
+    const list =
+      tab === 'available'
+        ? availableJobs
+        : tab === 'active'
+        ? activeJobs
+        : tab === 'returns'
+        ? returnsJobs
+        : tab === 'completed'
+        ? completedJobs
+        : assignedJobs;
+
+    if (!jobSearchQuery.trim()) return list;
+
+    const query = jobSearchQuery.toLowerCase();
+    return list.filter((j) => {
+      const matchId = String(j._id).toLowerCase().includes(query);
+      const matchResource = j.resource?.title?.toLowerCase().includes(query);
+      const matchProvider = j.provider?.businessName?.toLowerCase().includes(query);
+      const matchSeeker = j.seeker?.businessName?.toLowerCase().includes(query);
+      const matchCity =
+        j.pickupLocation?.city?.toLowerCase().includes(query) ||
+        j.deliveryLocation?.city?.toLowerCase().includes(query);
+      return matchId || matchResource || matchProvider || matchSeeker || matchCity;
+    });
+  }, [tab, availableJobs, activeJobs, returnsJobs, completedJobs, assignedJobs, jobSearchQuery]);
 
   // ── Mutations ───────────────────────────────────────────────────────────
 
-  // Operating status toggle mutation
   const statusMutation = useMutation({
     mutationFn: async (operatingStatus) => {
       const res = await api.patch('/logistics/partner-profile', { operatingStatus });
@@ -184,7 +223,6 @@ export default function LogisticsDashboard() {
     onError: (err) => toast.error(errorMessage(err)),
   });
 
-  // Claim unassigned job mutation
   const claimMutation = useMutation({
     mutationFn: async (jobId) => {
       const res = await api.patch(`/logistics/jobs/${jobId}/claim`);
@@ -200,7 +238,6 @@ export default function LogisticsDashboard() {
     onError: (err) => toast.error(errorMessage(err)),
   });
 
-  // Accept mutation
   const acceptMutation = useMutation({
     mutationFn: async (jobId) => {
       const res = await api.patch(`/logistics/jobs/${jobId}/accept`);
@@ -214,7 +251,6 @@ export default function LogisticsDashboard() {
     onError: (err) => toast.error(errorMessage(err)),
   });
 
-  // Decline mutation
   const declineMutation = useMutation({
     mutationFn: async ({ jobId, reason }) => {
       const res = await api.patch(`/logistics/jobs/${jobId}/decline`, { reason });
@@ -229,7 +265,6 @@ export default function LogisticsDashboard() {
     onError: (err) => toast.error(errorMessage(err)),
   });
 
-  // Advance status mutation
   const advanceMutation = useMutation({
     mutationFn: async ({ jobId, status, notes }) => {
       const res = await api.patch(`/logistics/jobs/${jobId}/status`, { status, notes });
@@ -247,7 +282,6 @@ export default function LogisticsDashboard() {
     onError: (err) => toast.error(errorMessage(err)),
   });
 
-  // Generate sample jobs mutation
   const generateSamplesMutation = useMutation({
     mutationFn: async () => {
       const res = await api.post('/logistics/sample-jobs');
@@ -261,7 +295,6 @@ export default function LogisticsDashboard() {
     onError: (err) => toast.error(errorMessage(err)),
   });
 
-  // Edit fleet mutation
   const editFleetMutation = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -565,270 +598,545 @@ export default function LogisticsDashboard() {
   };
 
   return (
-    <div className="shell pt-10 pb-20">
-      {/* ── Top Section ────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div className="shell pt-8 pb-20">
+      {/* ═══════════════════════════════════════════════════════════════════
+          VIEW 1: DASHBOARD (Operational Overview & Today's Actions)
+      ═══════════════════════════════════════════════════════════════════ */}
+      {activeView === 'dashboard' && (
         <div>
-          <h1 className="h-page text-2xl sm:text-3xl font-bold text-ink">
-            {getGreeting()}, {user?.businessName || 'Logistics Partner'}
-          </h1>
-          <p className="text-sm text-ink-soft mt-1">
-            Manage today's pickups, deliveries and returns.
-          </p>
-        </div>
+          {/* Top Section */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 className="h-page text-2xl sm:text-3xl font-bold text-ink">
+                {getGreeting()}, {user?.businessName || 'Logistics Partner'}
+              </h1>
+              <p className="text-sm text-ink-soft mt-1">
+                Manage today's pickups, deliveries and returns.
+              </p>
+            </div>
 
-        {/* Operating Status & Quick Sample Button */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <button
-            type="button"
-            onClick={() => generateSamplesMutation.mutate()}
-            disabled={generateSamplesMutation.isPending}
-            className="btn-secondary btn-sm gap-1.5 text-xs"
-            title="Populate test jobs across forward and return workflows"
-          >
-            <Zap size={13} className="text-amber-accent" />
-            {generateSamplesMutation.isPending ? 'Generating…' : 'Load Sample Jobs'}
-          </button>
-
-          {/* Operating Status Toggle: Available / Busy / Offline */}
-          <div className="flex items-center gap-1.5 p-1.5 rounded-xl border border-line bg-surface-alt/70">
-            <span className="text-xs font-semibold text-ink-soft pl-1.5 pr-1">Operating Status:</span>
-            {[
-              { key: 'active', label: 'Available' },
-              { key: 'busy', label: 'Busy' },
-              { key: 'offline', label: 'Offline' },
-            ].map((st) => {
-              const currentStatus = user?.logisticsProfile?.operatingStatus || 'active';
-              const isSelected =
-                currentStatus === st.key || (st.key === 'active' && currentStatus === 'available');
-              return (
-                <button
-                  key={st.key}
-                  type="button"
-                  onClick={() => statusMutation.mutate(st.key)}
-                  className={`text-xs px-2.5 py-1 rounded-lg capitalize font-semibold transition-all ${
-                    isSelected
-                      ? st.key === 'active'
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : st.key === 'busy'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'bg-zinc-600 text-white shadow-sm'
-                      : 'text-ink-soft hover:bg-surface-sunk'
-                  }`}
-                >
-                  {st.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Operational KPIs (4 Cards) ─────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="card p-4 rounded-xl border border-line bg-surface-alt/40 flex items-center gap-3.5 shadow-xs">
-          <div className="w-11 h-11 rounded-xl bg-indigo/10 flex items-center justify-center text-indigo shrink-0">
-            <Clock size={22} />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-ink leading-tight">{countMap.assigned}</p>
-            <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider mt-0.5">
-              Assigned Jobs
-            </p>
-          </div>
-        </div>
-
-        <div className="card p-4 rounded-xl border border-line bg-surface-alt/40 flex items-center gap-3.5 shadow-xs">
-          <div className="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
-            <Truck size={22} />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-ink leading-tight">{countMap.active}</p>
-            <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider mt-0.5">
-              Active Transit
-            </p>
-          </div>
-        </div>
-
-        <div className="card p-4 rounded-xl border border-line bg-surface-alt/40 flex items-center gap-3.5 shadow-xs">
-          <div className="w-11 h-11 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 shrink-0">
-            <RotateCcw size={22} />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-ink leading-tight">{countMap.returns}</p>
-            <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider mt-0.5">
-              Return Pickups
-            </p>
-          </div>
-        </div>
-
-        <div className="card p-4 rounded-xl border border-line bg-surface-alt/40 flex items-center gap-3.5 shadow-xs">
-          <div className="w-11 h-11 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
-            <CheckCircle size={22} />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-ink leading-tight">
-              {user?.logisticsProfile?.completedJobs || countMap.completed}
-            </p>
-            <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider mt-0.5">
-              Completed Jobs
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Fleet Profile Summary ─────────────────────────────────── */}
-      {user?.logisticsProfile && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
-          <div className="p-3.5 rounded-xl border border-line bg-surface-alt/40 relative">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-ink-mute uppercase tracking-wide font-medium">Fleet Vehicles</p>
+            {/* Operating Status & Sample Job Button */}
+            <div className="flex items-center gap-3 flex-wrap">
               <button
                 type="button"
-                onClick={() => setEditFleetOpen(true)}
-                className="text-[11px] text-indigo hover:underline font-semibold flex items-center gap-1"
+                onClick={() => generateSamplesMutation.mutate()}
+                disabled={generateSamplesMutation.isPending}
+                className="btn-secondary btn-sm gap-1.5 text-xs"
+                title="Populate test jobs across forward and return workflows"
               >
-                <Edit3 size={11} /> Edit Fleet
+                <Zap size={13} className="text-amber-accent" />
+                {generateSamplesMutation.isPending ? 'Generating…' : 'Load Sample Jobs'}
               </button>
+
+              <div className="flex items-center gap-1.5 p-1.5 rounded-xl border border-line bg-surface-alt/70">
+                <span className="text-xs font-semibold text-ink-soft pl-1.5 pr-1">Operating Status:</span>
+                {[
+                  { key: 'active', label: 'Available' },
+                  { key: 'busy', label: 'Busy' },
+                  { key: 'offline', label: 'Offline' },
+                ].map((st) => {
+                  const currentStatus = user?.logisticsProfile?.operatingStatus || 'active';
+                  const isSelected =
+                    currentStatus === st.key || (st.key === 'active' && currentStatus === 'available');
+                  return (
+                    <button
+                      key={st.key}
+                      type="button"
+                      onClick={() => statusMutation.mutate(st.key)}
+                      className={`text-xs px-2.5 py-1 rounded-lg capitalize font-semibold transition-all ${
+                        isSelected
+                          ? st.key === 'active'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : st.key === 'busy'
+                            ? 'bg-amber-600 text-white shadow-sm'
+                            : 'bg-zinc-600 text-white shadow-sm'
+                          : 'text-ink-soft hover:bg-surface-sunk'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <p className="text-sm font-semibold text-ink mt-1">
-              {formatVehicleInfo(user.logisticsProfile.vehicleInfo)}
-            </p>
           </div>
 
-          <div className="p-3.5 rounded-xl border border-line bg-surface-alt/40">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-ink-mute uppercase tracking-wide font-medium">Service Coverage</p>
-              <button
-                type="button"
-                onClick={() => setEditFleetOpen(true)}
-                className="text-[11px] text-indigo hover:underline font-semibold"
-              >
-                Configure
-              </button>
-            </div>
-            <p className="text-sm font-semibold text-ink mt-1">
-              {user.logisticsProfile.serviceArea?.length
-                ? user.logisticsProfile.serviceArea.join(', ')
-                : 'Mumbai Metropolitan Region'}
-            </p>
+          {/* Operational KPIs (4 Cards) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <Link
+              to="/logistics/jobs?tab=assigned"
+              className="card p-4 rounded-xl border border-line bg-surface-alt/40 flex items-center gap-3.5 shadow-xs hover:border-indigo/50 transition-colors"
+            >
+              <div className="w-11 h-11 rounded-xl bg-indigo/10 flex items-center justify-center text-indigo shrink-0">
+                <Clock size={22} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-ink leading-tight">{countMap.assigned}</p>
+                <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider mt-0.5">
+                  Assigned Jobs
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              to="/logistics/schedule"
+              className="card p-4 rounded-xl border border-line bg-surface-alt/40 flex items-center gap-3.5 shadow-xs hover:border-amber-500/50 transition-colors"
+            >
+              <div className="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                <Truck size={22} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-ink leading-tight">{countMap.active}</p>
+                <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider mt-0.5">
+                  Active Transit
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              to="/logistics/jobs?tab=returns"
+              className="card p-4 rounded-xl border border-line bg-surface-alt/40 flex items-center gap-3.5 shadow-xs hover:border-purple-500/50 transition-colors"
+            >
+              <div className="w-11 h-11 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 shrink-0">
+                <RotateCcw size={22} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-ink leading-tight">{countMap.returns}</p>
+                <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider mt-0.5">
+                  Return Pickups
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              to="/logistics/jobs?tab=completed"
+              className="card p-4 rounded-xl border border-line bg-surface-alt/40 flex items-center gap-3.5 shadow-xs hover:border-emerald-500/50 transition-colors"
+            >
+              <div className="w-11 h-11 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+                <CheckCircle size={22} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-ink leading-tight">
+                  {user?.logisticsProfile?.completedJobs || countMap.completed}
+                </p>
+                <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider mt-0.5">
+                  Completed Jobs
+                </p>
+              </div>
+            </Link>
           </div>
 
-          <div className="p-3.5 rounded-xl border border-line bg-surface-alt/40">
-            <p className="text-xs text-ink-mute uppercase tracking-wide font-medium">Completed Deliveries</p>
-            <p className="text-sm font-semibold text-green-accent mt-1">
-              {user.logisticsProfile.completedJobs || 0} successfully delivered
-            </p>
+          {/* Fleet Profile Summary */}
+          {user?.logisticsProfile && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+              <div className="p-3.5 rounded-xl border border-line bg-surface-alt/40 relative">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-ink-mute uppercase tracking-wide font-medium">Fleet Vehicles</p>
+                  <button
+                    type="button"
+                    onClick={() => setEditFleetOpen(true)}
+                    className="text-[11px] text-indigo hover:underline font-semibold flex items-center gap-1"
+                  >
+                    <Edit3 size={11} /> Edit Fleet
+                  </button>
+                </div>
+                <p className="text-sm font-semibold text-ink mt-1">
+                  {formatVehicleInfo(user.logisticsProfile.vehicleInfo)}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-line bg-surface-alt/40">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-ink-mute uppercase tracking-wide font-medium">Service Coverage</p>
+                  <button
+                    type="button"
+                    onClick={() => setEditFleetOpen(true)}
+                    className="text-[11px] text-indigo hover:underline font-semibold"
+                  >
+                    Configure
+                  </button>
+                </div>
+                <p className="text-sm font-semibold text-ink mt-1">
+                  {user.logisticsProfile.serviceArea?.length
+                    ? user.logisticsProfile.serviceArea.join(', ')
+                    : 'Mumbai Metropolitan Region'}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-line bg-surface-alt/40">
+                <p className="text-xs text-ink-mute uppercase tracking-wide font-medium">Completed Deliveries</p>
+                <p className="text-sm font-semibold text-green-accent mt-1">
+                  {user.logisticsProfile.completedJobs || 0} successfully delivered
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Today's Operations Section */}
+          <div className="mb-10">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-ink flex items-center gap-2">
+                  <Calendar size={18} className="text-brand-orange" />
+                  Today's Operations
+                </h2>
+                <p className="text-xs text-ink-soft">
+                  Active assignments and scheduled dispatches organized chronologically by pickup time.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {scheduledOperationsJobs.length > 0 && (
+                  <span className="badge badge-indigo text-xs font-semibold">
+                    {scheduledOperationsJobs.length} active
+                  </span>
+                )}
+                <Link to="/logistics/jobs" className="text-xs text-indigo hover:underline font-medium ml-2">
+                  View Full Board →
+                </Link>
+              </div>
+            </div>
+
+            {scheduledOperationsJobs.length === 0 ? (
+              <div className="border border-dashed border-line rounded-xl p-8 text-center bg-surface-alt/20">
+                <Clock size={32} className="mx-auto text-ink-mute mb-2" />
+                <p className="text-sm font-semibold text-ink">No scheduled operations pending right now</p>
+                <p className="text-xs text-ink-soft mt-1 max-w-md mx-auto">
+                  All active deliveries are fulfilled. Check the Open Available Jobs on the board to claim new shipments.
+                </p>
+                <div className="mt-4 flex items-center justify-center gap-3">
+                  <Link to="/logistics/jobs?tab=available" className="btn-secondary btn-sm text-xs">
+                    Browse Available Jobs ({countMap.available})
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {scheduledOperationsJobs.map((job) => (
+                  <div
+                    key={job._id}
+                    className="card p-4 rounded-xl border border-line bg-surface-alt/50 hover:border-line-hard transition-all shadow-xs"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line/60 pb-2.5 mb-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-mono font-bold text-ink-mute">
+                          JOB #{String(job._id).slice(-6).toUpperCase()}
+                        </span>
+                        {getStatusBadge(job.status)}
+                        {job.returnRequired && (
+                          <span className="badge badge-muted text-[11px] flex items-center gap-1">
+                            <RotateCcw size={10} /> Round-trip Return
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-ink-soft flex items-center gap-1">
+                        <Clock size={12} className="text-indigo" />
+                        Pickup Window:{' '}
+                        <strong className="text-ink">
+                          {job.scheduledPickupTime ? dateTime(job.scheduledPickupTime) : 'To be scheduled'}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                      <div className="space-y-1">
+                        <p className="text-ink-mute font-semibold uppercase tracking-wider">Resource / Cargo</p>
+                        <p className="text-sm font-bold text-ink leading-snug">
+                          {job.resource?.title || 'Stock / Equipment'}
+                        </p>
+                        <p className="text-indigo font-semibold">
+                          Qty: {job.quantity} {job.resource?.unit || 'units'}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-ink-mute font-semibold uppercase tracking-wider flex items-center gap-1">
+                          <MapPin size={11} className="text-amber-accent" /> Pickup Point
+                        </p>
+                        <p className="font-bold text-ink">{job.provider?.businessName}</p>
+                        <p className="text-ink-soft truncate">
+                          {job.pickupLocation?.address ? `${job.pickupLocation.address}, ` : ''}
+                          {job.pickupLocation?.city}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-ink-mute font-semibold uppercase tracking-wider flex items-center gap-1">
+                          <MapPin size={11} className="text-green-accent" /> Delivery Destination
+                        </p>
+                        <p className="font-bold text-ink">{job.seeker?.businessName}</p>
+                        <p className="text-ink-soft truncate">
+                          {job.deliveryLocation?.address ? `${job.deliveryLocation.address}, ` : ''}
+                          {job.deliveryLocation?.city}
+                        </p>
+                        <p className="text-green-accent font-medium">
+                          Required By: {job.requiredDeliveryTime ? dateTime(job.requiredDeliveryTime) : 'Standard'}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col justify-between items-start md:items-end gap-2">
+                        <div className="text-left md:text-right">
+                          <p className="text-ink-mute font-semibold uppercase tracking-wider">Assigned Fleet</p>
+                          <p className="font-medium text-ink truncate max-w-[200px]">
+                            {formatVehicleInfo(job.assignedVehicle || user?.logisticsProfile?.vehicleInfo)}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-auto">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedJob(job)}
+                            className="btn-secondary btn-sm gap-1 text-xs"
+                          >
+                            <Eye size={13} />
+                            View Job
+                          </button>
+                          {renderNextAction(job)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* ── SECTION 5: TODAY'S OPERATIONS (Chronological Execution List) ──── */}
-      <div className="mb-10">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-lg font-bold text-ink flex items-center gap-2">
-              <Calendar size={18} className="text-brand-orange" />
-              Today's Operations
-            </h2>
-            <p className="text-xs text-ink-soft">
-              Active assignments and scheduled dispatches organized chronologically by pickup time.
-            </p>
-          </div>
-          {todaysOperationsJobs.length > 0 && (
-            <span className="badge badge-indigo text-xs font-semibold">
-              {todaysOperationsJobs.length} active today
-            </span>
-          )}
-        </div>
+      {/* ═══════════════════════════════════════════════════════════════════
+          VIEW 2: JOBS (Dispatch Job Board Workspace)
+      ═══════════════════════════════════════════════════════════════════ */}
+      {activeView === 'jobs' && (
+        <div>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="badge badge-indigo text-xs font-semibold uppercase">Workspace</span>
+                <span className="text-xs text-ink-mute">Fleet & Order Management</span>
+              </div>
+              <h1 className="h-page text-2xl sm:text-3xl font-bold text-ink flex items-center gap-3">
+                <Package className="text-indigo" size={30} />
+                Dispatch Job Board
+              </h1>
+              <p className="text-sm text-ink-soft mt-1">
+                Review assigned jobs, claim open transit opportunities, and update dispatch status.
+              </p>
+            </div>
 
-        {todaysOperationsJobs.length === 0 ? (
-          <div className="border border-dashed border-line rounded-xl p-6 text-center bg-surface-alt/20">
-            <Clock size={28} className="mx-auto text-ink-mute mb-2" />
-            <p className="text-sm font-semibold text-ink">No scheduled operations pending today</p>
-            <p className="text-xs text-ink-soft mt-1">
-              All active deliveries are up to date. Check the Open Available Jobs tab to claim new shipments.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {todaysOperationsJobs.map((job) => (
-              <div
-                key={job._id}
-                className="card p-4 rounded-xl border border-line bg-surface-alt/50 hover:border-line-hard transition-all shadow-xs"
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => generateSamplesMutation.mutate()}
+                disabled={generateSamplesMutation.isPending}
+                className="btn-secondary btn-sm gap-1.5 text-xs"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line/60 pb-2.5 mb-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-mono font-bold text-ink-mute">
-                      JOB #{String(job._id).slice(-6).toUpperCase()}
+                <Zap size={13} className="text-amber-accent" />
+                {generateSamplesMutation.isPending ? 'Generating…' : 'Load Sample Jobs'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditFleetOpen(true)}
+                className="btn-secondary btn-sm gap-1 text-xs"
+              >
+                <Edit3 size={13} />
+                Fleet Specs
+              </button>
+            </div>
+          </div>
+
+          {/* Search bar & Tab filter pills */}
+          <div className="space-y-4 mb-6">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative flex-1 min-w-[240px]">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-mute" />
+                <input
+                  type="text"
+                  placeholder="Filter by Job ID, resource title, city, or venue name…"
+                  value={jobSearchQuery}
+                  onChange={(e) => setJobSearchQuery(e.target.value)}
+                  className="field pl-9 text-xs w-full"
+                />
+                {jobSearchQuery && (
+                  <button
+                    onClick={() => setJobSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-mute hover:text-ink"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 border-b border-line overflow-x-auto pb-1">
+              {[
+                { key: 'assigned', label: 'Assigned / Pending Acceptance', count: countMap.assigned },
+                { key: 'available', label: 'Open Available Jobs', count: countMap.available },
+                { key: 'active', label: 'Active Deliveries', count: countMap.active },
+                { key: 'returns', label: 'Returns in Progress', count: countMap.returns },
+                { key: 'completed', label: 'Completed History', count: countMap.completed },
+              ].map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => handleTabChange(t.key)}
+                  className={`px-4 py-2 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex items-center gap-2 ${
+                    tab === t.key
+                      ? 'border-indigo text-indigo font-semibold'
+                      : 'border-transparent text-ink-soft hover:text-ink hover:border-line'
+                  }`}
+                >
+                  <span>{t.label}</span>
+                  {t.count > 0 && (
+                    <span
+                      className={`text-[11px] font-bold px-1.5 py-0.2 rounded-full ${
+                        tab === t.key ? 'bg-indigo text-white' : 'bg-surface-sunk text-ink-mute'
+                      }`}
+                    >
+                      {t.count}
                     </span>
-                    {getStatusBadge(job.status)}
-                    {job.returnRequired && (
-                      <span className="badge badge-muted text-[11px] flex items-center gap-1">
-                        <RotateCcw size={10} /> Round-trip Return
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-ink-soft flex items-center gap-1">
-                    <Clock size={12} className="text-indigo" />
-                    Pickup Window:{' '}
-                    <strong className="text-ink">
-                      {job.scheduledPickupTime ? dateTime(job.scheduledPickupTime) : 'To be scheduled'}
-                    </strong>
-                  </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Jobs List */}
+          {isLoading ? (
+            <Spinner label="Loading dispatch jobs…" />
+          ) : currentTabJobs.length === 0 ? (
+            <EmptyState
+              title={`No ${tab.replace(/_/g, ' ')} jobs`}
+              message={
+                jobSearchQuery
+                  ? `No jobs match "${jobSearchQuery}". Try clearing search.`
+                  : tab === 'available'
+                  ? 'There are currently no unassigned open dispatch jobs waiting in the network.'
+                  : 'When new delivery orders are assigned to your fleet, they will show up here.'
+              }
+              action={
+                <div className="flex items-center justify-center gap-3 mt-4 flex-wrap">
+                  {jobSearchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => setJobSearchQuery('')}
+                      className="btn-secondary btn-sm"
+                    >
+                      Clear Search Filter
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => generateSamplesMutation.mutate()}
+                      disabled={generateSamplesMutation.isPending}
+                      className="btn-primary btn-sm gap-1.5"
+                    >
+                      <Zap size={14} />
+                      {generateSamplesMutation.isPending ? 'Generating…' : 'Generate Sample Dispatch Jobs'}
+                    </button>
+                  )}
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-                  {/* Resource & Quantity */}
-                  <div className="space-y-1">
-                    <p className="text-ink-mute font-semibold uppercase tracking-wider">Resource / Cargo</p>
-                    <p className="text-sm font-bold text-ink leading-snug">{job.resource?.title || 'Stock / Equipment'}</p>
-                    <p className="text-indigo font-semibold">
-                      Qty: {job.quantity} {job.resource?.unit || 'units'}
-                    </p>
+              }
+            />
+          ) : (
+            <div className="space-y-4">
+              {currentTabJobs.map((job) => (
+                <div
+                  key={job._id}
+                  className="card p-5 rounded-2xl border border-line bg-surface-alt/50 hover:border-line-hard transition-all shadow-sm"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line/60 pb-3 mb-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-mono font-bold text-ink-mute">
+                        JOB #{String(job._id).slice(-6).toUpperCase()}
+                      </span>
+                      {getStatusBadge(job.status)}
+                      {job.returnRequired && (
+                        <span className="badge badge-muted text-[11px] flex items-center gap-1">
+                          <RotateCcw size={10} /> Round-trip Return
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-ink-soft">Created {dateTime(job.createdAt)}</div>
                   </div>
 
-                  {/* Pickup Business & Location */}
-                  <div className="space-y-1">
-                    <p className="text-ink-mute font-semibold uppercase tracking-wider flex items-center gap-1">
-                      <MapPin size={11} className="text-amber-accent" /> Pickup Point
-                    </p>
-                    <p className="font-bold text-ink">{job.provider?.businessName}</p>
-                    <p className="text-ink-soft truncate">
-                      {job.pickupLocation?.address ? `${job.pickupLocation.address}, ` : ''}
-                      {job.pickupLocation?.city}
-                    </p>
-                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Resource & Quantity */}
+                    <div className="flex gap-3">
+                      {job.resource?.images?.[0] ? (
+                        <img
+                          src={job.resource.images[0]}
+                          alt={job.resource.title}
+                          className="w-16 h-16 object-cover rounded-xl border border-line shrink-0"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl bg-surface-sunk flex items-center justify-center text-ink-mute shrink-0">
+                          <Package size={24} />
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="text-sm font-bold text-ink leading-snug">
+                          {job.resource?.title || 'Physical Equipment / Stock'}
+                        </h3>
+                        <p className="text-xs text-indigo font-semibold mt-1">
+                          Quantity: {job.quantity} {job.resource?.unit || 'units'}
+                        </p>
+                        {job.operationalNotes && (
+                          <p className="text-xs text-ink-soft italic mt-1 bg-surface-sunk/60 p-1.5 rounded">
+                            "{job.operationalNotes}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
 
-                  {/* Delivery Business & Location */}
-                  <div className="space-y-1">
-                    <p className="text-ink-mute font-semibold uppercase tracking-wider flex items-center gap-1">
-                      <MapPin size={11} className="text-green-accent" /> Delivery Destination
-                    </p>
-                    <p className="font-bold text-ink">{job.seeker?.businessName}</p>
-                    <p className="text-ink-soft truncate">
-                      {job.deliveryLocation?.address ? `${job.deliveryLocation.address}, ` : ''}
-                      {job.deliveryLocation?.city}
-                    </p>
-                    <p className="text-green-accent font-medium">
-                      Required By: {job.requiredDeliveryTime ? dateTime(job.requiredDeliveryTime) : 'Standard'}
-                    </p>
-                  </div>
-
-                  {/* Vehicle & Actions */}
-                  <div className="flex flex-col justify-between items-start md:items-end gap-2">
-                    <div className="text-left md:text-right">
-                      <p className="text-ink-mute font-semibold uppercase tracking-wider">Assigned Fleet</p>
-                      <p className="font-medium text-ink truncate max-w-[200px]">
-                        {formatVehicleInfo(job.assignedVehicle || user?.logisticsProfile?.vehicleInfo)}
+                    {/* Pickup Route */}
+                    <div className="text-xs space-y-1">
+                      <p className="text-ink-mute font-semibold uppercase tracking-wider flex items-center gap-1">
+                        <MapPin size={12} className="text-amber-accent" /> Pickup Point
+                      </p>
+                      <p className="font-bold text-ink text-sm">{job.provider?.businessName}</p>
+                      <p className="text-ink-soft">
+                        {job.pickupLocation?.address}, {job.pickupLocation?.city}
+                      </p>
+                      {job.provider?.phone && (
+                        <p className="text-ink-soft flex items-center gap-1">
+                          <Phone size={10} /> {job.provider.phone}
+                        </p>
+                      )}
+                      <p className="text-indigo font-medium pt-1">
+                        Pickup Window: {dateTime(job.scheduledPickupTime)}
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-auto">
+                    {/* Delivery Route */}
+                    <div className="text-xs space-y-1">
+                      <p className="text-ink-mute font-semibold uppercase tracking-wider flex items-center gap-1">
+                        <MapPin size={12} className="text-green-accent" /> Delivery Destination
+                      </p>
+                      <p className="font-bold text-ink text-sm">{job.seeker?.businessName}</p>
+                      <p className="text-ink-soft">
+                        {job.deliveryLocation?.address}, {job.deliveryLocation?.city}
+                      </p>
+                      {job.seeker?.phone && (
+                        <p className="text-ink-soft flex items-center gap-1">
+                          <Phone size={10} /> {job.seeker.phone}
+                        </p>
+                      )}
+                      <p className="text-green-accent font-medium pt-1">
+                        Required By: {dateTime(job.requiredDeliveryTime)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 pt-4 border-t border-line/70 flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-xs text-ink-soft">
+                      <span className="font-semibold text-ink">Fleet Assigned:</span>{' '}
+                      {formatVehicleInfo(job.assignedVehicle || user?.logisticsProfile?.vehicleInfo)}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
                       <button
                         type="button"
                         onClick={() => setSelectedJob(job)}
-                        className="btn-secondary btn-sm gap-1 text-xs"
+                        className="btn-secondary btn-sm gap-1.5"
                       >
                         <Eye size={13} />
                         View Job
@@ -837,197 +1145,174 @@ export default function LogisticsDashboard() {
                     </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          VIEW 3: SCHEDULE (Operations Schedule & Dispatch Timeline)
+      ═══════════════════════════════════════════════════════════════════ */}
+      {activeView === 'schedule' && (
+        <div>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="badge badge-amber text-xs font-semibold uppercase">Schedule</span>
+                <span className="text-xs text-ink-mute">Time-Ordered Transport Run</span>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <h1 className="h-page text-2xl sm:text-3xl font-bold text-ink flex items-center gap-3">
+                <Calendar className="text-brand-orange" size={30} />
+                Operations Schedule
+              </h1>
+              <p className="text-sm text-ink-soft mt-1">
+                Chronological timeline of pickup windows, delivery commitments, and return handovers.
+              </p>
+            </div>
 
-      {/* ── Filter Tabs with Live Badges ──────────────────────────── */}
-      <div className="flex items-center gap-1 border-b border-line mb-6 overflow-x-auto pb-1">
-        {[
-          { key: 'assigned', label: 'Assigned / Pending Acceptance', count: countMap.assigned },
-          { key: 'available', label: 'Open Available Jobs', count: countMap.available },
-          { key: 'active', label: 'Active Deliveries', count: countMap.active },
-          { key: 'returns', label: 'Returns in Progress', count: countMap.returns },
-          { key: 'completed', label: 'Completed History', count: countMap.completed },
-        ].map((t) => (
-          <button
-            key={t.key}
-            onClick={() => handleTabChange(t.key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex items-center gap-2 ${
-              tab === t.key
-                ? 'border-indigo text-indigo font-semibold'
-                : 'border-transparent text-ink-soft hover:text-ink hover:border-line'
-            }`}
-          >
-            <span>{t.label}</span>
-            {t.count > 0 && (
-              <span
-                className={`text-[11px] font-bold px-1.5 py-0.2 rounded-full ${
-                  tab === t.key ? 'bg-indigo text-white' : 'bg-surface-sunk text-ink-mute'
-                }`}
-              >
-                {t.count}
+            <div className="flex items-center gap-2">
+              <span className="badge badge-indigo text-xs font-semibold">
+                {scheduledOperationsJobs.length} active scheduled run{scheduledOperationsJobs.length === 1 ? '' : 's'}
               </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Job List under current tab ────────────────────────────── */}
-      {isLoading ? (
-        <Spinner label="Loading dispatch jobs…" />
-      ) : currentJobs.length === 0 ? (
-        <EmptyState
-          title={`No ${tab.replace(/_/g, ' ')} jobs`}
-          message={
-            tab === 'available'
-              ? 'There are currently no unassigned open dispatch jobs waiting in the network.'
-              : 'When new delivery orders are assigned to your fleet, they will show up here for live tracking.'
-          }
-          action={
-            <div className="flex items-center justify-center gap-3 mt-4 flex-wrap">
               <button
                 type="button"
                 onClick={() => generateSamplesMutation.mutate()}
                 disabled={generateSamplesMutation.isPending}
-                className="btn-primary btn-sm gap-1.5"
+                className="btn-secondary btn-sm gap-1.5 text-xs"
               >
-                <Zap size={14} />
-                {generateSamplesMutation.isPending ? 'Generating…' : 'Generate Sample Dispatch Jobs'}
+                <Zap size={13} className="text-amber-accent" />
+                {generateSamplesMutation.isPending ? 'Generating…' : 'Load Sample Jobs'}
               </button>
-              {tab !== 'available' && countMap.available > 0 && (
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('available')}
-                  className="btn-secondary btn-sm"
-                >
-                  View Available Jobs ({countMap.available})
-                </button>
-              )}
             </div>
-          }
-        />
-      ) : (
-        <div className="space-y-4">
-          {currentJobs.map((job) => (
-            <div
-              key={job._id}
-              className="card p-5 rounded-2xl border border-line bg-surface-alt/50 hover:border-line-hard transition-all shadow-sm"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line/60 pb-3 mb-4">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-mono font-bold text-ink-mute">
-                    JOB #{String(job._id).slice(-6).toUpperCase()}
-                  </span>
-                  {getStatusBadge(job.status)}
-                  {job.returnRequired && (
-                    <span className="badge badge-muted text-[11px] flex items-center gap-1">
-                      <RotateCcw size={10} /> Round-trip Return
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-ink-soft">Created {dateTime(job.createdAt)}</div>
-              </div>
+          </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Resource & Quantity */}
-                <div className="flex gap-3">
-                  {job.resource?.images?.[0] ? (
-                    <img
-                      src={job.resource.images[0]}
-                      alt={job.resource.title}
-                      className="w-16 h-16 object-cover rounded-xl border border-line shrink-0"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-xl bg-surface-sunk flex items-center justify-center text-ink-mute shrink-0">
-                      <Package size={24} />
+          {/* Schedule Timeline Content */}
+          {scheduledOperationsJobs.length === 0 ? (
+            <div className="border border-dashed border-line rounded-2xl p-12 text-center bg-surface-alt/20">
+              <Clock size={40} className="mx-auto text-ink-mute mb-3" />
+              <h3 className="text-base font-bold text-ink">No scheduled transit operations</h3>
+              <p className="text-xs text-ink-soft mt-1 max-w-md mx-auto">
+                There are currently no active or upcoming dispatches assigned to your fleet.
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <Link to="/logistics/jobs?tab=available" className="btn-primary btn-sm text-xs">
+                  Claim Available Jobs ({countMap.available})
+                </Link>
+                <Link to="/logistics" className="btn-secondary btn-sm text-xs">
+                  Return to Dashboard
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {scheduledOperationsJobs.map((job, idx) => (
+                <div
+                  key={job._id}
+                  className="card p-5 rounded-2xl border border-line bg-surface-alt/40 hover:border-line-hard transition-all shadow-xs"
+                >
+                  {/* Step header with chronological index */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line pb-3 mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 h-6 rounded-full bg-indigo/10 text-indigo text-xs font-bold flex items-center justify-center">
+                        {idx + 1}
+                      </span>
+                      <span className="font-mono font-bold text-xs text-ink">
+                        JOB #{String(job._id).slice(-6).toUpperCase()}
+                      </span>
+                      {getStatusBadge(job.status)}
+                      {job.returnRequired && (
+                        <span className="badge badge-muted text-[10px] flex items-center gap-1">
+                          <RotateCcw size={10} /> Round-trip
+                        </span>
+                      )}
                     </div>
-                  )}
-                  <div>
-                    <h3 className="text-sm font-bold text-ink leading-snug">
-                      {job.resource?.title || 'Physical Equipment / Stock'}
-                    </h3>
-                    <p className="text-xs text-indigo font-semibold mt-1">
-                      Quantity: {job.quantity} {job.resource?.unit || 'units'}
-                    </p>
-                    {job.operationalNotes && (
-                      <p className="text-xs text-ink-soft italic mt-1 bg-surface-sunk/60 p-1.5 rounded">
-                        "{job.operationalNotes}"
-                      </p>
-                    )}
+
+                    <div className="text-xs font-semibold text-indigo flex items-center gap-1.5">
+                      <Clock size={13} />
+                      Pickup Window: {job.scheduledPickupTime ? dateTime(job.scheduledPickupTime) : 'To be scheduled'}
+                    </div>
+                  </div>
+
+                  {/* Route & Cargo details */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+                    {/* Origin -> Destination Flow */}
+                    <div className="md:col-span-2 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-5 flex flex-col items-center mt-1">
+                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                          <div className="w-0.5 h-8 bg-line my-1" />
+                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <div>
+                            <p className="font-bold text-ink text-sm">
+                              {job.provider?.businessName}
+                            </p>
+                            <p className="text-ink-soft">
+                              {job.pickupLocation?.address}, {job.pickupLocation?.city}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-bold text-ink text-sm">
+                              {job.seeker?.businessName}
+                            </p>
+                            <p className="text-ink-soft">
+                              {job.deliveryLocation?.address}, {job.deliveryLocation?.city}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-line/50 flex items-center justify-between text-ink-soft">
+                        <span>
+                          Required Delivery: <strong className="text-green-accent">{job.requiredDeliveryTime ? dateTime(job.requiredDeliveryTime) : 'Standard'}</strong>
+                        </span>
+                        <span>
+                          Vehicle: <strong className="text-ink">{formatVehicleInfo(job.assignedVehicle || user?.logisticsProfile?.vehicleInfo)}</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Cargo Specs & Actions */}
+                    <div className="flex flex-col justify-between items-start md:items-end p-3 rounded-xl bg-surface-sunk/40 border border-line/40">
+                      <div>
+                        <p className="text-ink-mute uppercase font-semibold text-[10px] tracking-wider">
+                          Cargo Payload
+                        </p>
+                        <p className="font-bold text-ink text-sm mt-0.5">
+                          {job.resource?.title || 'Physical Resource'}
+                        </p>
+                        <p className="text-indigo font-bold mt-0.5">
+                          {job.quantity} {job.resource?.unit || 'units'}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-4 w-full md:w-auto justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedJob(job)}
+                          className="btn-secondary btn-sm gap-1 text-xs"
+                        >
+                          <Eye size={12} />
+                          Details
+                        </button>
+                        {renderNextAction(job)}
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                {/* Pickup Route */}
-                <div className="text-xs space-y-1">
-                  <p className="text-ink-mute font-semibold uppercase tracking-wider flex items-center gap-1">
-                    <MapPin size={12} className="text-amber-accent" /> Pickup Point
-                  </p>
-                  <p className="font-bold text-ink text-sm">{job.provider?.businessName}</p>
-                  <p className="text-ink-soft">
-                    {job.pickupLocation?.address}, {job.pickupLocation?.city}
-                  </p>
-                  {job.provider?.phone && (
-                    <p className="text-ink-soft flex items-center gap-1">
-                      <Phone size={10} /> {job.provider.phone}
-                    </p>
-                  )}
-                  <p className="text-indigo font-medium pt-1">
-                    Pickup Window: {dateTime(job.scheduledPickupTime)}
-                  </p>
-                </div>
-
-                {/* Delivery Route */}
-                <div className="text-xs space-y-1">
-                  <p className="text-ink-mute font-semibold uppercase tracking-wider flex items-center gap-1">
-                    <MapPin size={12} className="text-green-accent" /> Delivery Destination
-                  </p>
-                  <p className="font-bold text-ink text-sm">{job.seeker?.businessName}</p>
-                  <p className="text-ink-soft">
-                    {job.deliveryLocation?.address}, {job.deliveryLocation?.city}
-                  </p>
-                  {job.seeker?.phone && (
-                    <p className="text-ink-soft flex items-center gap-1">
-                      <Phone size={10} /> {job.seeker.phone}
-                    </p>
-                  )}
-                  <p className="text-green-accent font-medium pt-1">
-                    Required By: {dateTime(job.requiredDeliveryTime)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Action Bar */}
-              <div className="mt-5 pt-4 border-t border-line/70 flex flex-wrap items-center justify-between gap-3">
-                <div className="text-xs text-ink-soft">
-                  <span className="font-semibold text-ink">Fleet Assigned:</span>{' '}
-                  {formatVehicleInfo(job.assignedVehicle || user?.logisticsProfile?.vehicleInfo)}
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedJob(job)}
-                    className="btn-secondary btn-sm gap-1.5"
-                  >
-                    <Eye size={13} />
-                    View Job
-                  </button>
-                  {renderNextAction(job)}
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 
-      {/* ── SECTION 6: JOB DETAIL UX MODAL (Execution Focused) ──────── */}
+      {/* ── JOB DETAIL UX MODAL (Execution Focused) ────────────────── */}
       {selectedJob && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
           <div className="w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            {/* Modal Header */}
             <div className="px-6 py-4 border-b border-line flex items-center justify-between bg-surface-alt/50">
               <div className="flex items-center gap-3">
                 <Truck size={22} className="text-indigo" />
@@ -1054,9 +1339,7 @@ export default function LogisticsDashboard() {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-6 text-sm">
-              {/* Resource & Quantity */}
               <div className="p-4 rounded-xl border border-line bg-surface-alt/30">
                 <p className="text-xs uppercase tracking-wider font-semibold text-ink-mute mb-2">
                   Resource Cargo
@@ -1084,9 +1367,7 @@ export default function LogisticsDashboard() {
                 )}
               </div>
 
-              {/* Pickup & Delivery Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Pickup details */}
                 <div className="p-4 rounded-xl border border-line bg-surface-alt/30 space-y-2">
                   <p className="text-xs uppercase tracking-wider font-semibold text-amber-accent flex items-center gap-1">
                     <MapPin size={12} /> Pickup Origin
@@ -1107,7 +1388,6 @@ export default function LogisticsDashboard() {
                   </div>
                 </div>
 
-                {/* Delivery details */}
                 <div className="p-4 rounded-xl border border-line bg-surface-alt/30 space-y-2">
                   <p className="text-xs uppercase tracking-wider font-semibold text-green-accent flex items-center gap-1">
                     <MapPin size={12} /> Delivery Destination
@@ -1129,7 +1409,6 @@ export default function LogisticsDashboard() {
                 </div>
               </div>
 
-              {/* Assigned Vehicle */}
               <div className="p-4 rounded-xl border border-line bg-surface-alt/30">
                 <p className="text-xs uppercase tracking-wider font-semibold text-ink-mute mb-2">
                   Assigned Vehicle & Fleet
@@ -1165,7 +1444,6 @@ export default function LogisticsDashboard() {
                 </div>
               </div>
 
-              {/* Timeline History */}
               {selectedJob.timeline?.length > 0 && (
                 <div>
                   <p className="text-xs uppercase tracking-wider font-semibold text-ink-mute mb-2">
@@ -1187,7 +1465,6 @@ export default function LogisticsDashboard() {
               )}
             </div>
 
-            {/* Modal Action Footer: Exclusively the NEXT Valid Action */}
             <div className="px-6 py-4 border-t border-line flex items-center justify-between gap-3 bg-surface-alt/50">
               <button
                 type="button"
@@ -1205,7 +1482,7 @@ export default function LogisticsDashboard() {
         </div>
       )}
 
-      {/* ── Edit Fleet Profile Modal ───────────────────────────────── */}
+      {/* ── EDIT FLEET PROFILE MODAL ──────────────────────────────── */}
       {editFleetOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="w-full max-w-md bg-surface border border-line rounded-2xl p-6 shadow-2xl">

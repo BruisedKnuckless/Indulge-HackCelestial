@@ -111,8 +111,8 @@ const ACCOUNT_LINKS = [
 
 const LOGISTICS_NAV = [
   { to: "/logistics", label: "Dashboard" },
-  { to: "/logistics?tab=assigned", label: "Jobs" },
-  { to: "/logistics?tab=active", label: "Schedule" },
+  { to: "/logistics/jobs", label: "Jobs" },
+  { to: "/logistics/schedule", label: "Schedule" },
 ];
 
 const LOGISTICS_ACCOUNT_LINKS = [
@@ -125,11 +125,19 @@ const LOGISTICS_ACCOUNT_LINKS = [
 /* ── NavLink — knows its own active state ────────────────────────────────── */
 
 function resolveActive(to, pathname, search = '') {
+  if (to === "/logistics") {
+    return pathname === "/logistics" && (!search || search === "" || search.includes("view=dashboard"));
+  }
+  if (to === "/logistics/jobs") {
+    return pathname === "/logistics/jobs" || (pathname === "/logistics" && (search.includes("view=jobs") || search.includes("tab=assigned") || search.includes("tab=available") || search.includes("tab=returns") || search.includes("tab=completed")));
+  }
+  if (to === "/logistics/schedule") {
+    return pathname === "/logistics/schedule" || (pathname === "/logistics" && (search.includes("view=schedule") || search.includes("tab=active")));
+  }
   if (to.includes('?')) {
     const [toPath, toQuery] = to.split('?');
     return pathname === toPath && search === `?${toQuery}`;
   }
-  if (to === "/logistics") return pathname === "/logistics" && (!search || search === "");
   if (to === "/home") return pathname === "/home";
   if (to === "/") return pathname === "/";
   if (to === "/s") return pathname === "/s";
