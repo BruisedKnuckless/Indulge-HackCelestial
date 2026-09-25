@@ -25,6 +25,7 @@ import {
   AdminBusinesses, AdminListings, AdminBookings, AdminRequirements,
   AdminLedger, AdminNegotiations, AdminReviews,
 } from '../components/admin/AdminTables';
+import AdminLogistics from '../components/admin/AdminLogistics';
 
 /**
  * The admin console — one screen over the whole marketplace.
@@ -70,6 +71,7 @@ const TABS = [
   { key: 'businesses', label: 'Businesses', icon: Building2 },
   { key: 'listings', label: 'Listings', icon: Boxes },
   { key: 'bookings', label: 'Bookings', icon: ShoppingBag },
+  { key: 'logistics', label: 'Logistics', icon: Truck },
   { key: 'rfqs', label: 'RFQs', icon: FileText },
   { key: 'ledger', label: 'Ledger', icon: Receipt },
   { key: 'negotiations', label: 'Negotiations', icon: MessageSquare },
@@ -129,6 +131,7 @@ export default function Admin() {
       {tab === 'businesses' && <AdminBusinesses onOpen={setBusinessId} />}
       {tab === 'listings' && <AdminListings />}
       {tab === 'bookings' && <AdminBookings />}
+      {tab === 'logistics' && <AdminLogistics />}
       {tab === 'rfqs' && <AdminRequirements />}
       {tab === 'ledger' && <AdminLedger />}
       {tab === 'negotiations' && <AdminNegotiations />}

@@ -37,6 +37,28 @@ const userSchema = new mongoose.Schema(
     suspendedAt: Date,
     suspensionReason: String,
 
+    // Account architecture: business (default) or logistics_partner.
+    userType: {
+      type: String,
+      enum: ['business', 'logistics_partner'],
+      default: 'business',
+      index: true,
+    },
+
+    // Dedicated profile for logistics partner accounts.
+    logisticsProfile: {
+      serviceArea: [String],
+      operatingStatus: {
+        type: String,
+        enum: ['active', 'busy', 'offline'],
+        default: 'active',
+      },
+      vehicleInfo: { type: String, trim: true },
+      capacityDescription: { type: String, trim: true },
+      completedJobs: { type: Number, default: 0 },
+      rating: { type: Number, default: 5.0 },
+    },
+
     preferences: {
       preferredProviders: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
       preferredResourceTypes: [String],

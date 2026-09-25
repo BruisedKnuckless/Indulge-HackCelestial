@@ -12,7 +12,17 @@ const router = Router();
 router.post(
   '/register',
   asyncHandler(async (req, res) => {
-    const { businessName, email, password, phone, businessType, location, gstNumber } = req.body;
+    const {
+      businessName,
+      email,
+      password,
+      phone,
+      businessType,
+      location,
+      gstNumber,
+      userType,
+      logisticsProfile,
+    } = req.body;
 
     if (!businessName || !email || !password) {
       throw new HttpError(400, 'Business name, email and password are required.');
@@ -32,6 +42,8 @@ router.post(
       businessType,
       gstNumber,
       location,
+      userType: userType === 'logistics_partner' ? 'logistics_partner' : 'business',
+      logisticsProfile: userType === 'logistics_partner' ? logisticsProfile : undefined,
     });
 
     res.status(201).json({ user: sessionUser(user), token: signToken(user._id) });

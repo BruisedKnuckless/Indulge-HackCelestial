@@ -18,6 +18,8 @@ const notificationSchema = new mongoose.Schema(
         'fulfillment_update',
         'rental_expiry',
         'return_update',
+        'logistics_assignment',
+        'logistics_update',
         // Sent by the admin console — broadcasts and moderation outcomes.
         // Carries no related booking or requirement of its own.
         'platform_announcement',
@@ -26,6 +28,7 @@ const notificationSchema = new mongoose.Schema(
     },
     relatedBooking: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking' },
     relatedRequirement: { type: mongoose.Schema.Types.ObjectId, ref: 'Requirement' },
+    relatedLogisticsJob: { type: mongoose.Schema.Types.ObjectId, ref: 'LogisticsJob' },
     title: String,
     message: String,
     isRead: { type: Boolean, default: false, index: true },

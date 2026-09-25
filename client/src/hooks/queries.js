@@ -134,6 +134,15 @@ export function useBookingActions() {
   };
 }
 
+export function useBookingLogistics(bookingId) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['logistics', 'booking', bookingId],
+    queryFn: async () => (await api.get(`/logistics/by-booking/${bookingId}`)).data,
+    enabled: Boolean(user && bookingId),
+  });
+}
+
 /* ------------------------------------------------------------- Negotiation */
 
 export function useNegotiation(bookingId) {
@@ -454,6 +463,11 @@ export function useAdminActions() {
     broadcast: useMutation(mutate(async (payload) => (await api.post('/admin/broadcast', payload)).data)),
     repair: useMutation(
       mutate(async ({ checkId }) => (await api.post('/admin/health/repair', { checkId })).data)
+    ),
+    assignLogistics: useMutation(
+      mutate(async ({ id, partnerId, notes }) =>
+        (await api.patch(`/admin/logistics/${id}/assign`, { partnerId, notes })).data
+      )
     ),
   };
 }

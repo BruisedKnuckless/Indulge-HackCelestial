@@ -9,6 +9,7 @@ import Notification from '../models/Notification.js';
 import Transaction from '../models/Transaction.js';
 import Requirement from '../models/Requirement.js';
 import Proposal from '../models/Proposal.js';
+import LogisticsJob from '../models/LogisticsJob.js';
 import { BUSINESSES, RESOURCES } from './seedData.js';
 import { estimatePrice } from '../utils/pricing.js';
 
@@ -36,6 +37,7 @@ export async function runSeed({ quiet = false } = {}) {
     Transaction.deleteMany({}),
     Requirement.deleteMany({}),
     Proposal.deleteMany({}),
+    LogisticsJob.deleteMany({}),
   ]);
 
   const passwordHash = await User.hashPassword(DEMO_PASSWORD);
@@ -105,7 +107,7 @@ export async function runSeed({ quiet = false } = {}) {
 
   // Chairs are partially allocated: 300 total, 180 already committed, so a
   // request for 200 fails while 100 succeeds — the partial-quantity story.
-  await book(chairs, users.seasons, at(14, 8), at(15, 2), 'confirmed', {
+  const chairBooking = await book(chairs, users.seasons, at(14, 8), at(15, 2), 'confirmed', {
     quantity: 120,
     notes: 'Overflow seating for the Crystal Grand reception.',
   });
@@ -113,6 +115,28 @@ export async function runSeed({ quiet = false } = {}) {
     quantity: 60,
     notes: 'Terrace dinner service.',
   });
+
+  if (users.swiftFleet) {
+    await LogisticsJob.create({
+      booking: chairBooking._id,
+      seeker: users.seasons._id,
+      provider: users.silverline._id,
+      logisticsPartner: users.swiftFleet._id,
+      resource: chairs._id,
+      quantity: 120,
+      pickupLocation: users.silverline.location,
+      deliveryLocation: users.seasons.location,
+      scheduledPickupTime: at(14, 6),
+      requiredDeliveryTime: at(14, 8),
+      returnRequired: true,
+      status: 'accepted',
+      timeline: [
+        { status: 'unassigned', timestamp: at(-1, 10), notes: 'Job initialized' },
+        { status: 'assigned', timestamp: at(0, 9), notes: 'Assigned to SwiftFleet Logistics' },
+        { status: 'accepted', timestamp: at(0, 10), notes: 'SwiftFleet accepted assignment' },
+      ],
+    });
+  }
 
   // Live inbox items. The Grand Orchid is the primary demo login, so it needs
   // requests waiting on it as a provider, not just ones it has sent.

@@ -16,6 +16,8 @@ import { runSeed } from './seed.js';
 import Booking from '../models/Booking.js';
 import Resource from '../models/Resource.js';
 import Review from '../models/Review.js';
+import User from '../models/User.js';
+import LogisticsJob from '../models/LogisticsJob.js';
 
 let base = '';
 let passed = 0;
@@ -1636,6 +1638,364 @@ async function main() {
   check(
     'old resource without new fields defaults safely to full availability',
     checkOld.status === 200 && checkOld.body.available === 2
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Phase 2: Dedicated Logistics Partner System
+  // ══════════════════════════════════════════════════════════════════════════
+  console.log('\nDedicated Logistics Partner System');
+
+  // 1. Existing business accounts remain seeker + lister
+  const dualRoleListing = await api('POST', '/api/resources', {
+    token: seasons,
+    body: {
+      title: 'Seasons Terrace Banquet Deck',
+      category: 'banquet_space',
+      pricing: { basePrice: 25000, priceUnit: 'per_day' },
+      totalQuantity: 1,
+    },
+  });
+  const dualRoleBooking = await api('POST', '/api/bookings', {
+    token: seasons,
+    body: {
+      resourceId: indefId,
+      quantity: 1,
+      startDateTime: at(120, 10),
+      endDateTime: at(120, 18),
+    },
+  });
+  check(
+    'existing business accounts remain seeker+lister',
+    dualRoleListing.status === 201 && dualRoleBooking.status === 201
+  );
+
+  // 2. Logistics partner account creation / recognition
+  const partnerReg = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'Express Cargo Movers',
+      email: 'ops@expresscargo.in',
+      password: 'indulge123',
+      phone: '+91 98200 88991',
+      userType: 'logistics_partner',
+      logisticsProfile: {
+        serviceArea: ['Thane', 'Mumbai'],
+        operatingStatus: 'active',
+        vehicleInfo: '2x Eicher Pro 2049, 1x Mahindra Bolero Pickup',
+      },
+    },
+  });
+  check(
+    'logistics partner account creation/recognition',
+    partnerReg.status === 201 &&
+      partnerReg.body.user.userType === 'logistics_partner' &&
+      partnerReg.body.user.logisticsProfile?.operatingStatus === 'active'
+  );
+  const expressToken = partnerReg.body.token;
+  const expressUser = partnerReg.body.user;
+
+  // 3. Normal business cannot access logistics partner dashboard API
+  const businessAccessPartnerApi = await api('PATCH', '/api/logistics/partner-profile', {
+    token: seasons,
+    body: { operatingStatus: 'offline' },
+  });
+  check(
+    'normal business cannot access logistics partner dashboard API',
+    businessAccessPartnerApi.status === 403
+  );
+
+  // 4. Eligible booking creates/permits one logistics job
+  const furnitureRes = await api('POST', '/api/resources', {
+    token: orchid,
+    body: {
+      title: 'Banquet Velvet Chairs — 200 units',
+      category: 'furniture',
+      pricing: { basePrice: 50, priceUnit: 'per_day' },
+      totalQuantity: 200,
+      requiresLogistics: true,
+    },
+  });
+  const furnitureId = furnitureRes.body?.resource?._id;
+
+  const physicalBookingRes = await api('POST', '/api/bookings', {
+    token: seasons,
+    body: {
+      resourceId: furnitureId,
+      quantity: 50,
+      startDateTime: at(130, 9),
+      endDateTime: at(130, 20),
+    },
+  });
+  const physicalBookingId = physicalBookingRes.body.booking._id;
+
+  await api('PATCH', `/api/bookings/${physicalBookingId}/accept`, {
+    token: orchid,
+    body: { agreedPrice: 2500 },
+  });
+  await api('PATCH', `/api/bookings/${physicalBookingId}/confirm`, {
+    token: seasons,
+  });
+
+  const getJobRes = await api('GET', `/api/logistics/by-booking/${physicalBookingId}`, {
+    token: seasons,
+  });
+  check(
+    'eligible booking creates/permits one logistics job',
+    getJobRes.status === 200 && getJobRes.body.job !== null && getJobRes.body.job.status === 'unassigned'
+  );
+  const jobId = getJobRes.body.job._id;
+
+  // 5. Duplicate logistics job prevented
+  const dupJobRes = await api('POST', '/api/logistics/jobs', {
+    token: seasons,
+    body: {
+      bookingId: physicalBookingId,
+    },
+  });
+  check(
+    'duplicate logistics job prevented',
+    dupJobRes.status === 409
+  );
+
+  // 6. Admin can assign logistics partner
+  const assignRes = await api('PATCH', `/api/logistics/jobs/${jobId}/assign`, {
+    token: orchid,
+    body: {
+      partnerId: expressUser._id,
+      notes: 'Please dispatch morning pickup team',
+    },
+  });
+  check(
+    'admin can assign logistics partner',
+    assignRes.status === 200 &&
+      assignRes.body.job.status === 'assigned' &&
+      String(assignRes.body.job.logisticsPartner?._id || assignRes.body.job.logisticsPartner) === String(expressUser._id)
+  );
+
+  // 7. Assigned partner can see job
+  const partnerViewRes = await api('GET', `/api/logistics/jobs/${jobId}`, {
+    token: expressToken,
+  });
+  check(
+    'assigned partner can see job',
+    partnerViewRes.status === 200 && partnerViewRes.body.job._id === jobId
+  );
+
+  // 8. Unrelated partner cannot see job
+  const partner2Reg = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'Apex Transport Co.',
+      email: 'ops@apextransport.in',
+      password: 'indulge123',
+      phone: '+91 98200 77665',
+      userType: 'logistics_partner',
+    },
+  });
+  const partner2Token = partner2Reg.body.token;
+  const partner2User = partner2Reg.body.user;
+
+  const unrelatedPartnerView = await api('GET', `/api/logistics/jobs/${jobId}`, {
+    token: partner2Token,
+  });
+  check(
+    'unrelated partner cannot see job',
+    unrelatedPartnerView.status === 403
+  );
+
+  // 9. Partner can accept assignment
+  const partnerAcceptRes = await api('PATCH', `/api/logistics/jobs/${jobId}/accept`, {
+    token: expressToken,
+  });
+  check(
+    'partner can accept assignment',
+    partnerAcceptRes.status === 200 && partnerAcceptRes.body.job.status === 'accepted'
+  );
+
+  // 10. Partner can decline assignment
+  const booking2Res = await api('POST', '/api/bookings', {
+    token: seasons,
+    body: {
+      resourceId: furnitureId,
+      quantity: 30,
+      startDateTime: at(135, 9),
+      endDateTime: at(135, 20),
+    },
+  });
+  const booking2Id = booking2Res.body.booking._id;
+  await api('PATCH', `/api/bookings/${booking2Id}/accept`, { token: orchid, body: { agreedPrice: 1500 } });
+  await api('PATCH', `/api/bookings/${booking2Id}/confirm`, { token: seasons });
+
+  const job2Fetch = await api('GET', `/api/logistics/by-booking/${booking2Id}`, { token: seasons });
+  const job2Id = job2Fetch.body.job._id;
+
+  await api('PATCH', `/api/logistics/jobs/${job2Id}/assign`, {
+    token: orchid,
+    body: { partnerId: expressUser._id },
+  });
+
+  const declineRes = await api('PATCH', `/api/logistics/jobs/${job2Id}/decline`, {
+    token: expressToken,
+    body: { reason: 'No vehicles available in Thane east cluster' },
+  });
+  check(
+    'partner can decline assignment',
+    declineRes.status === 200 &&
+      declineRes.body.job.status === 'declined' &&
+      !declineRes.body.job.logisticsPartner
+  );
+
+  // 11. Invalid status transition rejected
+  const invalidTrans = await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'completed' },
+  });
+  check(
+    'invalid status transition rejected',
+    invalidTrans.status === 400
+  );
+
+  // 12. Valid pickup lifecycle works
+  await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'pickup_scheduled', notes: 'Vehicle en route to provider' },
+  });
+  await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'arrived_at_provider', notes: 'Vehicle at loading bay 2' },
+  });
+  const pickedUpRes = await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'picked_up', notes: 'All 50 chairs inspected and loaded' },
+  });
+
+  const bookingAfterPickup = await Booking.findById(physicalBookingId);
+  check(
+    'valid pickup lifecycle works',
+    pickedUpRes.status === 200 &&
+      pickedUpRes.body.job.status === 'picked_up' &&
+      bookingAfterPickup.fulfillment?.status === 'out_for_delivery'
+  );
+
+  // 13. Valid delivery lifecycle works
+  await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'in_transit' },
+  });
+  const deliveredRes = await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'delivered', notes: 'Handed over to banquet manager' },
+  });
+  const bookingAfterDelivered = await Booking.findById(physicalBookingId);
+  check(
+    'valid delivery lifecycle works',
+    deliveredRes.status === 200 &&
+      deliveredRes.body.job.status === 'delivered' &&
+      bookingAfterDelivered.fulfillment?.status === 'delivered'
+  );
+
+  // 14. Return lifecycle works
+  await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'return_requested' },
+  });
+  await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'return_pickup_scheduled' },
+  });
+  await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'return_picked_up' },
+  });
+  await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'return_in_transit' },
+  });
+  await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'returned_to_provider' },
+  });
+  const completedRes = await api('PATCH', `/api/logistics/jobs/${jobId}/status`, {
+    token: expressToken,
+    body: { status: 'completed', notes: 'Inspection clear, deposit released' },
+  });
+  const bookingAfterCompleted = await Booking.findById(physicalBookingId);
+  check(
+    'return lifecycle works',
+    completedRes.status === 200 &&
+      completedRes.body.job.status === 'completed' &&
+      bookingAfterCompleted.return?.status === 'return_completed' &&
+      bookingAfterCompleted.status === 'completed'
+  );
+
+  // 15. Seeker can view logistics status for own booking
+  const seekerView = await api('GET', `/api/logistics/by-booking/${physicalBookingId}`, {
+    token: seasons,
+  });
+  check(
+    'seeker can view logistics status for own booking',
+    seekerView.status === 200 && seekerView.body.job?.status === 'completed'
+  );
+
+  // 16. Provider can view logistics status for own booking
+  const providerView = await api('GET', `/api/logistics/jobs/${jobId}`, {
+    token: orchid,
+  });
+  check(
+    'provider can view logistics status for own booking',
+    providerView.status === 200 && providerView.body.job?._id === jobId
+  );
+
+  // 17. Unrelated business cannot view job
+  const unrelatedBizView = await api('GET', `/api/logistics/jobs/${jobId}`, {
+    token: kalpataru,
+  });
+  check(
+    'unrelated business cannot view job',
+    unrelatedBizView.status === 403
+  );
+
+  // 18. Admin can reassign where allowed
+  const reassignRes = await api('PATCH', `/api/logistics/jobs/${job2Id}/assign`, {
+    token: orchid,
+    body: {
+      partnerId: partner2User._id,
+      notes: 'Reassigned to Apex Transport following previous decline',
+    },
+  });
+  check(
+    'admin can reassign where allowed',
+    reassignRes.status === 200 &&
+      reassignRes.body.job.status === 'assigned' &&
+      String(reassignRes.body.job.logisticsPartner?._id || reassignRes.body.job.logisticsPartner) === String(partner2User._id)
+  );
+
+  // 19. Notifications generated
+  const partnerNotifs = await api('GET', '/api/notifications', {
+    token: expressToken,
+  });
+  const hasLogisticsNotif = (partnerNotifs.body.notifications || []).some(
+    (n) => n.type === 'logistics_assignment' || n.type === 'logistics_update'
+  );
+  check(
+    'notifications generated',
+    partnerNotifs.status === 200 && hasLogisticsNotif
+  );
+
+  // 20. Existing booking without logistics remains compatible
+  const nonPhysicalBooking = await api('POST', '/api/bookings', {
+    token: seasons,
+    body: {
+      resourceId: indefId,
+      quantity: 1,
+      startDateTime: at(140, 10),
+      endDateTime: at(140, 20),
+    },
+  });
+  const nonPhysJob = await api('GET', `/api/logistics/by-booking/${nonPhysicalBooking.body.booking._id}`, {
+    token: seasons,
+  });
+  check(
+    'existing booking without logistics remains compatible',
+    nonPhysJob.status === 200 && nonPhysJob.body.job === null
   );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

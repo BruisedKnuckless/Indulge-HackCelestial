@@ -45,6 +45,15 @@ export function requireAdmin(req, res, next) {
   next();
 }
 
+/** Gate for logistics partner workspaces. */
+export function requireLogisticsPartner(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Sign in to continue.' });
+  if (req.user.userType !== 'logistics_partner' && !isPlatformAdmin(req.user)) {
+    return res.status(403).json({ error: 'Access reserved for logistics partners.' });
+  }
+  next();
+}
+
 /** Attaches req.user when a token is present but never blocks the request. */
 export async function optionalAuth(req, _res, next) {
   const header = req.headers.authorization || '';

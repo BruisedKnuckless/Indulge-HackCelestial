@@ -72,6 +72,23 @@ export const BUSINESSES = [
     phone: '+91 98200 11008',
     location: { address: 'Vashi Sector 17', city: 'Navi Mumbai', pincode: '400703', coordinates: [73.0071, 19.0760] },
   },
+  {
+    key: 'swiftFleet',
+    businessName: 'SwiftFleet Logistics',
+    email: 'dispatch@swiftfleet.in',
+    businessType: 'other',
+    userType: 'logistics_partner',
+    phone: '+91 98200 11099',
+    location: { address: 'Eastern Express Hwy, Majiwada', city: 'Thane', pincode: '400601', coordinates: [72.9750, 19.2080] },
+    logisticsProfile: {
+      serviceArea: ['Mumbai', 'Thane', 'Navi Mumbai'],
+      operatingStatus: 'active',
+      vehicleInfo: '3x Tata 407 (2.5T), 2x Mahindra Bolero Maxi Truck',
+      capacityDescription: 'Dry & refrigerated transport for catering, furniture and AV gear',
+      completedJobs: 42,
+      rating: 4.9,
+    },
+  },
 ];
 
 const img = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=800&q=70`;

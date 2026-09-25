@@ -10,6 +10,7 @@ import Review from '../models/Review.js';
 import Cart from '../models/Cart.js';
 import Negotiation from '../models/Negotiation.js';
 import Notification from '../models/Notification.js';
+import LogisticsJob from '../models/LogisticsJob.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest } from '../services/availability.service.js';
@@ -1635,6 +1636,113 @@ router.get(
       admins: (await User.find({}).select('email businessName').lean())
         .filter(isPlatformAdmin)
         .map((u) => ({ email: u.email, businessName: u.businessName })),
+    });
+  })
+);
+
+/* ═════════════════════════════════════════════════════════════ LOGISTICS */
+
+/** Overview and listing of logistics jobs for platform administration */
+router.get(
+  '/logistics',
+  asyncHandler(async (req, res) => {
+    const { status } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+
+    const [jobs, partners, stats] = await Promise.all([
+      LogisticsJob.find(filter)
+        .populate([
+          { path: 'seeker', select: 'businessName email phone location' },
+          { path: 'provider', select: 'businessName email phone location' },
+          { path: 'logisticsPartner', select: 'businessName email phone logisticsProfile' },
+          { path: 'resource', select: 'title category location unit images' },
+          { path: 'booking', select: 'status startDateTime endDateTime agreedPrice quotedPrice' },
+        ])
+        .sort({ createdAt: -1 })
+        .lean(),
+      User.find({ userType: 'logistics_partner', suspended: false })
+        .select('businessName email phone location logisticsProfile')
+        .lean(),
+      LogisticsJob.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const statusCounts = Object.fromEntries(stats.map((s) => [s._id, s.count]));
+
+    res.json({
+      jobs,
+      partners,
+      counts: {
+        total: jobs.length,
+        unassigned: statusCounts.unassigned || 0,
+        assigned: statusCounts.assigned || 0,
+        active:
+          (statusCounts.accepted || 0) +
+          (statusCounts.pickup_scheduled || 0) +
+          (statusCounts.arrived_at_provider || 0) +
+          (statusCounts.picked_up || 0) +
+          (statusCounts.in_transit || 0) +
+          (statusCounts.return_pickup_scheduled || 0) +
+          (statusCounts.return_picked_up || 0) +
+          (statusCounts.return_in_transit || 0),
+        delivered: statusCounts.delivered || 0,
+        completed: statusCounts.completed || 0,
+        declined: statusCounts.declined || 0,
+        ...statusCounts,
+      },
+    });
+  })
+);
+
+/** Admin assign or reassign partner */
+router.patch(
+  '/logistics/:id/assign',
+  asyncHandler(async (req, res) => {
+    const { partnerId, notes } = req.body;
+    if (!partnerId) throw new HttpError(400, 'partnerId is required.');
+
+    const job = await LogisticsJob.findById(req.params.id);
+    if (!job) throw new HttpError(404, 'Logistics job not found.');
+
+    const partner = await User.findById(partnerId);
+    if (!partner || partner.userType !== 'logistics_partner') {
+      throw new HttpError(400, 'Selected user is not an active logistics partner.');
+    }
+    if (partner.suspended) {
+      throw new HttpError(400, 'Logistics partner account is suspended.');
+    }
+
+    const previousPartner = job.logisticsPartner;
+    job.logisticsPartner = partner._id;
+    job.status = 'assigned';
+    job.declineReason = undefined;
+    job.timeline.push({
+      status: 'assigned',
+      timestamp: new Date(),
+      updatedBy: req.user._id,
+      notes: notes || (previousPartner ? `Admin re-assigned to ${partner.businessName}` : `Admin assigned to ${partner.businessName}`),
+    });
+    await job.save();
+
+    await notify({
+      user: partner._id,
+      type: 'logistics_assignment',
+      title: 'New Logistics Job Assigned',
+      message: `Admin assigned you to delivery for booking #${String(job.booking).slice(-6)}.`,
+      relatedBooking: job.booking,
+      relatedLogisticsJob: job._id,
+    });
+
+    res.json({
+      job: await job.populate([
+        { path: 'seeker', select: 'businessName email phone location' },
+        { path: 'provider', select: 'businessName email phone location' },
+        { path: 'logisticsPartner', select: 'businessName email phone logisticsProfile' },
+        { path: 'resource', select: 'title category location unit images' },
+        { path: 'booking', select: 'status startDateTime endDateTime agreedPrice' },
+      ]),
     });
   })
 );

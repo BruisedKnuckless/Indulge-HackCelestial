@@ -89,6 +89,9 @@ const resourceSchema = new mongoose.Schema(
       },
     ],
 
+    // Whether physical transport/logistics partner dispatch is required
+    requiresLogistics: { type: Boolean, default: false },
+
     conditions: String,
     tags: [String],
     images: [String],
@@ -102,5 +105,12 @@ const resourceSchema = new mongoose.Schema(
 
 resourceSchema.index({ 'location.coordinates': '2dsphere' });
 resourceSchema.index({ category: 1, status: 1 });
+
+export function doesResourceRequireLogistics(resource, booking) {
+  if (booking?.logistics === 'provider_transport') return true;
+  if (resource?.requiresLogistics === true) return true;
+  const physicalCategories = ['furniture', 'av_equipment', 'vehicle', 'other'];
+  return physicalCategories.includes(resource?.category);
+}
 
 export default mongoose.model('Resource', resourceSchema);

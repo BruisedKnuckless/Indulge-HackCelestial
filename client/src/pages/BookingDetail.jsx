@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, Truck, Phone, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { errorMessage } from '../api/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import {
   useNegotiation,
   useSendNegotiation,
   useBookingActions,
+  useBookingLogistics,
 } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
 import { Panel, StatusBadge, Spinner, Stars, Alert } from '../components/ui';
@@ -210,7 +211,7 @@ const FULFILLMENT_LABELS = {
   delivered:        'Mark Delivered',
 };
 
-function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy }) {
+function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy, partnerAssigned, partnerName }) {
   const activeIdx = FULFILLMENT_ORDER.indexOf(fulfillment?.status ?? '');
   const nextStatus = FULFILLMENT_ORDER[activeIdx + 1];
   const isDelivered = fulfillment?.status === 'delivered';
@@ -262,20 +263,27 @@ function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy }) {
 
       {/* Provider next action */}
       {isProvider && nextStatus && (
-        <div className="mt-3 pt-3 border-t border-line flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-xs text-ink-soft">
-            Ready to update delivery status:
-          </p>
-          <button
-            type="button"
-            onClick={() => onAdvance(nextStatus)}
-            disabled={Boolean(busy)}
-            className="btn-primary btn-sm"
-            id={`ff-btn-${nextStatus}`}
-          >
-            {busy ? 'Updating…' : FULFILLMENT_LABELS[nextStatus]}
-          </button>
-        </div>
+        partnerAssigned ? (
+          <div className="mt-3 p-2.5 rounded-lg bg-surface-subtle border border-line text-xs text-ink-soft flex items-center gap-2">
+            <Truck size={14} className="text-indigo shrink-0" />
+            <span>Transit is dispatched to logistics partner <strong>{partnerName || 'Logistics Partner'}</strong>. Step updates occur upon driver checkpoint scans.</span>
+          </div>
+        ) : (
+          <div className="mt-3 pt-3 border-t border-line flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-xs text-ink-soft">
+              Ready to update delivery status:
+            </p>
+            <button
+              type="button"
+              onClick={() => onAdvance(nextStatus)}
+              disabled={Boolean(busy)}
+              className="btn-primary btn-sm"
+              id={`ff-btn-${nextStatus}`}
+            >
+              {busy ? 'Updating…' : FULFILLMENT_LABELS[nextStatus]}
+            </button>
+          </div>
+        )
       )}
 
       {/* Delivered confirmation chip */}
@@ -352,7 +360,7 @@ const RETURN_LABELS = {
   return_completed:        'Complete Return',
 };
 
-function ReturnTimeline({ returnData, isProvider, onAdvance, busy }) {
+function ReturnTimeline({ returnData, isProvider, onAdvance, busy, partnerAssigned, partnerName }) {
   const activeIdx = RETURN_ORDER.indexOf(returnData?.status ?? '');
   const nextStatus = RETURN_ORDER[activeIdx + 1];
   const isComplete = returnData?.status === 'return_completed';
@@ -387,22 +395,204 @@ function ReturnTimeline({ returnData, isProvider, onAdvance, busy }) {
 
       {/* Provider advance action */}
       {isProvider && nextStatus && RETURN_LABELS[nextStatus] && !isComplete && (
-        <div className="mt-3 pt-3 border-t border-line">
-          <button
-            onClick={() => onAdvance(nextStatus)}
-            disabled={Boolean(busy)}
-            className="btn-secondary btn-sm"
-            id={`ret-btn-${nextStatus}`}
-          >
-            {busy ? 'Updating…' : RETURN_LABELS[nextStatus]}
-          </button>
-        </div>
+        partnerAssigned ? (
+          <div className="mt-3 p-2.5 rounded-lg bg-surface-subtle border border-line text-xs text-ink-soft flex items-center gap-2">
+            <Truck size={14} className="text-indigo shrink-0" />
+            <span>Return transit is managed by logistics partner <strong>{partnerName || 'Logistics Partner'}</strong>.</span>
+          </div>
+        ) : (
+          <div className="mt-3 pt-3 border-t border-line">
+            <button
+              onClick={() => onAdvance(nextStatus)}
+              disabled={Boolean(busy)}
+              className="btn-secondary btn-sm"
+              id={`ret-btn-${nextStatus}`}
+            >
+              {busy ? 'Updating…' : RETURN_LABELS[nextStatus]}
+            </button>
+          </div>
+        )
       )}
 
       {isComplete && (
         <div className="mt-3 flex items-center gap-2 text-success text-xs font-medium">
           <IconCheck />
           Return completed — booking fully closed
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   LOGISTICS & TRANSIT SECTION
+══════════════════════════════════════════════════════════════════════════════ */
+
+const LOGISTICS_FORWARD_STEPS = [
+  { key: 'unassigned', label: 'Unassigned' },
+  { key: 'assigned', label: 'Assigned' },
+  { key: 'accepted', label: 'Accepted' },
+  { key: 'pickup_scheduled', label: 'Pickup Sched' },
+  { key: 'arrived_at_provider', label: 'At Provider' },
+  { key: 'picked_up', label: 'Picked Up' },
+  { key: 'in_transit', label: 'In Transit' },
+  { key: 'delivered', label: 'Delivered' },
+];
+
+const LOGISTICS_RETURN_STEPS = [
+  { key: 'return_requested', label: 'Return Req' },
+  { key: 'return_pickup_scheduled', label: 'Pickup Sched' },
+  { key: 'return_picked_up', label: 'Picked Up' },
+  { key: 'return_in_transit', label: 'In Transit' },
+  { key: 'returned_to_provider', label: 'Returned' },
+  { key: 'completed', label: 'Completed' },
+];
+
+function LogisticsTrackingSection({ job }) {
+  if (!job) return null;
+
+  const partner = job.assignedPartner;
+  const isUnassigned = job.currentStatus === 'unassigned';
+  const isDeclined = job.currentStatus === 'declined';
+
+  const currentIdx = LOGISTICS_FORWARD_STEPS.findIndex(s => s.key === job.currentStatus);
+  const isReturnPhase = LOGISTICS_RETURN_STEPS.some(s => s.key === job.currentStatus);
+  const returnIdx = LOGISTICS_RETURN_STEPS.findIndex(s => s.key === job.currentStatus);
+
+  const getStepTime = (stepKey) => {
+    const entry = (job.timeline || []).find(t => t.status === stepKey);
+    return entry ? dateTime(entry.timestamp) : null;
+  };
+
+  return (
+    <div className="card space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="icon-box icon-box-indigo w-7 h-7">
+            <Truck size={15} />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-ink">Logistics & Transport Dispatch</h2>
+            <p className="text-xs text-ink-mute">Physical fulfillment partner and route status</p>
+          </div>
+        </div>
+        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+          ['delivered', 'completed'].includes(job.currentStatus)
+            ? 'bg-success/10 text-success border border-success/30'
+            : ['in_transit', 'return_in_transit', 'picked_up', 'return_picked_up'].includes(job.currentStatus)
+            ? 'bg-indigo/10 text-indigo border border-indigo/30'
+            : isUnassigned || isDeclined
+            ? 'bg-amber-accent/10 text-amber-accent border border-amber-accent/30'
+            : 'bg-surface-sunk text-ink-soft border border-line'
+        }`}>
+          {job.currentStatus?.replace(/_/g, ' ').toUpperCase()}
+        </span>
+      </div>
+
+      {/* Partner info banner */}
+      {partner ? (
+        <div className="p-3 rounded-lg bg-surface-subtle border border-line flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-indigo/10 text-indigo font-bold flex items-center justify-center text-sm">
+              {partner.businessName?.charAt(0) || 'L'}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-ink">{partner.businessName}</p>
+              <p className="text-xs text-ink-mute">
+                {partner.logisticsProfile?.vehicleInfo?.model
+                  ? `${partner.logisticsProfile.vehicleInfo.model} (${partner.logisticsProfile.vehicleInfo.licensePlate || 'Fleet'})`
+                  : 'Verified Logistics Partner'}
+                {partner.phone && ` · ${partner.phone}`}
+              </p>
+            </div>
+          </div>
+          {partner.phone && (
+            <a href={`tel:${partner.phone}`} className="btn-secondary btn-sm inline-flex items-center gap-1.5">
+              <Phone size={12} /> Call Dispatch
+            </a>
+          )}
+        </div>
+      ) : (
+        <div className="p-3 rounded-lg bg-amber-accent/5 border border-amber-accent/20 text-xs text-amber-accent flex items-center gap-2">
+          <AlertCircle size={15} />
+          <span>Awaiting partner dispatch assignment by Indulge Platform Admin.</span>
+        </div>
+      )}
+
+      {/* Route & Schedule details */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <div className="p-3 rounded-lg border border-line space-y-1">
+          <p className="font-semibold text-ink-soft uppercase tracking-wide text-[10px]">Pickup Origin</p>
+          <p className="font-medium text-ink">{job.pickupLocation?.address || 'Provider Facility'}</p>
+          {job.pickupLocation?.contactName && (
+            <p className="text-ink-mute">Contact: {job.pickupLocation.contactName} ({job.pickupLocation.contactPhone || 'N/A'})</p>
+          )}
+          {job.pickupScheduledAt && (
+            <p className="text-indigo font-medium pt-1">Scheduled: {dateTime(job.pickupScheduledAt)}</p>
+          )}
+        </div>
+
+        <div className="p-3 rounded-lg border border-line space-y-1">
+          <p className="font-semibold text-ink-soft uppercase tracking-wide text-[10px]">Delivery Destination</p>
+          <p className="font-medium text-ink">{job.deliveryLocation?.address || 'Seeker Facility'}</p>
+          {job.deliveryLocation?.contactName && (
+            <p className="text-ink-mute">Contact: {job.deliveryLocation.contactName} ({job.deliveryLocation.contactPhone || 'N/A'})</p>
+          )}
+          {job.deliveryRequiredBy && (
+            <p className="text-indigo font-medium pt-1">Required by: {dateTime(job.deliveryRequiredBy)}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Forward Milestones Stepper */}
+      <div className="space-y-1">
+        <p className="text-xs font-semibold text-ink-soft">Delivery Milestones</p>
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1 pt-1">
+          {LOGISTICS_FORWARD_STEPS.map((s, idx) => {
+            const isDone = isReturnPhase || (currentIdx !== -1 && idx <= currentIdx);
+            const isCurrent = !isReturnPhase && currentIdx === idx;
+            const ts = getStepTime(s.key);
+            return (
+              <div key={s.key} className="flex flex-col items-center text-center p-1 rounded bg-surface-subtle border border-line/60">
+                <div className={`w-4 h-4 rounded-full mb-1 flex items-center justify-center text-[8px] font-bold ${
+                  isDone ? 'bg-success text-white' : isCurrent ? 'bg-indigo text-white ring-2 ring-indigo/30' : 'bg-line text-ink-mute'
+                }`}>
+                  {isDone ? '✓' : idx + 1}
+                </div>
+                <span className={`text-[9px] leading-tight font-medium ${isCurrent ? 'text-indigo font-semibold' : isDone ? 'text-ink' : 'text-ink-mute'}`}>
+                  {s.label}
+                </span>
+                {ts && <span className="text-[8px] text-ink-mute mt-0.5 truncate max-w-full">{ts.split(',')[1] || ts}</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Return Milestones Stepper if return is required */}
+      {job.requiresReturn && (
+        <div className="space-y-1 pt-2 border-t border-line">
+          <p className="text-xs font-semibold text-ink-soft">Return Transport Milestones</p>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 pt-1">
+            {LOGISTICS_RETURN_STEPS.map((s, idx) => {
+              const isDone = isReturnPhase && (returnIdx !== -1 && idx <= returnIdx);
+              const isCurrent = isReturnPhase && returnIdx === idx;
+              const ts = getStepTime(s.key);
+              return (
+                <div key={s.key} className="flex flex-col items-center text-center p-1 rounded bg-surface-subtle border border-line/60">
+                  <div className={`w-4 h-4 rounded-full mb-1 flex items-center justify-center text-[8px] font-bold ${
+                    isDone ? 'bg-success text-white' : isCurrent ? 'bg-indigo text-white ring-2 ring-indigo/30' : 'bg-line text-ink-mute'
+                  }`}>
+                    {isDone ? '✓' : idx + 1}
+                  </div>
+                  <span className={`text-[9px] leading-tight font-medium ${isCurrent ? 'text-indigo font-semibold' : isDone ? 'text-ink' : 'text-ink-mute'}`}>
+                    {s.label}
+                  </span>
+                  {ts && <span className="text-[8px] text-ink-mute mt-0.5 truncate max-w-full">{ts.split(',')[1] || ts}</span>}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -733,9 +923,12 @@ export default function BookingDetail() {
   const { id } = useParams();
   const { user } = useAuth();
   const { data, isLoading } = useBooking(id);
+  const { data: logisticsData } = useBookingLogistics(id);
   const actions = useBookingActions();
   const [busy, setBusy] = useState('');
   const [fulfillmentExpanded, setFulfillmentExpanded] = useState(true);
+
+  const logisticsJob = logisticsData?.job;
 
   // Fire rental-expiry check on load (idempotent server-side)
   useEffect(() => {
@@ -841,6 +1034,8 @@ export default function BookingDetail() {
                   isProvider={isProvider && isConfirmed}
                   onAdvance={advanceFulfillment}
                   busy={busy === 'fulfillment' ? busy : ''}
+                  partnerAssigned={Boolean(logisticsJob?.assignedPartner)}
+                  partnerName={logisticsJob?.assignedPartner?.businessName}
                 />
               </div>
             )}
@@ -903,6 +1098,11 @@ export default function BookingDetail() {
             />
           </div>
 
+          {/* ═══ Dedicated Logistics & Transport Section (shown when logistics job exists) ═══ */}
+          {logisticsJob && (
+            <LogisticsTrackingSection job={logisticsJob} />
+          )}
+
           {/* ═══ B — FULFILLMENT (standalone card, shown when confirmed) ═══ */}
           {(isConfirmed || isCompleted) && (
             <Section
@@ -921,6 +1121,8 @@ export default function BookingDetail() {
                 isProvider={isProvider && isConfirmed}
                 onAdvance={advanceFulfillment}
                 busy={busy === 'fulfillment' ? busy : ''}
+                partnerAssigned={Boolean(logisticsJob?.assignedPartner)}
+                partnerName={logisticsJob?.assignedPartner?.businessName}
               />
             </Section>
           )}
@@ -952,7 +1154,7 @@ export default function BookingDetail() {
               {!hasReturn ? (
                 <div>
                   <p className="text-sm text-ink-soft mb-3">
-                    The rental period has ended. Please initiate the return process.
+                     The rental period has ended. Please initiate the return process.
                   </p>
                   {!isProvider && isConfirmed && (
                     <button
@@ -971,6 +1173,8 @@ export default function BookingDetail() {
                   isProvider={isProvider && isConfirmed}
                   onAdvance={advanceReturn}
                   busy={busy === 'returnItem' ? busy : ''}
+                  partnerAssigned={Boolean(logisticsJob?.assignedPartner)}
+                  partnerName={logisticsJob?.assignedPartner?.businessName}
                 />
               )}
             </Section>

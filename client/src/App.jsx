@@ -35,6 +35,7 @@ import Payment from './pages/Payment';
 import HowItWorks from './pages/HowItWorks';
 import Admin from './pages/Admin';
 import AdminLocked from './components/admin/AdminLocked';
+import LogisticsDashboard from './pages/LogisticsDashboard';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -200,6 +201,14 @@ export default function App() {
                     <RequireAdmin>
                       <Admin />
                     </RequireAdmin>
+                  }
+                />
+                <Route
+                  path="/logistics"
+                  element={
+                    <RequireAuth>
+                      <LogisticsDashboard />
+                    </RequireAuth>
                   }
                 />
                 <Route

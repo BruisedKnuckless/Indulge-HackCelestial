@@ -8,6 +8,7 @@ import { validateBookingRequest } from '../services/availability.service.js';
 import { scoreSingleResource } from '../services/matching.service.js';
 import { notify } from '../services/notification.service.js';
 import { estimatePrice } from '../utils/pricing.js';
+import { ensureLogisticsJobForBooking } from '../services/logistics.service.js';
 
 const router = Router();
 
@@ -251,6 +252,13 @@ router.patch(
       { status: 'simulated_paid', paidAt: new Date() }
     );
 
+    // Initialize logistics job if physical transport is required
+    try {
+      await ensureLogisticsJobForBooking(booking);
+    } catch (err) {
+      console.error('Failed to initialize logistics job:', err);
+    }
+
     await notify({
       user: booking.provider,
       type: 'booking_status_change',
@@ -313,6 +321,13 @@ router.patch(
       },
       { new: true, upsert: true }
     );
+
+    // Initialize logistics job if physical transport is required
+    try {
+      await ensureLogisticsJobForBooking(booking);
+    } catch (err) {
+      console.error('Failed to initialize logistics job:', err);
+    }
 
     await notify({
       user: booking.provider,

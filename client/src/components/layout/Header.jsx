@@ -327,6 +327,13 @@ export default function Header() {
               label="Home"
             />
 
+            {user?.userType === 'logistics_partner' && (
+              <NavLink
+                to="/logistics"
+                label="Logistics Dispatch"
+              />
+            )}
+
             {/* Explore dropdown */}
             <div
               className="relative"
@@ -667,6 +674,22 @@ export default function Header() {
                       </>
                     )}
 
+                    {user.userType === 'logistics_partner' && (
+                      <>
+                        <Link
+                          to="/logistics"
+                          className="flex items-center justify-between gap-2 px-4 py-2 text-sm
+                                     font-medium text-ink
+                                     hover:bg-surface-sunk
+                                     transition-colors duration-150"
+                        >
+                          Logistics Workspace
+                          <span className="badge-indigo">Partner</span>
+                        </Link>
+                        <hr className="rule my-1" />
+                      </>
+                    )}
+
                     {ACCOUNT_LINKS.map((l) => (
                       <Link
                         key={l.to}
@@ -854,6 +877,25 @@ export default function Header() {
             >
               Home
             </Link>
+
+            {user?.userType === 'logistics_partner' && (
+              <Link
+                to="/logistics"
+                onClick={() => setMobileOpen(false)}
+                className={[
+                  "py-2 px-3 text-sm rounded-lg",
+                  "transition-all duration-200 ease-out",
+                  resolveActive(
+                    "/logistics",
+                    pathname
+                  )
+                    ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
+                    : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
+                ].join(" ")}
+              >
+                Logistics Dispatch
+              </Link>
+            )}
 
             {/* Current mode navigation */}
             {currentNav.map((n) => {

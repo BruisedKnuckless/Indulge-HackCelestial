@@ -1,0 +1,495 @@
+import { Router } from 'express';
+import mongoose from 'mongoose';
+import LogisticsJob, { LOGISTICS_STATUS_TRANSITIONS } from '../models/LogisticsJob.js';
+import Booking from '../models/Booking.js';
+import User from '../models/User.js';
+import Resource, { doesResourceRequireLogistics } from '../models/Resource.js';
+import { requireAuth, requireAdmin, requireLogisticsPartner } from '../middleware/auth.middleware.js';
+import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
+import { isPlatformAdmin } from '../config/admin.js';
+import { sessionUser } from '../config/admin.js';
+import { notify } from '../services/notification.service.js';
+
+const router = Router();
+
+/** Populate paths for a full logistics view */
+const JOB_POPULATE = [
+  { path: 'seeker', select: 'businessName email phone location' },
+  { path: 'provider', select: 'businessName email phone location' },
+  { path: 'logisticsPartner', select: 'businessName email phone logisticsProfile' },
+  { path: 'resource', select: 'title category location totalQuantity unit images' },
+  { path: 'booking', select: 'status startDateTime endDateTime agreedPrice quotedPrice requestedQuantity' },
+];
+
+/**
+ * GET /api/logistics/jobs
+ * List jobs according to role and query filters.
+ */
+router.get(
+  '/jobs',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { status, view } = req.query;
+    const filter = {};
+
+    if (isPlatformAdmin(req.user)) {
+      if (status) filter.status = status;
+    } else if (req.user.userType === 'logistics_partner') {
+      if (view === 'available') {
+        filter.status = 'unassigned';
+      } else if (view === 'completed') {
+        filter.logisticsPartner = req.user._id;
+        filter.status = { $in: ['delivered', 'returned_to_provider', 'completed'] };
+      } else {
+        filter.logisticsPartner = req.user._id;
+        if (status) filter.status = status;
+      }
+    } else {
+      // Normal business: only bookings where they are seeker or provider
+      filter.$or = [{ seeker: req.user._id }, { provider: req.user._id }];
+      if (status) filter.status = status;
+    }
+
+    const jobs = await LogisticsJob.find(filter)
+      .populate(JOB_POPULATE)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({ jobs });
+  })
+);
+
+/**
+ * GET /api/logistics/jobs/:id
+ * Retrieve single logistics job with strict authorization.
+ */
+router.get(
+  '/jobs/:id',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const job = await LogisticsJob.findById(req.params.id).populate(JOB_POPULATE);
+    if (!job) throw new HttpError(404, 'Logistics job not found.');
+
+    const isSeeker = String(job.seeker?._id || job.seeker) === String(req.user._id);
+    const isProvider = String(job.provider?._id || job.provider) === String(req.user._id);
+    const isAssigned = job.logisticsPartner && String(job.logisticsPartner?._id || job.logisticsPartner) === String(req.user._id);
+    const isAdmin = isPlatformAdmin(req.user);
+
+    if (!isSeeker && !isProvider && !isAssigned && !isAdmin) {
+      throw new HttpError(403, 'You do not have access to this logistics job.');
+    }
+
+    res.json({ job });
+  })
+);
+
+/**
+ * GET /api/logistics/by-booking/:bookingId
+ * Retrieve logistics job for a given booking.
+ */
+router.get(
+  '/by-booking/:bookingId',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const job = await LogisticsJob.findOne({ booking: req.params.bookingId }).populate(JOB_POPULATE);
+    if (!job) return res.json({ job: null });
+
+    const isSeeker = String(job.seeker?._id || job.seeker) === String(req.user._id);
+    const isProvider = String(job.provider?._id || job.provider) === String(req.user._id);
+    const isAssigned = job.logisticsPartner && String(job.logisticsPartner?._id || job.logisticsPartner) === String(req.user._id);
+    const isAdmin = isPlatformAdmin(req.user);
+
+    if (!isSeeker && !isProvider && !isAssigned && !isAdmin) {
+      throw new HttpError(403, 'You do not have access to this booking logistics.');
+    }
+
+    res.json({ job });
+  })
+);
+
+/**
+ * POST /api/logistics/jobs
+ * Create a new logistics job for a confirmed or accepted booking.
+ */
+router.post(
+  '/jobs',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { bookingId, scheduledPickupTime, requiredDeliveryTime, returnRequired, operationalNotes } = req.body;
+    if (!bookingId) throw new HttpError(400, 'bookingId is required.');
+
+    const booking = await Booking.findById(bookingId).populate('resource');
+    if (!booking) throw new HttpError(404, 'Booking not found.');
+
+    const isSeeker = String(booking.seeker) === String(req.user._id);
+    const isProvider = String(booking.provider) === String(req.user._id);
+    const isAdmin = isPlatformAdmin(req.user);
+
+    if (!isSeeker && !isProvider && !isAdmin) {
+      throw new HttpError(403, 'Only parties to this booking or an admin may create a logistics job.');
+    }
+
+    if (!doesResourceRequireLogistics(booking.resource, booking)) {
+      throw new HttpError(400, 'Logistics transport is not required for this resource/service.');
+    }
+
+    const existing = await LogisticsJob.findOne({ booking: booking._id });
+    if (existing) {
+      throw new HttpError(409, 'A logistics job already exists for this booking.');
+    }
+
+    const [providerUser, seekerUser] = await Promise.all([
+      User.findById(booking.provider),
+      User.findById(booking.seeker),
+    ]);
+
+    const pickupLocation = {
+      address: booking.resource.location?.address || providerUser?.location?.address || 'Provider Facility',
+      city: booking.resource.location?.city || providerUser?.location?.city || 'Mumbai',
+      pincode: providerUser?.location?.pincode,
+      coordinates: booking.resource.location?.coordinates || providerUser?.location?.coordinates,
+    };
+
+    const deliveryLocation = {
+      address: seekerUser?.location?.address || 'Seeker Facility',
+      city: seekerUser?.location?.city || 'Mumbai',
+      pincode: seekerUser?.location?.pincode,
+      coordinates: seekerUser?.location?.coordinates,
+    };
+
+    const job = await LogisticsJob.create({
+      booking: booking._id,
+      seeker: booking.seeker,
+      provider: booking.provider,
+      resource: booking.resource._id,
+      quantity: booking.requestedQuantity || 1,
+      pickupLocation,
+      deliveryLocation,
+      scheduledPickupTime: scheduledPickupTime || booking.startDateTime,
+      requiredDeliveryTime: requiredDeliveryTime || booking.startDateTime,
+      returnRequired:
+        returnRequired !== undefined
+          ? returnRequired
+          : booking.resource.category !== 'kitchen_capacity' && booking.resource.category !== 'staff',
+      operationalNotes,
+      status: 'unassigned',
+      timeline: [
+        {
+          status: 'unassigned',
+          timestamp: new Date(),
+          updatedBy: req.user._id,
+          notes: 'Logistics job created',
+        },
+      ],
+    });
+
+    res.status(201).json({ job: await job.populate(JOB_POPULATE) });
+  })
+);
+
+/**
+ * PATCH /api/logistics/jobs/:id/assign
+ * Admin assigns or reassigns a logistics partner.
+ */
+router.patch(
+  '/jobs/:id/assign',
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const { partnerId, notes } = req.body;
+    if (!partnerId) throw new HttpError(400, 'partnerId is required.');
+
+    const job = await LogisticsJob.findById(req.params.id);
+    if (!job) throw new HttpError(404, 'Logistics job not found.');
+
+    const partner = await User.findById(partnerId);
+    if (!partner || partner.userType !== 'logistics_partner') {
+      throw new HttpError(400, 'Selected user is not an active logistics partner.');
+    }
+    if (partner.suspended) {
+      throw new HttpError(400, 'Logistics partner account is suspended.');
+    }
+
+    job.logisticsPartner = partner._id;
+    job.status = 'assigned';
+    job.declineReason = undefined;
+    job.timeline.push({
+      status: 'assigned',
+      timestamp: new Date(),
+      updatedBy: req.user._id,
+      notes: notes || `Assigned to ${partner.businessName}`,
+    });
+    await job.save();
+
+    await notify({
+      user: partner._id,
+      type: 'logistics_assignment',
+      title: 'New Logistics Job Assigned',
+      message: `You have been assigned transport for booking #${String(job.booking).slice(-6)}.`,
+      relatedBooking: job.booking,
+      relatedLogisticsJob: job._id,
+    });
+
+    res.json({ job: await job.populate(JOB_POPULATE) });
+  })
+);
+
+/**
+ * PATCH /api/logistics/jobs/:id/accept
+ * Assigned partner accepts the job assignment.
+ */
+router.patch(
+  '/jobs/:id/accept',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const job = await LogisticsJob.findById(req.params.id);
+    if (!job) throw new HttpError(404, 'Logistics job not found.');
+
+    if (req.user.userType !== 'logistics_partner') {
+      throw new HttpError(403, 'Access reserved for logistics partners.');
+    }
+
+    if (String(job.logisticsPartner) !== String(req.user._id)) {
+      throw new HttpError(403, 'You are not the assigned partner for this job.');
+    }
+
+    if (job.status !== 'assigned') {
+      throw new HttpError(400, `Cannot accept job in "${job.status}" status.`);
+    }
+
+    job.status = 'accepted';
+    job.timeline.push({
+      status: 'accepted',
+      timestamp: new Date(),
+      updatedBy: req.user._id,
+      notes: 'Partner accepted assignment',
+    });
+    await job.save();
+
+    await Promise.all([
+      notify({
+        user: job.seeker,
+        type: 'logistics_update',
+        title: 'Logistics Partner Confirmed',
+        message: `${req.user.businessName} has accepted your transport assignment.`,
+        relatedBooking: job.booking,
+        relatedLogisticsJob: job._id,
+      }),
+      notify({
+        user: job.provider,
+        type: 'logistics_update',
+        title: 'Logistics Partner Confirmed',
+        message: `${req.user.businessName} has accepted the transport assignment.`,
+        relatedBooking: job.booking,
+        relatedLogisticsJob: job._id,
+      }),
+    ]);
+
+    res.json({ job: await job.populate(JOB_POPULATE) });
+  })
+);
+
+/**
+ * PATCH /api/logistics/jobs/:id/decline
+ * Assigned partner declines the job, returning it to an assignable state.
+ */
+router.patch(
+  '/jobs/:id/decline',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { reason } = req.body;
+    const job = await LogisticsJob.findById(req.params.id);
+    if (!job) throw new HttpError(404, 'Logistics job not found.');
+
+    if (String(job.logisticsPartner) !== String(req.user._id)) {
+      throw new HttpError(403, 'You are not the assigned partner for this job.');
+    }
+
+    if (job.status !== 'assigned') {
+      throw new HttpError(400, `Cannot decline job in "${job.status}" status.`);
+    }
+
+    job.status = 'declined';
+    job.declineReason = reason || 'Partner unavailable';
+    job.logisticsPartner = null;
+    job.timeline.push({
+      status: 'declined',
+      timestamp: new Date(),
+      updatedBy: req.user._id,
+      notes: reason || 'Partner declined assignment',
+    });
+    await job.save();
+
+    await notify({
+      user: job.provider,
+      type: 'logistics_update',
+      title: 'Logistics Partner Declined',
+      message: `Assigned partner declined transport: ${reason || 'Unavailable'}. Reassignment needed.`,
+      relatedBooking: job.booking,
+      relatedLogisticsJob: job._id,
+    });
+
+    res.json({ job: await job.populate(JOB_POPULATE) });
+  })
+);
+
+/**
+ * PATCH /api/logistics/jobs/:id/status
+ * Partner or Admin advances the state machine.
+ */
+router.patch(
+  '/jobs/:id/status',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { status, notes } = req.body;
+    if (!status) throw new HttpError(400, 'status is required.');
+
+    const job = await LogisticsJob.findById(req.params.id);
+    if (!job) throw new HttpError(404, 'Logistics job not found.');
+
+    const isAssigned = String(job.logisticsPartner) === String(req.user._id);
+    const isAdmin = isPlatformAdmin(req.user);
+
+    if (!isAssigned && !isAdmin) {
+      throw new HttpError(403, 'Only the assigned logistics partner or an admin can update job status.');
+    }
+
+    const allowedNext = LOGISTICS_STATUS_TRANSITIONS[job.status] || [];
+    if (!allowedNext.includes(status)) {
+      throw new HttpError(400, `Invalid status transition from "${job.status}" to "${status}".`);
+    }
+
+    job.status = status;
+    job.timeline.push({
+      status,
+      timestamp: new Date(),
+      updatedBy: req.user._id,
+      notes: notes || `Status updated to ${status}`,
+    });
+    await job.save();
+
+    // ── Synchronize with Booking fulfillment / return models ──
+    const booking = await Booking.findById(job.booking);
+    if (booking) {
+      if (!booking.fulfillment) booking.fulfillment = {};
+      if (!booking.return) booking.return = {};
+
+      if (status === 'arrived_at_provider') {
+        booking.fulfillment.status = 'loading';
+        booking.fulfillment.loadingAt = new Date();
+      } else if (['picked_up', 'in_transit'].includes(status)) {
+        booking.fulfillment.status = 'out_for_delivery';
+        booking.fulfillment.outForDeliveryAt = new Date();
+      } else if (status === 'delivered') {
+        booking.fulfillment.status = 'delivered';
+        booking.fulfillment.deliveredAt = new Date();
+      } else if (status === 'return_requested') {
+        booking.return.status = 'return_requested';
+        booking.return.returnRequestedAt = new Date();
+      } else if (status === 'return_pickup_scheduled') {
+        booking.return.status = 'return_pickup_scheduled';
+        booking.return.returnPickupScheduledAt = new Date();
+      } else if (['return_picked_up', 'return_in_transit'].includes(status)) {
+        booking.return.status = 'return_in_transit';
+        booking.return.returnInTransitAt = new Date();
+      } else if (status === 'returned_to_provider') {
+        booking.return.status = 'returned_to_provider';
+        booking.return.returnedAt = new Date();
+      } else if (status === 'completed') {
+        booking.return.status = 'return_completed';
+        booking.return.returnCompletedAt = new Date();
+        booking.status = 'completed';
+      }
+
+      if (notes) {
+        if (status.startsWith('return_') || status === 'returned_to_provider' || status === 'completed') {
+          booking.return.notes = notes;
+        } else {
+          booking.fulfillment.notes = notes;
+        }
+      }
+      booking.markModified('fulfillment');
+      booking.markModified('return');
+      await booking.save();
+    }
+
+    // Increment completed jobs on final completion
+    if (status === 'completed' && job.logisticsPartner) {
+      await User.findByIdAndUpdate(job.logisticsPartner, {
+        $inc: { 'logisticsProfile.completedJobs': 1 },
+      });
+    }
+
+    // Milestone notifications
+    const milestoneTitles = {
+      picked_up: 'Goods Picked Up',
+      in_transit: 'Goods In Transit',
+      delivered: 'Goods Delivered',
+      return_picked_up: 'Return Picked Up',
+      returned_to_provider: 'Returned to Provider',
+      completed: 'Logistics Job Completed',
+    };
+    if (milestoneTitles[status]) {
+      const msg = `Delivery status for #${String(job.booking).slice(-6)} is now ${status.replace(/_/g, ' ')}.`;
+      await Promise.all([
+        notify({
+          user: job.seeker,
+          type: 'logistics_update',
+          title: milestoneTitles[status],
+          message: msg,
+          relatedBooking: job.booking,
+          relatedLogisticsJob: job._id,
+        }),
+        notify({
+          user: job.provider,
+          type: 'logistics_update',
+          title: milestoneTitles[status],
+          message: msg,
+          relatedBooking: job.booking,
+          relatedLogisticsJob: job._id,
+        }),
+      ]);
+    }
+
+    res.json({ job: await job.populate(JOB_POPULATE) });
+  })
+);
+
+/**
+ * GET /api/logistics/partners
+ * Admin lists all registered logistics partners for assignment.
+ */
+router.get(
+  '/partners',
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
+    const partners = await User.find({ userType: 'logistics_partner', suspended: false })
+      .select('businessName email phone location logisticsProfile')
+      .lean();
+    res.json({ partners });
+  })
+);
+
+/**
+ * PATCH /api/logistics/partner-profile
+ * Partner updates operating status and fleet details.
+ */
+router.patch(
+  '/partner-profile',
+  requireAuth,
+  requireLogisticsPartner,
+  asyncHandler(async (req, res) => {
+    const { operatingStatus, vehicleInfo, serviceArea, capacityDescription } = req.body;
+    const update = {};
+    if (operatingStatus) update['logisticsProfile.operatingStatus'] = operatingStatus;
+    if (vehicleInfo !== undefined) update['logisticsProfile.vehicleInfo'] = vehicleInfo;
+    if (serviceArea !== undefined) update['logisticsProfile.serviceArea'] = serviceArea;
+    if (capacityDescription !== undefined) update['logisticsProfile.capacityDescription'] = capacityDescription;
+
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: update }, { new: true });
+    res.json({ user: sessionUser(user) });
+  })
+);
+
+export default router;

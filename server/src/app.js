@@ -15,6 +15,7 @@ import notificationRoutes from './routes/notification.routes.js';
 import requirementRoutes from './routes/requirement.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import logisticsRoutes from './routes/logistics.routes.js';
 
 export function createApp() {
   const app = express();
@@ -36,6 +37,7 @@ export function createApp() {
   app.use('/api/requirements', requirementRoutes);
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/logistics', logisticsRoutes);
 
   app.use(notFound);
   app.use(errorHandler);
