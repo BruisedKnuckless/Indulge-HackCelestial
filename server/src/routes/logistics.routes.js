@@ -682,7 +682,9 @@ router.patch(
   asyncHandler(async (req, res) => {
     const { operatingStatus, vehicleInfo, serviceArea, capacityDescription } = req.body;
     const update = {};
-    if (operatingStatus) update['logisticsProfile.operatingStatus'] = operatingStatus;
+    if (operatingStatus) {
+      update['logisticsProfile.operatingStatus'] = operatingStatus === 'available' ? 'active' : operatingStatus;
+    }
     if (vehicleInfo !== undefined) update['logisticsProfile.vehicleInfo'] = vehicleInfo;
     if (serviceArea !== undefined) update['logisticsProfile.serviceArea'] = serviceArea;
     if (capacityDescription !== undefined) update['logisticsProfile.capacityDescription'] = capacityDescription;

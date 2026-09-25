@@ -109,16 +109,27 @@ const ACCOUNT_LINKS = [
   { to: "/how-it-works", label: "How Indulge works" },
 ];
 
+const LOGISTICS_NAV = [
+  { to: "/logistics", label: "Dashboard" },
+  { to: "/logistics?tab=assigned", label: "Jobs" },
+  { to: "/logistics?tab=active", label: "Schedule" },
+];
+
 const LOGISTICS_ACCOUNT_LINKS = [
+  { to: "/account/profile", label: "Partner Profile" },
   { to: "/logistics", label: "Logistics Dashboard" },
-  { to: "/account", label: "Account Profile" },
   { to: "/notifications", label: "Notifications" },
-  { to: "/how-it-works", label: "How Indulge works" },
+  { to: "/how-it-works", label: "How Indulge Logistics Works" },
 ];
 
 /* ── NavLink — knows its own active state ────────────────────────────────── */
 
-function resolveActive(to, pathname) {
+function resolveActive(to, pathname, search = '') {
+  if (to.includes('?')) {
+    const [toPath, toQuery] = to.split('?');
+    return pathname === toPath && search === `?${toQuery}`;
+  }
+  if (to === "/logistics") return pathname === "/logistics" && (!search || search === "");
   if (to === "/home") return pathname === "/home";
   if (to === "/") return pathname === "/";
   if (to === "/s") return pathname === "/s";
@@ -136,8 +147,8 @@ function resolveActive(to, pathname) {
 }
 
 function NavLink({ to, label }) {
-  const { pathname } = useLocation();
-  const active = resolveActive(to, pathname);
+  const { pathname, search } = useLocation();
+  const active = resolveActive(to, pathname, search);
 
   return (
     <Link
@@ -302,11 +313,12 @@ export default function Header() {
         <div className="h-16 flex items-center gap-2">
 
           <Link
-            to="/"
-            aria-label="Indulge Home"
-            title="Indulge — Experience & Landing"
+            to={user?.userType === 'logistics_partner' ? '/logistics' : '/'}
+            aria-label={user?.userType === 'logistics_partner' ? 'Indulge Logistics' : 'Indulge Home'}
+            title={user?.userType === 'logistics_partner' ? 'Indulge — Logistics Dispatch' : 'Indulge — Experience & Landing'}
             onClick={() => {
-              if (pathname === "/") {
+              const target = user?.userType === 'logistics_partner' ? '/logistics' : '/';
+              if (pathname === target) {
                 window.scrollTo({
                   top: 0,
                   left: 0,
@@ -328,18 +340,21 @@ export default function Header() {
             className="hidden lg:flex items-center gap-0.5"
             aria-label="Main navigation"
           >
-            {/* Home stays directly visible */}
-            <NavLink
-              to="/home"
-              label="Home"
-            />
-
             {user?.userType === 'logistics_partner' ? (
-              <NavLink
-                to="/logistics"
-                label="Logistics Dashboard"
-              />
+              LOGISTICS_NAV.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  label={n.label}
+                />
+              ))
             ) : (
+              <>
+                {/* Home stays directly visible */}
+                <NavLink
+                  to="/home"
+                  label="Home"
+                />
               /* Explore dropdown */
               <div
                 className="relative"
@@ -455,7 +470,8 @@ export default function Header() {
                   </div>
                 )}
               </div>
-            )}
+            </>
+          )}
           </nav>
 
           {/* Spacer pushes everything right */}
@@ -463,42 +479,44 @@ export default function Header() {
 
           {/* ── Right cluster ─────────────────────────────────────── */}
 
-          {/* Search */}
-          {searchOpen ? (
-            <form
-              onSubmit={submitSearch}
-              className="hidden sm:block"
-            >
-              <input
-                autoFocus
-                value={q}
-                onChange={(e) =>
-                  setQ(e.target.value)
-                }
-                onBlur={() =>
-                  !q && setSearchOpen(false)
-                }
-                placeholder="Search resources"
-                aria-label="Search resources"
-                className={[
-                  "h-9 w-56 px-3 text-sm rounded-lg",
-                  "bg-white/95 dark:bg-zinc-800/90 text-zinc-950 dark:text-zinc-100",
-                  "border border-black/15 dark:border-white/15",
-                  "outline-none",
-                  "placeholder:text-zinc-500 dark:placeholder:text-zinc-400",
-                  "focus:bg-white dark:focus:bg-zinc-800 focus:border-indigo focus:ring-1 focus:ring-indigo/40",
-                  "transition-all duration-200",
-                ].join(" ")}
-              />
-            </form>
-          ) : (
-            <button
-              onClick={() => setSearchOpen(true)}
-              className={`hidden sm:grid ${ICON_BTN}`}
-              aria-label="Search"
-            >
-              <Icon d={PATHS.search} />
-            </button>
+          {/* Search (only for business / visitors) */}
+          {user?.userType !== 'logistics_partner' && (
+            searchOpen ? (
+              <form
+                onSubmit={submitSearch}
+                className="hidden sm:block"
+              >
+                <input
+                  autoFocus
+                  value={q}
+                  onChange={(e) =>
+                    setQ(e.target.value)
+                  }
+                  onBlur={() =>
+                    !q && setSearchOpen(false)
+                  }
+                  placeholder="Search resources"
+                  aria-label="Search resources"
+                  className={[
+                    "h-9 w-56 px-3 text-sm rounded-lg",
+                    "bg-white/95 dark:bg-zinc-800/90 text-zinc-950 dark:text-zinc-100",
+                    "border border-black/15 dark:border-white/15",
+                    "outline-none",
+                    "placeholder:text-zinc-500 dark:placeholder:text-zinc-400",
+                    "focus:bg-white dark:focus:bg-zinc-800 focus:border-indigo focus:ring-1 focus:ring-indigo/40",
+                    "transition-all duration-200",
+                  ].join(" ")}
+                />
+              </form>
+            ) : (
+              <button
+                onClick={() => setSearchOpen(true)}
+                className={`hidden sm:grid ${ICON_BTN}`}
+                aria-label="Search"
+              >
+                <Icon d={PATHS.search} />
+              </button>
+            )
           )}
 
           {/* Notifications */}
@@ -810,33 +828,35 @@ export default function Header() {
             className="shell py-3 flex flex-col gap-1"
             aria-label="Mobile navigation"
           >
-            {/* Home */}
-            <Link
-              to="/home"
-              onClick={() => {
-                setMobileOpen(false);
+            {/* Home (only for business / visitors) */}
+            {user?.userType !== 'logistics_partner' && (
+              <Link
+                to="/home"
+                onClick={() => {
+                  setMobileOpen(false);
 
-                if (pathname === "/home") {
-                  window.scrollTo({
-                    top: 0,
-                    left: 0,
-                    behavior: "smooth",
-                  });
-                }
-              }}
-              className={[
-                "py-2 px-3 text-sm rounded-lg",
-                "transition-all duration-200 ease-out",
-                resolveActive(
-                  "/home",
-                  pathname
-                )
-                  ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
-                  : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
-              ].join(" ")}
-            >
-              Home
-            </Link>
+                  if (pathname === "/home") {
+                    window.scrollTo({
+                      top: 0,
+                      left: 0,
+                      behavior: "smooth",
+                    });
+                  }
+                }}
+                className={[
+                  "py-2 px-3 text-sm rounded-lg",
+                  "transition-all duration-200 ease-out",
+                  resolveActive(
+                    "/home",
+                    pathname
+                  )
+                    ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
+                    : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
+                ].join(" ")}
+              >
+                Home
+              </Link>
+            )}
 
             {user?.userType === 'logistics_partner' ? (
               <>
@@ -845,12 +865,36 @@ export default function Header() {
                   onClick={() => setMobileOpen(false)}
                   className={[
                     "py-2 px-3 text-sm rounded-lg transition-all duration-200 ease-out",
-                    resolveActive("/logistics", pathname)
+                    resolveActive("/logistics", pathname, search)
                       ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
                       : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
                   ].join(" ")}
                 >
-                  Logistics Dashboard
+                  Dashboard
+                </Link>
+                <Link
+                  to="/logistics?tab=assigned"
+                  onClick={() => setMobileOpen(false)}
+                  className={[
+                    "py-2 px-3 text-sm rounded-lg transition-all duration-200 ease-out",
+                    resolveActive("/logistics?tab=assigned", pathname, search)
+                      ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
+                      : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
+                  ].join(" ")}
+                >
+                  Jobs
+                </Link>
+                <Link
+                  to="/logistics?tab=active"
+                  onClick={() => setMobileOpen(false)}
+                  className={[
+                    "py-2 px-3 text-sm rounded-lg transition-all duration-200 ease-out",
+                    resolveActive("/logistics?tab=active", pathname, search)
+                      ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
+                      : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
+                  ].join(" ")}
+                >
+                  Schedule
                 </Link>
                 <Link
                   to="/notifications"
@@ -860,11 +904,18 @@ export default function Header() {
                   Notifications
                 </Link>
                 <Link
-                  to="/account"
+                  to="/account/profile"
                   onClick={() => setMobileOpen(false)}
                   className="py-2 px-3 text-sm rounded-lg font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]"
                 >
-                  Account Profile
+                  Partner Profile
+                </Link>
+                <Link
+                  to="/how-it-works"
+                  onClick={() => setMobileOpen(false)}
+                  className="py-2 px-3 text-sm rounded-lg font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]"
+                >
+                  How Indulge Logistics Works
                 </Link>
               </>
             ) : (

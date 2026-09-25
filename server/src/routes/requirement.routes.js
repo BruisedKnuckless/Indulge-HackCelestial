@@ -4,7 +4,7 @@ import Proposal from '../models/Proposal.js';
 import Resource, { RESOURCE_CATEGORIES } from '../models/Resource.js';
 import Booking from '../models/Booking.js';
 import Transaction from '../models/Transaction.js';
-import { requireAuth, optionalAuth } from '../middleware/auth.middleware.js';
+import { requireAuth, optionalAuth, requireBusinessUser } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest, getAvailableQuantity } from '../services/availability.service.js';
 import { scoreSingleResource } from '../services/matching.service.js';
@@ -29,6 +29,7 @@ const POPULATE = [
 router.post(
   '/',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const {
       title,
@@ -214,6 +215,7 @@ router.get(
 router.get(
   '/mine',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const filter = { seeker: req.user._id };
     if (req.query.status) {
@@ -236,6 +238,7 @@ router.get(
 router.get(
   '/feed',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const { category, radiusKm = 50, urgency } = req.query;
     const radius = Number(radiusKm) || 50;
@@ -358,6 +361,7 @@ router.get(
 router.post(
   '/:id/offers',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const { resourceId, price, message } = req.body;
 
@@ -516,6 +520,7 @@ router.patch(
 router.post(
   '/:id/proposals',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const requirement = await Requirement.findById(req.params.id);
     if (!requirement) throw new HttpError(404, 'Requirement not found.');
@@ -604,6 +609,7 @@ router.post(
 router.patch(
   '/:id/proposals/:proposalId',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const proposal = await Proposal.findById(req.params.proposalId);
     if (!proposal || String(proposal.requirement) !== String(req.params.id)) {
@@ -635,6 +641,7 @@ router.patch(
 router.post(
   '/:id/proposals/:proposalId/accept',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const requirement = await Requirement.findById(req.params.id);
     if (!requirement) throw new HttpError(404, 'Requirement not found.');
@@ -772,6 +779,7 @@ router.post(
 router.put(
   '/:id',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const requirement = await Requirement.findById(req.params.id);
     if (!requirement) throw new HttpError(404, 'Requirement not found.');
@@ -897,6 +905,7 @@ router.put(
 router.patch(
   '/:id/close',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const requirement = await Requirement.findById(req.params.id);
     if (!requirement) throw new HttpError(404, 'Requirement not found.');
@@ -920,6 +929,7 @@ router.patch(
 router.patch(
   '/:id/cancel',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const requirement = await Requirement.findById(req.params.id);
     if (!requirement) throw new HttpError(404, 'Requirement not found.');

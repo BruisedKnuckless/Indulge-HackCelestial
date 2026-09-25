@@ -2,7 +2,7 @@ import { Router } from 'express';
 import Resource from '../models/Resource.js';
 import Booking, { HARD_RESERVED_STATUSES } from '../models/Booking.js';
 import Review from '../models/Review.js';
-import { requireAuth, optionalAuth } from '../middleware/auth.middleware.js';
+import { requireAuth, optionalAuth, requireBusinessUser } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { getAvailabilityCalendar, getAvailableQuantity } from '../services/availability.service.js';
 
@@ -11,6 +11,7 @@ const router = Router();
 router.get(
   '/mine',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const resources = await Resource.find({ owner: req.user._id, status: { $ne: 'archived' } })
       .sort('-createdAt')
@@ -22,6 +23,7 @@ router.get(
 router.post(
   '/',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const body = { ...req.body, owner: req.user._id };
 
@@ -60,6 +62,7 @@ router.get(
 router.patch(
   '/:id',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const resource = await Resource.findById(req.params.id);
     if (!resource) throw new HttpError(404, 'Resource not found.');
@@ -93,6 +96,7 @@ router.patch(
 router.patch(
   '/:id/status',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const resource = await Resource.findById(req.params.id);
     if (!resource) throw new HttpError(404, 'Resource not found.');
@@ -128,6 +132,7 @@ router.patch(
 router.patch(
   '/:id/availability',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const resource = await Resource.findById(req.params.id);
     if (!resource) throw new HttpError(404, 'Resource not found.');
@@ -185,6 +190,7 @@ router.patch(
 router.post(
   '/:id/blocks',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const resource = await Resource.findById(req.params.id);
     if (!resource) throw new HttpError(404, 'Resource not found.');
@@ -249,6 +255,7 @@ router.post(
 router.delete(
   '/:id/blocks/:blockId',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const resource = await Resource.findById(req.params.id);
     if (!resource) throw new HttpError(404, 'Resource not found.');
@@ -268,6 +275,7 @@ router.delete(
 router.delete(
   '/:id',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const resource = await Resource.findById(req.params.id);
     if (!resource) throw new HttpError(404, 'Resource not found.');

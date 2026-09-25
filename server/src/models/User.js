@@ -50,7 +50,7 @@ const userSchema = new mongoose.Schema(
       serviceArea: [String],
       operatingStatus: {
         type: String,
-        enum: ['active', 'busy', 'offline'],
+        enum: ['active', 'available', 'busy', 'offline'],
         default: 'active',
       },
       vehicleInfo: { type: mongoose.Schema.Types.Mixed },

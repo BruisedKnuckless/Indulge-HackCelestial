@@ -54,6 +54,15 @@ export function requireLogisticsPartner(req, res, next) {
   next();
 }
 
+/** Gate for commercial marketplace operations (Seeker / Lister business accounts). */
+export function requireBusinessUser(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Sign in to continue.' });
+  if (req.user.userType === 'logistics_partner') {
+    return res.status(403).json({ error: 'Logistics partners cannot perform commercial marketplace operations.' });
+  }
+  next();
+}
+
 /** Attaches req.user when a token is present but never blocks the request. */
 export async function optionalAuth(req, _res, next) {
   const header = req.headers.authorization || '';

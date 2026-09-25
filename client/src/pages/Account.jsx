@@ -46,12 +46,41 @@ function Tile({ to, icon, title, description }) {
 
 export default function Account() {
   const { user } = useAuth();
-  const { data: summary } = useAnalytics('summary');
   const isPartner = user?.userType === 'logistics_partner';
+  const { data: summary } = useAnalytics('summary', undefined, { enabled: !isPartner });
 
   return (
     <div className="shell pt-12 pb-20">
-      <h1 className="h-page mb-8">{isPartner ? 'Logistics Partner Account' : 'Your Account'}</h1>
+      {isPartner ? (
+        <div className="mb-8">
+          <h1 className="h-page mb-1">{user?.businessName || 'Logistics Partner'}</h1>
+          <div className="flex items-center gap-3 text-sm text-ink-soft flex-wrap">
+            <span className="font-semibold text-brand-orange">Indulge Logistics Partner</span>
+            <span>•</span>
+            <span>
+              Hub: <strong className="text-ink-base">{user?.location?.city || user?.logisticsProfile?.serviceArea?.[0] || 'Primary Hub'}</strong>
+            </span>
+            {user?.logisticsProfile?.serviceArea?.length > 1 && (
+              <span>({user.logisticsProfile.serviceArea.join(', ')})</span>
+            )}
+            <span>•</span>
+            <span className="flex items-center gap-1.5">
+              Operating Status:
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                (user?.logisticsProfile?.operatingStatus || 'available') === 'available'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                  : (user?.logisticsProfile?.operatingStatus) === 'busy'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                  : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/30'
+              }`}>
+                {(user?.logisticsProfile?.operatingStatus || 'available').toUpperCase()}
+              </span>
+            </span>
+          </div>
+        </div>
+      ) : (
+        <h1 className="h-page mb-8">Your Account</h1>
+      )}
 
       <div className="border border-line rounded p-4 mb-4 flex items-center justify-between flex-wrap gap-3">
         <div>

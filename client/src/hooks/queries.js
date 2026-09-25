@@ -46,7 +46,7 @@ export function useCart() {
   return useQuery({
     queryKey: ['cart'],
     queryFn: async () => (await api.get('/cart')).data,
-    enabled: Boolean(user),
+    enabled: Boolean(user) && user?.userType !== 'logistics_partner',
   });
 }
 
@@ -181,12 +181,12 @@ export function useNotifications() {
 
 /* --------------------------------------------------------------- Analytics */
 
-export function useAnalytics(kind, params) {
+export function useAnalytics(kind, params, options = {}) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ['analytics', kind, params],
     queryFn: async () => (await api.get(`/analytics/${kind}`, { params })).data,
-    enabled: Boolean(user),
+    enabled: Boolean(user) && user?.userType !== 'logistics_partner' && (options.enabled ?? true),
   });
 }
 

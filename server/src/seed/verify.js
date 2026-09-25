@@ -2113,6 +2113,182 @@ async function main() {
     isPartnerIsolated && partnerJobsRes.status === 200 && Array.isArray(partnerJobsRes.body.jobs)
   );
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // Phase 2 UX Correction: Role-Separated Logistics Partner Workspace
+  // ══════════════════════════════════════════════════════════════════════════
+  console.log('\nPhase 2 UX Correction: Role-Separated Logistics Partner Workspace');
+
+  // 1. business still accesses marketplace
+  const bizMarketSearch = await api('GET', '/api/search/resources', { token: seasons });
+  const bizMarketListings = await api('GET', '/api/resources/mine', { token: orchid });
+  check(
+    '1. business still accesses marketplace',
+    bizMarketSearch.status === 200 && bizMarketListings.status === 200
+  );
+
+  // 2. logistics partner recognized after login
+  const partnerAuthRes = await api('POST', '/api/auth/login', {
+    body: { email: 'dispatch@swiftdrop.in', password: 'indulge123' },
+  });
+  const lpToken = partnerAuthRes.body?.token;
+  check(
+    '2. logistics partner recognized after login',
+    partnerAuthRes.status === 200 &&
+      partnerAuthRes.body?.user?.userType === 'logistics_partner' &&
+      Boolean(lpToken)
+  );
+
+  // 3. logistics partner cannot create listing
+  const lpListingRes = await api('POST', '/api/resources', {
+    token: lpToken,
+    body: {
+      title: 'Illegal Logistics Resource Listing',
+      category: 'vehicles',
+      pricing: { basePrice: 1000, priceUnit: 'per_day' },
+      totalQuantity: 1,
+    },
+  });
+  check(
+    '3. logistics partner cannot create listing',
+    lpListingRes.status === 403
+  );
+
+  // 4. logistics partner cannot create requirement
+  const lpReqRes = await api('POST', '/api/requirements', {
+    token: lpToken,
+    body: {
+      title: 'Illegal Logistics Requirement',
+      category: 'kitchen_capacity',
+      urgency: 'high',
+      requiredFrom: at(25, 10),
+      requiredUntil: at(25, 18),
+      budget: { maxPrice: 5000 },
+    },
+  });
+  check(
+    '4. logistics partner cannot create requirement',
+    lpReqRes.status === 403
+  );
+
+  // 5. logistics partner cannot create/use marketplace cart
+  const lpCartAdd = await api('POST', '/api/cart/items', {
+    token: lpToken,
+    body: {
+      resourceId: furnitureId,
+      quantity: 1,
+      startDateTime: at(140, 10),
+      endDateTime: at(140, 18),
+    },
+  });
+  const lpCartGet = await api('GET', '/api/cart', { token: lpToken });
+  check(
+    '5. logistics partner cannot create/use marketplace cart',
+    lpCartAdd.status === 403 && lpCartGet.status === 403
+  );
+
+  // 6. logistics partner cannot checkout marketplace resources
+  const lpCheckout = await api('POST', '/api/cart/checkout', {
+    token: lpToken,
+    body: { paymentMethod: 'direct_billing' },
+  });
+  check(
+    '6. logistics partner cannot checkout marketplace resources',
+    lpCheckout.status === 403
+  );
+
+  // 7. logistics partner cannot submit normal provider RFQ
+  const sampleReq = await api('POST', '/api/requirements', {
+    token: seasons,
+    body: {
+      title: 'Commercial Soup Kettles for Banquet',
+      category: 'kitchen_capacity',
+      urgency: 'medium',
+      requiredFrom: at(40, 10),
+      requiredUntil: at(40, 20),
+      budget: { maxPrice: 2000 },
+    },
+  });
+  const sReqId = sampleReq.body?.requirement?._id;
+  const lpProposal = await api('POST', `/api/requirements/${sReqId}/proposals`, {
+    token: lpToken,
+    body: {
+      proposedPrice: 1800,
+      proposalNotes: 'Logistics proposing illegal marketplace fulfillment',
+    },
+  });
+  check(
+    '7. logistics partner cannot submit normal provider RFQ',
+    lpProposal.status === 403
+  );
+
+  // 8. logistics partner can access assigned logistics jobs
+  const lpJobs = await api('GET', '/api/logistics/jobs', { token: lpToken });
+  check(
+    '8. logistics partner can access assigned logistics jobs',
+    lpJobs.status === 200 && Array.isArray(lpJobs.body?.jobs)
+  );
+
+  // 9. logistics partner can update valid assigned job states
+  const lpJobBooking = await api('POST', '/api/bookings', {
+    token: seasons,
+    body: {
+      resourceId: furnitureId,
+      quantity: 15,
+      startDateTime: at(160, 9),
+      endDateTime: at(160, 18),
+    },
+  });
+  const bkgId = lpJobBooking.body?.booking?._id;
+  await api('PATCH', `/api/bookings/${bkgId}/accept`, { token: orchid });
+  await api('PATCH', `/api/bookings/${bkgId}/confirm`, { token: seasons });
+  const bkgJob = (await api('GET', `/api/logistics/by-booking/${bkgId}`, { token: seasons })).body?.job;
+  const bkgJobId = bkgJob?._id;
+
+  const lpClaimRes = await api('PATCH', `/api/logistics/jobs/${bkgJobId}/claim`, { token: lpToken });
+  const lpAcceptRes = await api('PATCH', `/api/logistics/jobs/${bkgJobId}/accept`, { token: lpToken });
+  const lpSchedRes = await api('PATCH', `/api/logistics/jobs/${bkgJobId}/status`, {
+    token: lpToken,
+    body: { status: 'pickup_scheduled' },
+  });
+  const lpArrivedRes = await api('PATCH', `/api/logistics/jobs/${bkgJobId}/status`, {
+    token: lpToken,
+    body: { status: 'arrived_at_provider' },
+  });
+  check(
+    '9. logistics partner can update valid assigned job states',
+    lpClaimRes.status === 200 &&
+      lpAcceptRes.status === 200 &&
+      lpSchedRes.status === 200 &&
+      lpArrivedRes.status === 200 &&
+      lpArrivedRes.body?.job?.status === 'arrived_at_provider'
+  );
+
+  // 10. business cannot access partner-only logistics APIs
+  const bizProfileBlock = await api('PATCH', '/api/logistics/partner-profile', {
+    token: seasons,
+    body: { operatingStatus: 'offline' },
+  });
+  const bizClaimBlock = await api('PATCH', `/api/logistics/jobs/${bkgJobId}/claim`, {
+    token: seasons,
+  });
+  check(
+    '10. business cannot access partner-only logistics APIs',
+    bizProfileBlock.status === 403 && bizClaimBlock.status === 403
+  );
+
+  // 11. logistics account redirect/role response provides enough data for frontend routing
+  const meCheck = await api('GET', '/api/auth/me', { token: lpToken });
+  const lpUserType = meCheck.body?.user?.userType;
+  const lpStatus = meCheck.body?.user?.logisticsProfile?.operatingStatus;
+  const lpRoute = lpUserType === 'logistics_partner' ? '/logistics' : '/';
+  check(
+    '11. logistics account redirect/role response provides enough data for frontend routing',
+    meCheck.status === 200 &&
+      lpUserType === 'logistics_partner' &&
+      Boolean(lpStatus) &&
+      lpRoute === '/logistics'
+  );
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
 
   server.close();

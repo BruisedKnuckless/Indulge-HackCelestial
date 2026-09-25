@@ -2,7 +2,8 @@ import { Router } from 'express';
 import Booking from '../models/Booking.js';
 import Resource from '../models/Resource.js';
 import Transaction from '../models/Transaction.js';
-import { requireAuth } from '../middleware/auth.middleware.js';
+import LogisticsJob from '../models/LogisticsJob.js';
+import { requireAuth, requireBusinessUser } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest } from '../services/availability.service.js';
 import { scoreSingleResource } from '../services/matching.service.js';
@@ -22,6 +23,7 @@ const POPULATE = [
 router.post(
   '/',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const {
       resourceId,
@@ -88,6 +90,7 @@ router.post(
 router.get(
   '/sent',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const filter = { seeker: req.user._id };
     if (req.query.status) filter.status = { $in: String(req.query.status).split(',') };
@@ -126,6 +129,7 @@ function byProviderPriority(a, b) {
 router.get(
   '/received',
   requireAuth,
+  requireBusinessUser,
   asyncHandler(async (req, res) => {
     const filter = { provider: req.user._id };
     if (req.query.status) filter.status = { $in: String(req.query.status).split(',') };
@@ -145,7 +149,10 @@ router.get(
 
     const mine = [String(booking.provider._id), String(booking.seeker._id)];
     if (!mine.includes(String(req.user._id))) {
-      throw new HttpError(403, 'You are not a party to this request.');
+      const assignedJob = await LogisticsJob.findOne({ booking: booking._id, logisticsPartner: req.user._id });
+      if (!assignedJob) {
+        throw new HttpError(403, 'You are not a party to this request.');
+      }
     }
 
     // Both parties can see the money trail for their own booking.

@@ -48,6 +48,49 @@ function RequireAuth({ children }) {
 }
 
 /**
+ * Public or visitor marketplace routes that logistics partners must not access.
+ * If an authenticated logistics partner tries to access these, they are redirected to /logistics.
+ */
+function RequireBusiness({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Spinner label="Loading your account" />;
+  if (user?.userType === 'logistics_partner') {
+    return <Navigate to="/logistics" replace />;
+  }
+  return children;
+}
+
+/**
+ * Commercial marketplace routes that strictly require a Business (seeker/provider) account.
+ */
+function RequireBusinessAuth({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) return <Spinner label="Loading your account" />;
+  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  if (user.userType === 'logistics_partner') {
+    return <Navigate to="/logistics" replace />;
+  }
+  return children;
+}
+
+/**
+ * Dedicated route guard for logistics partners.
+ */
+function RequireLogisticsPartner({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) return <Spinner label="Loading your account" />;
+  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  if (user.userType !== 'logistics_partner' && !user.isPlatformAdmin) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
+/**
  * The admin console is gated on the server too — /api/admin answers 404 to a
  * non-admin, so a forced route would render an empty shell rather than leak
  * anything. This guard exists to keep it out of the way, not to secure it.
@@ -110,44 +153,44 @@ export default function App() {
           element={
             <Shell>
               <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/home" element={<Home />} />
-                <Route path="/s" element={<Search />} />
-                <Route path="/nearby" element={<Nearby />} />
-                <Route path="/r/:id" element={<ResourceDetail />} />
-                <Route path="/provider/:id" element={<ProviderProfile />} />
+                <Route path="/" element={<RequireBusiness><Home /></RequireBusiness>} />
+                <Route path="/home" element={<RequireBusiness><Home /></RequireBusiness>} />
+                <Route path="/s" element={<RequireBusiness><Search /></RequireBusiness>} />
+                <Route path="/nearby" element={<RequireBusiness><Nearby /></RequireBusiness>} />
+                <Route path="/r/:id" element={<RequireBusiness><ResourceDetail /></RequireBusiness>} />
+                <Route path="/provider/:id" element={<RequireBusiness><ProviderProfile /></RequireBusiness>} />
                 <Route path="/how-it-works" element={<HowItWorks />} />
 
                 <Route
                   path="/cart"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <Cart />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/checkout"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <Checkout />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/bookings/sent"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <Bookings direction="sent" />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/bookings/received"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <Bookings direction="received" />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
@@ -161,41 +204,41 @@ export default function App() {
                 <Route
                   path="/payment/:bookingId"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <Payment />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/listings"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <Listings />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/listings/new"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <ListingForm />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/listings/:id/edit"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <ListingForm />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/analytics"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <Analytics />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
@@ -209,9 +252,9 @@ export default function App() {
                 <Route
                   path="/logistics"
                   element={
-                    <RequireAuth>
+                    <RequireLogisticsPartner>
                       <LogisticsDashboard />
-                    </RequireAuth>
+                    </RequireLogisticsPartner>
                   }
                 />
                 <Route
@@ -249,57 +292,57 @@ export default function App() {
                 <Route
                   path="/requirements"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <MyRFQs />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/requirements/new"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <PostRequirement />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/requirements/:id/edit"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <PostRequirement />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/requirements/board"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <RequirementBoard />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/requirements/feed"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <RequirementsFeed />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/requirements/mine"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <MyRFQs />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
                 <Route
                   path="/requirements/:id"
                   element={
-                    <RequireAuth>
+                    <RequireBusinessAuth>
                       <RequirementDetail />
-                    </RequireAuth>
+                    </RequireBusinessAuth>
                   }
                 />
 

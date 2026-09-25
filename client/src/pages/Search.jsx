@@ -504,6 +504,10 @@ export default function Search() {
       toast.error('Sign in to build a request cart.');
       return;
     }
+    if (user.userType === 'logistics_partner') {
+      toast.error('Logistics partners cannot add marketplace resources to cart.');
+      return;
+    }
     const start = params.get('start') || defaultWindow().start.toISOString();
     const end   = params.get('end')   || defaultWindow().end.toISOString();
     setAddingId(resource._id);

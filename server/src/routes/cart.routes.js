@@ -2,7 +2,7 @@ import { Router } from 'express';
 import Cart from '../models/Cart.js';
 import Resource from '../models/Resource.js';
 import Booking from '../models/Booking.js';
-import { requireAuth } from '../middleware/auth.middleware.js';
+import { requireAuth, requireBusinessUser } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest } from '../services/availability.service.js';
 import { scoreSingleResource } from '../services/matching.service.js';
@@ -10,6 +10,7 @@ import { notify } from '../services/notification.service.js';
 import { estimatePrice } from '../utils/pricing.js';
 
 const router = Router();
+router.use(requireAuth, requireBusinessUser);
 
 async function loadCart(seekerId) {
   let cart = await Cart.findOne({ seeker: seekerId });

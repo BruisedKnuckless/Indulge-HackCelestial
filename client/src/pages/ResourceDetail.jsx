@@ -66,6 +66,11 @@ export default function ResourceDetail() {
       navigate('/login', { state: { from: `/r/${id}` } });
       return true;
     }
+    if (user?.userType === 'logistics_partner') {
+      toast.error('Logistics partners cannot book or request marketplace resources.');
+      navigate('/logistics');
+      return true;
+    }
     return false;
   };
 
