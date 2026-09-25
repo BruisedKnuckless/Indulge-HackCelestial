@@ -13,11 +13,19 @@ import path from 'node:path';
 import { createApp } from '../app.js';
 import { connectDB, disconnectDB } from '../config/db.js';
 import { runSeed } from './seed.js';
+import mongoose from 'mongoose';
 import Booking from '../models/Booking.js';
 import Resource from '../models/Resource.js';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
 import LogisticsJob from '../models/LogisticsJob.js';
+import Requirement from '../models/Requirement.js';
+import {
+  generateProcurementPlans,
+  filterNonDominatedPlans,
+  doesPlanDominate,
+} from '../services/procurement-solver.service.js';
+import { rankResources } from '../services/matching.service.js';
 
 let base = '';
 let passed = 0;
@@ -2299,6 +2307,586 @@ async function main() {
     '12. completed jobs synchronize accurately with partner completedJobs metric and completed filter',
     swiftFleetUser?.logisticsProfile?.completedJobs === swiftCompletedJobs &&
       swiftCompletedJobs >= 2
+  );
+
+  console.log('\nPhase 3: Deterministic Order-Splitting + Trade-Off Solver');
+
+  // Test setup: create test users and candidate resources
+  const solverSeeker = await User.create({
+    businessName: 'Apex Hospitality Seeker',
+    businessType: 'hotel',
+    email: 'apex@seeker.in',
+    passwordHash: 'dummy',
+    userType: 'business',
+    location: { address: 'Thane West', city: 'Thane', coordinates: [72.978, 19.218] },
+  });
+
+  const solverProviderA = await User.create({
+    businessName: 'Provider Alpha Chairs',
+    businessType: 'event_organizer',
+    email: 'alpha@chairs.in',
+    passwordHash: 'dummy',
+    userType: 'business',
+    location: { address: 'Thane East', city: 'Thane', coordinates: [72.985, 19.215] },
+  });
+
+  const solverProviderB = await User.create({
+    businessName: 'Provider Beta Banquet Gear',
+    businessType: 'caterer',
+    email: 'beta@banquet.in',
+    passwordHash: 'dummy',
+    userType: 'business',
+    location: { address: 'Mulund West', city: 'Mumbai', coordinates: [72.955, 19.172] },
+  });
+
+  const solverProviderC = await User.create({
+    businessName: 'Provider Gamma Mega Supplies',
+    businessType: 'banquet_venue',
+    email: 'gamma@mega.in',
+    passwordHash: 'dummy',
+    userType: 'business',
+    location: { address: 'Powai', city: 'Mumbai', coordinates: [72.905, 19.117] },
+  });
+
+  const targetDateStart = new Date(Date.now() + 10 * DAY);
+  const targetDateEnd = new Date(Date.now() + 10 * DAY + 8 * 3600000);
+
+  // 1. Single provider fulfills full quantity
+  const candidateSingle = [
+    {
+      resourceId: 'res-alpha-100',
+      title: 'Chiavari Chairs Gold',
+      category: 'furniture',
+      providerId: String(solverProviderA._id),
+      providerName: solverProviderA.businessName,
+      availableQuantity: 150,
+      unitPrice: 50,
+      distanceKm: 2.0,
+    },
+  ];
+  const plansSingle = await generateProcurementPlans({
+    requestedQuantity: 100,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: candidateSingle,
+  });
+  check(
+    '1. single provider fulfills full quantity',
+    plansSingle.length === 1 &&
+      plansSingle[0].type === 'single' &&
+      plansSingle[0].fulfilledQuantity === 100 &&
+      plansSingle[0].fullyFulfilled === true &&
+      plansSingle[0].supplierCount === 1
+  );
+
+  // 2. Two providers required for full quantity
+  const candidateTwo = [
+    {
+      resourceId: 'res-a-300',
+      title: 'Banquet Chairs A',
+      category: 'furniture',
+      providerId: String(solverProviderA._id),
+      providerName: solverProviderA.businessName,
+      availableQuantity: 300,
+      unitPrice: 60,
+      distanceKm: 2.0,
+    },
+    {
+      resourceId: 'res-b-250',
+      title: 'Banquet Chairs B',
+      category: 'furniture',
+      providerId: String(solverProviderB._id),
+      providerName: solverProviderB.businessName,
+      availableQuantity: 250,
+      unitPrice: 55,
+      distanceKm: 4.0,
+    },
+  ];
+  const plansTwo = await generateProcurementPlans({
+    requestedQuantity: 500,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: candidateTwo,
+  });
+  check(
+    '2. two providers required for full quantity',
+    plansTwo.some(
+      (p) => p.type === 'split' && p.fulfilledQuantity === 500 && p.supplierCount === 2
+    )
+  );
+
+  // 3. Three providers when necessary
+  const candidateThree = [
+    {
+      resourceId: 'res-a-200',
+      title: 'Chairs A',
+      category: 'furniture',
+      providerId: String(solverProviderA._id),
+      providerName: solverProviderA.businessName,
+      availableQuantity: 200,
+      unitPrice: 60,
+      distanceKm: 2.0,
+    },
+    {
+      resourceId: 'res-b-250',
+      title: 'Chairs B',
+      category: 'furniture',
+      providerId: String(solverProviderB._id),
+      providerName: solverProviderB.businessName,
+      availableQuantity: 250,
+      unitPrice: 55,
+      distanceKm: 4.0,
+    },
+    {
+      resourceId: 'res-c-200',
+      title: 'Chairs C',
+      category: 'furniture',
+      providerId: String(solverProviderC._id),
+      providerName: solverProviderC.businessName,
+      availableQuantity: 200,
+      unitPrice: 85,
+      distanceKm: 8.0,
+    },
+  ];
+  const plansThree = await generateProcurementPlans({
+    requestedQuantity: 600,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: candidateThree,
+    maxSuppliersPerPlan: 3,
+  });
+  check(
+    '3. three providers when necessary',
+    plansThree.some(
+      (p) => p.type === 'split' && p.fulfilledQuantity === 600 && p.supplierCount === 3
+    )
+  );
+
+  // 4. Max supplier limit respected
+  const plansCapped = await generateProcurementPlans({
+    requestedQuantity: 600,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: candidateThree,
+    maxSuppliersPerPlan: 2,
+  });
+  check(
+    '4. max supplier limit respected',
+    plansCapped.every((p) => p.supplierCount <= 2)
+  );
+
+  // 5. Paused resource excluded
+  const pausedRes = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Paused Velvet Chairs',
+    category: 'furniture',
+    totalQuantity: 500,
+    pricing: { basePrice: 40 },
+    status: 'paused',
+  });
+  const plansPaused = await generateProcurementPlans({
+    requestedQuantity: 100,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: [pausedRes],
+  });
+  check(
+    '5. paused resource excluded',
+    plansPaused.length === 0
+  );
+
+  // 6. Archived resource excluded
+  const archivedRes = await Resource.create({
+    owner: solverProviderA._id,
+    title: 'Archived Wooden Chairs',
+    category: 'furniture',
+    totalQuantity: 500,
+    pricing: { basePrice: 40 },
+    status: 'archived',
+  });
+  const plansArchived = await generateProcurementPlans({
+    requestedQuantity: 100,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: [archivedRes],
+  });
+  check(
+    '6. archived resource excluded',
+    plansArchived.length === 0
+  );
+
+  // 7. Owner-blocked resource excluded
+  const blockedRes = await Resource.create({
+    owner: solverProviderB._id,
+    title: 'Blocked Banquet Chairs',
+    category: 'furniture',
+    totalQuantity: 500,
+    pricing: { basePrice: 50 },
+    status: 'active',
+    blockedPeriods: [
+      {
+        start: new Date(targetDateStart.getTime() - 2 * 3600000),
+        end: new Date(targetDateEnd.getTime() + 2 * 3600000),
+        reason: 'Private VIP reservation',
+      },
+    ],
+  });
+  const plansBlocked = await generateProcurementPlans({
+    requestedQuantity: 100,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: [blockedRes],
+  });
+  check(
+    '7. owner-blocked resource excluded',
+    plansBlocked.length === 0
+  );
+
+  // 8. Maintenance excluded
+  const maintRes = await Resource.create({
+    owner: solverProviderB._id,
+    title: 'Maintenance Metal Chairs',
+    category: 'furniture',
+    totalQuantity: 500,
+    pricing: { basePrice: 50 },
+    status: 'active',
+    blockedPeriods: [
+      {
+        start: targetDateStart,
+        end: targetDateEnd,
+        reason: 'Deep cleaning and maintenance',
+      },
+    ],
+  });
+  const plansMaint = await generateProcurementPlans({
+    requestedQuantity: 100,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: [maintRes],
+  });
+  check(
+    '8. maintenance excluded',
+    plansMaint.length === 0
+  );
+
+  // 9. Buffer conflict excluded
+  const bufferRes = await Resource.create({
+    owner: solverProviderC._id,
+    title: 'Buffered Audio Podiums',
+    category: 'furniture',
+    totalQuantity: 1,
+    pricing: { basePrice: 200 },
+    status: 'active',
+    bufferBeforeMinutes: 60,
+    bufferAfterMinutes: 60,
+  });
+  // Confirmed booking finishes 30 mins before targetDateStart, but buffer requires 60 mins!
+  await Booking.create({
+    resource: bufferRes._id,
+    provider: solverProviderC._id,
+    seeker: solverSeeker._id,
+    quantity: 1,
+    startDateTime: new Date(targetDateStart.getTime() - 4 * 3600000),
+    endDateTime: new Date(targetDateStart.getTime() - 30 * 60000),
+    status: 'confirmed',
+    agreedPrice: 500,
+    paymentStatus: 'paid',
+  });
+  const plansBuffer = await generateProcurementPlans({
+    requestedQuantity: 1,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: [bufferRes],
+  });
+  check(
+    '9. buffer conflict excluded',
+    plansBuffer.length === 0
+  );
+
+  // 10. Concurrent booked quantity respected
+  const concurrentRes = await Resource.create({
+    owner: solverProviderC._id,
+    title: 'Stackable Chiavari Chairs',
+    category: 'furniture',
+    totalQuantity: 300,
+    pricing: { basePrice: 65 },
+    status: 'active',
+  });
+  // A confirmed booking holds 120 units during the target window
+  await Booking.create({
+    resource: concurrentRes._id,
+    provider: solverProviderC._id,
+    seeker: solverSeeker._id,
+    requestedQuantity: 120,
+    startDateTime: new Date(targetDateStart.getTime() - 3600000),
+    endDateTime: new Date(targetDateEnd.getTime() + 3600000),
+    status: 'confirmed',
+    agreedPrice: 7800,
+    paymentStatus: 'paid',
+  });
+  // Bookable quantity should be 300 - 120 = 180
+  const plansConcurrent = await generateProcurementPlans({
+    requestedQuantity: 250,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: [concurrentRes],
+  });
+  check(
+    '10. concurrent booked quantity respected',
+    plansConcurrent.length === 1 &&
+      plansConcurrent[0].suppliers[0].availableQuantity === 180 &&
+      plansConcurrent[0].fulfilledQuantity === 180
+  );
+
+  // 11. Split quantity equals requested quantity
+  const splitPlan500 = plansTwo.find((p) => p.type === 'split');
+  check(
+    '11. split quantity equals requested quantity',
+    Boolean(splitPlan500) &&
+      splitPlan500.suppliers.reduce((sum, s) => sum + s.allocatedQuantity, 0) === 500
+  );
+
+  // 12. No supplier over-allocation
+  check(
+    '12. no supplier over-allocation',
+    plansTwo.every((p) =>
+      p.suppliers.every((s) => s.allocatedQuantity <= s.availableQuantity)
+    )
+  );
+
+  // 13. Total price correct
+  check(
+    '13. total price correct',
+    Boolean(splitPlan500) &&
+      splitPlan500.totalPrice ===
+        splitPlan500.suppliers.reduce((sum, s) => sum + s.allocatedQuantity * s.unitPrice, 0)
+  );
+
+  // 14. Budget variance correct
+  const plansWithBudget = await generateProcurementPlans({
+    requestedQuantity: 500,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    budget: 40000,
+    candidates: candidateTwo,
+  });
+  const budgetPlan = plansWithBudget.find((p) => p.type === 'split');
+  check(
+    '14. budget variance correct',
+    Boolean(budgetPlan) && budgetPlan.budgetVariance === budgetPlan.totalPrice - 40000
+  );
+
+  // 15. Split vs single both survive when trade-offs differ
+  const resIdA = new mongoose.Types.ObjectId();
+  const resIdB = new mongoose.Types.ObjectId();
+  const resIdC = new mongoose.Types.ObjectId();
+
+  const tradeOffCandidates = [
+    {
+      _id: resIdA,
+      resourceId: String(resIdA),
+      title: 'Chairs A',
+      category: 'furniture',
+      providerId: String(solverProviderA._id),
+      providerName: solverProviderA.businessName,
+      availableQuantity: 300,
+      unitPrice: 60,
+      distanceKm: 2.0,
+      pricing: { basePrice: 60 },
+      totalQuantity: 300,
+      status: 'active',
+    },
+    {
+      _id: resIdB,
+      resourceId: String(resIdB),
+      title: 'Chairs B',
+      category: 'furniture',
+      providerId: String(solverProviderB._id),
+      providerName: solverProviderB.businessName,
+      availableQuantity: 250,
+      unitPrice: 55,
+      distanceKm: 4.0,
+      pricing: { basePrice: 55 },
+      totalQuantity: 250,
+      status: 'active',
+    },
+    {
+      _id: resIdC,
+      resourceId: String(resIdC),
+      title: 'Chairs C',
+      category: 'furniture',
+      providerId: String(solverProviderC._id),
+      providerName: solverProviderC.businessName,
+      availableQuantity: 500,
+      unitPrice: 85,
+      distanceKm: 8.0,
+      pricing: { basePrice: 85 },
+      totalQuantity: 500,
+      status: 'active',
+    },
+  ];
+  const tradeOffPlans = await generateProcurementPlans({
+    requestedQuantity: 500,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    budget: 40000,
+    candidates: tradeOffCandidates,
+  });
+  const hasSplit = tradeOffPlans.some((p) => p.type === 'split');
+  const hasSingle = tradeOffPlans.some((p) => p.type === 'single');
+  check(
+    '15. split vs single both survive when trade-offs differ',
+    hasSplit && hasSingle
+  );
+
+  // 16. Dominated option removed
+  const planGood = {
+    id: 'plan-good',
+    totalPrice: 29000,
+    maxDistanceKm: 4.0,
+    supplierCount: 2,
+    fulfilledQuantity: 500,
+    suppliers: [{ resourceId: '1', allocatedQuantity: 300 }, { resourceId: '2', allocatedQuantity: 200 }],
+  };
+  const planDominated = {
+    id: 'plan-dominated',
+    totalPrice: 35000,
+    maxDistanceKm: 5.0,
+    supplierCount: 2,
+    fulfilledQuantity: 500,
+    suppliers: [{ resourceId: '1', allocatedQuantity: 250 }, { resourceId: '3', allocatedQuantity: 250 }],
+  };
+  const filtered = filterNonDominatedPlans([planGood, planDominated]);
+  check(
+    '16. dominated option removed',
+    filtered.length === 1 && filtered[0].id === 'plan-good' && doesPlanDominate(planGood, planDominated)
+  );
+
+  // 17. Cheapest label correct
+  const minCost = Math.min(...tradeOffPlans.map((p) => p.totalPrice));
+  const cheapestPlan = tradeOffPlans.find((p) => p.totalPrice === minCost);
+  check(
+    '17. cheapest label correct',
+    Boolean(cheapestPlan) && cheapestPlan.labels.includes('CHEAPEST')
+  );
+
+  // 18. Nearest label correct
+  const minDistance = Math.min(...tradeOffPlans.map((p) => p.maxDistanceKm));
+  const nearestPlan = tradeOffPlans.find((p) => p.maxDistanceKm === minDistance);
+  check(
+    '18. nearest label correct',
+    Boolean(nearestPlan) && nearestPlan.labels.includes('NEAREST')
+  );
+
+  // 19. Fewest suppliers label correct
+  const singleOpt = tradeOffPlans.find((p) => p.supplierCount === 1);
+  check(
+    '19. fewest suppliers label correct',
+    Boolean(singleOpt) && singleOpt.labels.includes('FEWEST_SUPPLIERS')
+  );
+
+  // 20. Partial fulfillment returned
+  const partialCandidates = [
+    {
+      resourceId: 'res-part-1',
+      title: 'Limited Chairs 1',
+      category: 'furniture',
+      providerId: String(solverProviderA._id),
+      providerName: solverProviderA.businessName,
+      availableQuantity: 220,
+      unitPrice: 50,
+      distanceKm: 3.0,
+    },
+    {
+      resourceId: 'res-part-2',
+      title: 'Limited Chairs 2',
+      category: 'furniture',
+      providerId: String(solverProviderB._id),
+      providerName: solverProviderB.businessName,
+      availableQuantity: 200,
+      unitPrice: 55,
+      distanceKm: 5.0,
+    },
+  ];
+  const partialPlans = await generateProcurementPlans({
+    requestedQuantity: 500,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    candidates: partialCandidates,
+  });
+  check(
+    '20. partial fulfillment returned',
+    partialPlans.length > 0 &&
+      partialPlans.some(
+        (p) =>
+          p.fulfilledQuantity === 420 &&
+          p.fulfillmentPercentage === 84 &&
+          p.fullyFulfilled === false &&
+          p.labels.includes('PARTIALLY_FULFILLED')
+      )
+  );
+
+  // 21. No duplicate resource allocation inside plan
+  check(
+    '21. no duplicate resource allocation inside plan',
+    tradeOffPlans.every((p) => {
+      const resIds = p.suppliers.map((s) => s.resourceId);
+      const provIds = p.suppliers.map((s) => s.providerId);
+      return new Set(resIds).size === resIds.length && new Set(provIds).size === provIds.length;
+    })
+  );
+
+  // 22. Unauthorized requirement access rejected
+  const testReq = await Requirement.create({
+    seeker: solverSeeker._id,
+    title: '500 Chairs for Grand Gala',
+    category: 'furniture',
+    requiredQuantity: 500,
+    quantity: 500,
+    unit: 'unit',
+    startDateTime: targetDateStart,
+    endDateTime: targetDateEnd,
+    maxBudget: 40000,
+    maxPrice: 40000,
+    location: {
+      address: 'Thane West',
+      city: 'Thane',
+      coordinates: [72.978, 19.218],
+      radiusKm: 25,
+    },
+    radiusKm: 25,
+    status: 'open',
+  });
+  const unauthRes = await api('GET', `/api/requirements/${testReq._id}/procurement-options`, {
+    token: seasons, // Seasons is not the owner of testReq
+  });
+  check(
+    '22. unauthorized requirement access rejected',
+    unauthRes.status === 403
+  );
+
+  // 23. Existing normal matching unchanged
+  const normalMatches = await rankResources(
+    tradeOffCandidates.map((c) => ({
+      _id: c._id,
+      totalQuantity: c.availableQuantity,
+      pricing: { basePrice: c.unitPrice },
+      distanceKm: c.distanceKm,
+    })),
+    {
+      start: targetDateStart,
+      end: targetDateEnd,
+      quantity: 500,
+    }
+  );
+  check(
+    '23. existing normal matching unchanged',
+    normalMatches.length === 1 && normalMatches[0].availableQuantity >= 500
+  );
+
+  // 24. Same input produces deterministic ordering
+  const run1 = await generateProcurementPlans({
+    requestedQuantity: 500,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    budget: 40000,
+    candidates: tradeOffCandidates,
+  });
+  const run2 = await generateProcurementPlans({
+    requestedQuantity: 500,
+    requestedDates: { start: targetDateStart, end: targetDateEnd },
+    budget: 40000,
+    candidates: tradeOffCandidates,
+  });
+  check(
+    '24. same input produces deterministic ordering',
+    JSON.stringify(run1) === JSON.stringify(run2)
   );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

@@ -1,28 +1,62 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Pencil } from 'lucide-react';
+import { Pencil, Check, Layers, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRequirement, useRequirementActions } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
-import { errorMessage } from '../api/client';
+import api, { errorMessage } from '../api/client';
 import { Spinner, Stars, Price, Alert, EmptyState } from '../components/ui';
 import { CATEGORY_LABELS, resourceImage } from '../lib/constants';
 import { inr, dateRange, relative } from '../lib/format';
+
+const LABEL_CONFIG = {
+  CHEAPEST: { text: 'Cheapest', color: 'badge-emerald text-emerald-400 bg-emerald-950/40 border border-emerald-800/40' },
+  NEAREST: { text: 'Nearest', color: 'badge-indigo text-indigo-400 bg-indigo-950/40 border border-indigo-800/40' },
+  FEWEST_SUPPLIERS: { text: 'Fewest Suppliers', color: 'badge-purple text-purple-400 bg-purple-950/40 border border-purple-800/40' },
+  WITHIN_BUDGET: { text: 'Within Budget', color: 'badge-teal text-teal-400 bg-teal-950/40 border border-teal-800/40' },
+  FULLY_FULFILLED: { text: '100% Fulfilled', color: 'badge-blue text-blue-400 bg-blue-950/40 border border-blue-800/40' },
+  PARTIALLY_FULFILLED: { text: 'Partial Fulfillment', color: 'badge-amber text-amber-400 bg-amber-950/40 border border-amber-800/40' },
+  BEST_OPERATIONAL_FIT: { text: 'Best Operational Fit', color: 'badge-accent font-bold text-amber-300 bg-amber-950/50 border border-amber-500/40' },
+};
 
 export default function RequirementDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const qc = useQueryClient();
   const { data, isLoading } = useRequirement(id);
   const { acceptOffer, withdrawOffer, close, cancel } = useRequirementActions();
   const [busy, setBusy] = useState('');
 
+  const r = data?.requirement;
+  const isOwner = String(r?.seeker?._id) === String(user?._id);
+
+  const { data: procData, isLoading: procLoading } = useQuery({
+    queryKey: ['requirement-procurement-options', id],
+    queryFn: async () => {
+      const res = await api.get(`/requirements/${id}/procurement-options`);
+      return res.data;
+    },
+    enabled: Boolean(isOwner && r?.status === 'open'),
+  });
+
+  const selectPlanMutation = useMutation({
+    mutationFn: async (plan) => {
+      const res = await api.post(`/requirements/${id}/select-procurement-plan`, { plan });
+      return res.data;
+    },
+    onSuccess: (resData) => {
+      toast.success(resData?.message || 'Procurement option selected!');
+      qc.invalidateQueries({ queryKey: ['requirement', id] });
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+
   if (isLoading) return <Spinner label="Loading requirement" />;
 
-  const r = data?.requirement;
   if (!r) return <div className="shell pt-12 pb-20">Requirement not found.</div>;
 
-  const isOwner = String(r.seeker?._id) === String(user._id);
   const offers = r.offers || [];
   const liveOffers = offers.filter((o) => o.status === 'offered');
 
@@ -156,6 +190,176 @@ export default function RequirementDetail() {
             </Link>
           )}
         </Alert>
+      )}
+
+      {/* ── Procurement Options (Deterministic Order-Splitting & Trade-Offs) ── */}
+      {isOwner && r.status === 'open' && (
+        <section className="mt-10 pb-8 border-b border-line">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <Layers size={18} className="text-indigo" />
+                <h2 className="h-section text-xl font-bold text-ink">Procurement Options</h2>
+              </div>
+              <p className="text-xs text-ink-soft mt-0.5">
+                Deterministic multi-supplier allocation and single-provider strategies based on true capacity.
+              </p>
+            </div>
+            {procData?.options?.length > 0 && (
+              <span className="badge badge-indigo text-xs">
+                {procData.options.length} feasible strateg{procData.options.length === 1 ? 'y' : 'ies'}
+              </span>
+            )}
+          </div>
+
+          {procLoading ? (
+            <div className="p-8 text-center text-xs text-ink-soft">
+              <Spinner label="Evaluating feasible supplier combinations…" />
+            </div>
+          ) : !procData?.options || procData.options.length === 0 ? (
+            <div className="p-6 rounded-xl border border-dashed border-line bg-surface-alt/30 text-center text-xs text-ink-soft">
+              No matching supplier has bookable stock for this requirement window. Providers can submit custom quotes in the section below.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {procData.options.map((opt, index) => (
+                <div
+                  key={opt.id}
+                  className={`card p-5 rounded-2xl border transition-all ${
+                    r.selectedProcurementPlan?.id === opt.id
+                      ? 'border-green-500/50 bg-green-950/10'
+                      : 'border-line bg-surface-alt/40 hover:border-line-hard'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs uppercase font-mono font-bold tracking-wider text-ink-mute">
+                          OPTION {String.fromCharCode(65 + index)}
+                        </span>
+                        <span
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                            opt.type === 'single'
+                              ? 'bg-indigo/20 text-indigo border border-indigo/30'
+                              : opt.type === 'split'
+                              ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                          }`}
+                        >
+                          {opt.type === 'single'
+                            ? 'Single Supplier'
+                            : opt.type === 'split'
+                            ? 'Split Fulfillment'
+                            : 'Partial Fulfillment'}
+                        </span>
+                      </div>
+                      <p className="text-base font-bold text-ink mt-1">
+                        {opt.fulfilledQuantity} / {opt.requestedQuantity} {r.unit || 'units'} fulfilled
+                        <span className="text-xs font-normal text-ink-soft ml-2">
+                          ({opt.fulfillmentPercentage}%)
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-ink">{inr(opt.totalPrice)}</p>
+                      {opt.budgetVariance != null && (
+                        <p
+                          className={`text-xs font-medium ${
+                            opt.budgetVariance <= 0 ? 'text-green-accent' : 'text-danger'
+                          }`}
+                        >
+                          {opt.budgetVariance <= 0
+                            ? `Within budget by ${inr(Math.abs(opt.budgetVariance))}`
+                            : `Over budget by ${inr(opt.budgetVariance)}`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Metrics row */}
+                  <div className="flex items-center gap-3 text-xs text-ink-soft flex-wrap border-y border-line/60 py-2.5 my-3">
+                    <span>
+                      <strong>{opt.supplierCount}</strong> supplier{opt.supplierCount === 1 ? '' : 's'}
+                    </span>
+                    <span>·</span>
+                    <span>
+                      <strong>{opt.maxDistanceKm} km</strong> max distance (avg {opt.averageDistanceKm} km)
+                    </span>
+                    <span>·</span>
+                    <span className="capitalize">
+                      <strong>{opt.logisticsComplexity}</strong> logistics complexity
+                    </span>
+                  </div>
+
+                  {/* Allocation breakdown */}
+                  <div className="space-y-1.5 mb-3">
+                    <p className="text-[11px] font-semibold text-ink-mute uppercase tracking-wide">
+                      Allocation Breakdown
+                    </p>
+                    {opt.suppliers.map((s, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between text-xs p-2.5 rounded-xl bg-surface-sunk/60 border border-line/50"
+                      >
+                        <div>
+                          <span className="font-semibold text-ink">{s.providerName}</span>
+                          <span className="text-ink-soft ml-1.5">({s.resourceTitle})</span>
+                          {s.distanceKm != null && (
+                            <span className="text-ink-mute ml-2">· {s.distanceKm} km away</span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-ink">
+                            {s.allocatedQuantity} {r.unit || 'units'}
+                          </span>
+                          <span className="text-ink-soft ml-1.5">
+                            ({inr(s.totalPrice)} @ {inr(s.unitPrice)}/unit)
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Labels and action */}
+                  <div className="flex items-center justify-between gap-3 pt-1 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {opt.labels.map((lbl) => (
+                        <span
+                          key={lbl}
+                          className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${
+                            LABEL_CONFIG[lbl]?.color || 'badge'
+                          }`}
+                        >
+                          {LABEL_CONFIG[lbl]?.text || lbl}
+                        </span>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => selectPlanMutation.mutate(opt)}
+                      disabled={selectPlanMutation.isPending}
+                      className={`btn-sm text-xs ${
+                        r.selectedProcurementPlan?.id === opt.id
+                          ? 'btn-secondary text-green-accent border-green-500/40'
+                          : 'btn-primary'
+                      }`}
+                    >
+                      {r.selectedProcurementPlan?.id === opt.id ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Check size={13} /> Selected Strategy
+                        </span>
+                      ) : (
+                        'Select Option'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       <section className="mt-10">

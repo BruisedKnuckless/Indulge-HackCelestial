@@ -9,6 +9,8 @@ import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest, getAvailableQuantity } from '../services/availability.service.js';
 import { scoreSingleResource } from '../services/matching.service.js';
 import { notify } from '../services/notification.service.js';
+import { isPlatformAdmin } from '../config/admin.js';
+import { solveRequirementProcurement } from '../services/procurement-solver.service.js';
 
 const router = Router();
 
@@ -351,6 +353,69 @@ router.get(
     }
 
     res.json({ requirement, proposals });
+  })
+);
+
+/**
+ * GET /api/requirements/:id/procurement-options
+ * Generates deterministic order-splitting and trade-off procurement plans for this requirement.
+ */
+router.get(
+  '/:id/procurement-options',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const requirement = await Requirement.findById(req.params.id);
+    if (!requirement) {
+      throw new HttpError(404, 'Requirement not found.');
+    }
+
+    const isSeeker = String(requirement.seeker) === String(req.user._id);
+    const isAdmin = isPlatformAdmin(req.user);
+
+    if (!isSeeker && !isAdmin) {
+      throw new HttpError(403, 'Access denied. Only the requirement owner can view procurement options.');
+    }
+
+    const result = await solveRequirementProcurement(req.params.id, {
+      maxSuppliers: req.query.maxSuppliers ? Number(req.query.maxSuppliers) : 3,
+    });
+
+    res.json(result);
+  })
+);
+
+/**
+ * POST /api/requirements/:id/select-procurement-plan
+ * Persists the selected procurement strategy on the requirement.
+ */
+router.post(
+  '/:id/select-procurement-plan',
+  requireAuth,
+  requireBusinessUser,
+  asyncHandler(async (req, res) => {
+    const { plan } = req.body;
+    if (!plan || !plan.id) {
+      throw new HttpError(400, 'Valid procurement plan object is required.');
+    }
+
+    const requirement = await Requirement.findById(req.params.id);
+    if (!requirement) {
+      throw new HttpError(404, 'Requirement not found.');
+    }
+
+    if (String(requirement.seeker) !== String(req.user._id) && !isPlatformAdmin(req.user)) {
+      throw new HttpError(403, 'Only the requirement owner can select a procurement strategy.');
+    }
+
+    requirement.selectedProcurementPlan = plan;
+    await requirement.save();
+
+    res.json({
+      requirement,
+      selectedPlan: plan,
+      message: 'Procurement plan saved. Multi-provider allocation recorded for coordination.',
+      note: 'Multi-provider direct split bookings will be created as providers confirm quotes.',
+    });
   })
 );
 
