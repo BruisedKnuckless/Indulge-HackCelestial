@@ -9,6 +9,7 @@ import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { isPlatformAdmin } from '../config/admin.js';
 import { sessionUser } from '../config/admin.js';
 import { notify } from '../services/notification.service.js';
+import { validate, updateLogisticsStatusSchema } from '../middleware/validate.middleware.js';
 
 const router = Router();
 
@@ -677,6 +678,7 @@ router.patch(
 router.patch(
   '/jobs/:id/status',
   requireAuth,
+  validate(updateLogisticsStatusSchema),
   asyncHandler(async (req, res) => {
     const { status, notes } = req.body;
     if (!status) throw new HttpError(400, 'status is required.');

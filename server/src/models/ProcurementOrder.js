@@ -113,4 +113,6 @@ const procurementOrderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+procurementOrderSchema.index({ seeker: 1, status: 1, createdAt: -1 });
+
 export default mongoose.model('ProcurementOrder', procurementOrderSchema);

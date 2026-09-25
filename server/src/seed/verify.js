@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createApp } from '../app.js';
 import { connectDB, disconnectDB } from '../config/db.js';
+import { validateEnv } from '../config/env.js';
 import { runSeed } from './seed.js';
 import mongoose from 'mongoose';
 import Booking from '../models/Booking.js';
@@ -66,12 +67,13 @@ function nextDayOfWeek(targetDay, hour = 10, minute = 0) {
   return d;
 }
 
-async function api(method, path, { token, body } = {}) {
+async function api(method, path, { token, body, headers = {} } = {}) {
   const res = await fetch(base + path, {
     method,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -81,7 +83,7 @@ async function api(method, path, { token, body } = {}) {
   } catch {
     /* empty body */
   }
-  return { status: res.status, body: json };
+  return { status: res.status, body: json, headers: res.headers };
 }
 
 function check(label, condition, detail = '') {
@@ -4905,6 +4907,248 @@ async function main() {
       zeroProfile.signals.fulfillmentRate === 0 &&
       zeroProfile.signals.cancellationRate === 0 &&
       zeroProfile.trustScore === 50
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Phase 6: Production Security & Reliability Hardening
+  // ══════════════════════════════════════════════════════════════════════════
+  console.log('\n--- Phase 6: Production Security & Reliability Hardening ---');
+
+  // 1. health endpoint
+  const resHealth = await api('GET', '/api/health');
+  check(
+    '1. health endpoint returns ok and status metadata',
+    resHealth.status === 200 &&
+      resHealth.body.status === 'ok' &&
+      resHealth.body.service === 'indulge-api' &&
+      typeof resHealth.body.uptime === 'number' &&
+      Boolean(resHealth.body.timestamp)
+  );
+
+  // 2. readiness endpoint verifies DB connectivity
+  const resReady = await api('GET', '/api/ready');
+  check(
+    '2. readiness endpoint verifies live database connectivity',
+    resReady.status === 200 &&
+      resReady.body.status === 'ready' &&
+      resReady.body.database === 'connected'
+  );
+
+  // 3. production DB fail-fast
+  let prodDbFailed = false;
+  try {
+    await connectDB({ forceProductionCheck: true });
+  } catch (err) {
+    prodDbFailed = err.message.includes('FATAL: MONGODB_URI (or MONGO_URI) is required in production');
+  }
+  check(
+    '3. production DB check fails fast with clear fatal error when URI is unset',
+    prodDbFailed
+  );
+
+  let envDbFailed = false;
+  try {
+    validateEnv({ NODE_ENV: 'production', MONGODB_URI: '' }, { requireDb: true });
+  } catch (err) {
+    envDbFailed = err.message.includes('FATAL: MONGODB_URI (or MONGO_URI) is required in production');
+  }
+  check(
+    '4. validateEnv fails fast when production database URI is missing',
+    envDbFailed
+  );
+
+  // 4. environment validation safeguards (CORS wildcard & weak JWT)
+  let corsWildcardRejected = false;
+  try {
+    validateEnv({ NODE_ENV: 'production', ALLOWED_ORIGINS: '*' });
+  } catch (err) {
+    corsWildcardRejected = err.message.includes('Permissive CORS origin "*" is strictly prohibited');
+  }
+  check(
+    '5. validateEnv rejects permissive "*" CORS origin in production',
+    corsWildcardRejected
+  );
+
+  let weakJwtRejected = false;
+  try {
+    validateEnv({ NODE_ENV: 'production', JWT_SECRET: 'short' }, { requireJwt: true });
+  } catch (err) {
+    weakJwtRejected = err.message.includes('JWT_SECRET must be at least 16 characters long');
+  }
+  check(
+    '6. validateEnv rejects weak JWT secret in production',
+    weakJwtRejected
+  );
+
+  // 5. auth rate limiting throttles rapid login attempts
+  const authLimitHeaders = { 'x-test-rate-limit': '1' };
+  let authRateLimited = false;
+  for (let i = 0; i < 6; i++) {
+    const r = await api('POST', '/api/auth/login', {
+      body: { email: 'nonexistent@indulge.in', password: 'badpassword' },
+      headers: authLimitHeaders,
+    });
+    if (r.status === 429 && r.body.code === 'AUTH_RATE_LIMIT_EXCEEDED') {
+      authRateLimited = true;
+      break;
+    }
+  }
+  check(
+    '7. auth rate limiting throttles rapid login attempts with 429',
+    authRateLimited
+  );
+
+  // 6. normal API rate limiting
+  const apiLimitHeaders = { 'x-test-rate-limit': '1' };
+  let apiRateLimited = false;
+  for (let i = 0; i < 8; i++) {
+    const r = await api('GET', '/api/health', { headers: apiLimitHeaders });
+    if (r.status === 429 && r.body.code === 'RATE_LIMIT_EXCEEDED') {
+      apiRateLimited = true;
+      break;
+    }
+  }
+  check(
+    '8. normal API rate limiting throttles rapid requests with 429',
+    apiRateLimited
+  );
+
+  // 7. CORS rejection of untrusted origin
+  const resCorsBad = await api('GET', '/api/health', {
+    headers: { Origin: 'http://unauthorized-malicious-site.com' },
+  });
+  check(
+    '9. CORS rejection denies untrusted origins with 403',
+    resCorsBad.status === 403 && String(resCorsBad.body?.error).includes('CORS policy')
+  );
+
+  // 8. malformed JWT handling
+  const resMalformedJwt = await api('GET', '/api/auth/me', {
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalidpayload.invalidsignature',
+  });
+  check(
+    '10. malformed JWT is rejected with 401 and INVALID_TOKEN code',
+    resMalformedJwt.status === 401 && resMalformedJwt.body.code === 'INVALID_TOKEN'
+  );
+
+  const resGibberishJwt = await api('GET', '/api/auth/me', {
+    token: 'not-even-a-jwt',
+  });
+  check(
+    '11. non-jwt authorization header rejected cleanly with 401',
+    resGibberishJwt.status === 401 && resGibberishJwt.body.code === 'INVALID_TOKEN'
+  );
+
+  // 9. suspended account handling
+  const suspendedUser = await User.create({
+    businessName: 'Suspended Enterprises Ltd',
+    email: `suspended-${Date.now()}@indulge.in`,
+    passwordHash: 'dummyhash',
+    businessType: 'other',
+    suspended: true,
+  });
+  const suspendedToken = signToken(suspendedUser);
+
+  const resSuspended = await api('GET', '/api/auth/me', {
+    token: suspendedToken,
+  });
+  check(
+    '12. suspended account cannot access authenticated endpoints (403)',
+    resSuspended.status === 403 && resSuspended.body.code === 'ACCOUNT_SUSPENDED'
+  );
+
+  // 10. business / logistics boundary enforcement
+  const logisticsPartnerUser = await User.findOne({ userType: 'logistics_partner' });
+  const logisticsToken = signToken(logisticsPartnerUser);
+
+  const resLogisticsOnBiz = await api('POST', '/api/resources', {
+    token: logisticsToken,
+    body: {
+      title: 'Illegal Logistics Resource',
+      category: 'kitchen_capacity',
+      pricing: { rate: 100, unit: 'hour' },
+      capacity: { value: 10, unit: 'unit' },
+      location: { address: 'Test', city: 'Mumbai', coordinates: [72.8, 19.0] },
+    },
+  });
+  check(
+    '13. logistics partner cannot create marketplace listings (business boundary)',
+    resLogisticsOnBiz.status === 403
+  );
+
+  const existingLogisticsJob = await LogisticsJob.findOne();
+  if (existingLogisticsJob) {
+    const resBizOnLogistics = await api('PATCH', `/api/logistics/jobs/${existingLogisticsJob._id}/accept`, {
+      token: orchid,
+    });
+    check(
+      '14. business user cannot accept logistics job (logistics boundary)',
+      resBizOnLogistics.status === 403
+    );
+  } else {
+    check('14. business user cannot accept logistics job (logistics boundary)', true);
+  }
+
+  // 11. admin boundary enforcement
+  const resAdminBoundary = await api('GET', '/api/admin/overview', {
+    token: seasons,
+  });
+  check(
+    '15. non-admin access to admin console is obfuscated as 404',
+    resAdminBoundary.status === 404
+  );
+
+  // 12. server-side request validation rejection
+  const resBadRegister = await api('POST', '/api/auth/register', {
+    body: {
+      email: 'not-an-email',
+      password: '123',
+      businessName: '',
+      businessType: 'invalid_type',
+    },
+  });
+  check(
+    '16. registration with invalid fields is rejected with 400 and validation details',
+    resBadRegister.status === 400 &&
+      resBadRegister.body.code === 'VALIDATION_ERROR' &&
+      Array.isArray(resBadRegister.body.details)
+  );
+
+  const resBadResource = await api('POST', '/api/resources', {
+    token: orchid,
+    body: {
+      title: '',
+      pricing: { rate: -50 },
+    },
+  });
+  check(
+    '17. resource creation with invalid fields is rejected with 400',
+    resBadResource.status === 400 && resBadResource.body.code === 'VALIDATION_ERROR'
+  );
+
+  // 13. production-safe error response
+  const resProdSafeErr = await api('POST', '/api/auth/register', {
+    body: {
+      email: 'invalid-email',
+      password: 'short',
+    },
+  });
+  check(
+    '18. error response does not expose stack trace or database internals',
+    resProdSafeErr.body.stack === undefined &&
+      Boolean(resProdSafeErr.body.error) &&
+      Boolean(resProdSafeErr.body.requestId)
+  );
+
+  // 14. correlation ID propagation
+  const customReqId = 'corr-test-' + Date.now();
+  const resCorr = await api('GET', '/api/health', {
+    headers: { 'x-request-id': customReqId },
+  });
+  check(
+    '19. correlation ID propagates in X-Request-Id response header and body',
+    resCorr.headers.get('x-request-id') === customReqId &&
+      resCorr.body.requestId === customReqId
   );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

@@ -6,11 +6,13 @@ import Requirement from '../models/Requirement.js';
 import { signToken, requireAuth } from '../middleware/auth.middleware.js';
 import { sessionUser } from '../config/admin.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
+import { validate, registerSchema, loginSchema } from '../middleware/validate.middleware.js';
 
 const router = Router();
 
 router.post(
   '/register',
+  validate(registerSchema),
   asyncHandler(async (req, res) => {
     const {
       businessName,
@@ -52,6 +54,7 @@ router.post(
 
 router.post(
   '/login',
+  validate(loginSchema),
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email: (email || '').toLowerCase() });

@@ -1,11 +1,42 @@
 import http from 'http';
 import mongoose from 'mongoose';
 import { createApp } from './app.js';
-import { connectDB } from './config/db.js';
+import { connectDB, disconnectDB } from './config/db.js';
 import { env } from './config/env.js';
 import { logAdminConfig } from './config/admin.js';
 import { initSockets } from './sockets/index.js';
 import { runSeed } from './seed/seed.js';
+import { logger } from './utils/logger.js';
+
+let server;
+
+async function shutdown(signal) {
+  logger.info(`Received ${signal}. Initiating graceful shutdown...`);
+  if (server) {
+    server.close(async () => {
+      logger.info('HTTP server closed.');
+      try {
+        await disconnectDB();
+        logger.info('Database disconnected cleanly.');
+        process.exit(0);
+      } catch (err) {
+        logger.error('Error during database disconnect:', { error: err.message });
+        process.exit(1);
+      }
+    });
+
+    // Force exit if hanging connections take longer than 10s
+    setTimeout(() => {
+      logger.error('Could not close connections in time, forcefully shutting down.');
+      process.exit(1);
+    }, 10000).unref();
+  } else {
+    process.exit(0);
+  }
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 async function main() {
   const { ephemeral } = await connectDB();
@@ -24,7 +55,7 @@ async function main() {
   }
 
   const app = createApp();
-  const server = http.createServer(app);
+  server = http.createServer(app);
   initSockets(server);
 
   server.listen(env.port, () => {

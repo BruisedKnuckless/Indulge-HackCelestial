@@ -19,6 +19,7 @@ import { notify } from '../services/notification.service.js';
 import { isPlatformAdmin } from '../config/admin.js';
 import { getAdminRecoveryMetrics } from '../services/capacity-recovery.service.js';
 import { calculateContributionProfile } from '../services/contribution.service.js';
+import { validate, adminAssignLogisticsSchema, adminSuspendUserSchema } from '../middleware/validate.middleware.js';
 
 /**
  * Platform administration — the eagle-eye console.
@@ -914,6 +915,7 @@ router.get(
  */
 router.patch(
   '/users/:id/suspend',
+  validate(adminSuspendUserSchema),
   asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) throw new HttpError(404, 'Business not found.');
@@ -1750,6 +1752,7 @@ router.get(
 /** Admin assign or reassign partner */
 router.patch(
   '/logistics/:id/assign',
+  validate(adminAssignLogisticsSchema),
   asyncHandler(async (req, res) => {
     const { partnerId, notes } = req.body;
     if (!partnerId) throw new HttpError(400, 'partnerId is required.');

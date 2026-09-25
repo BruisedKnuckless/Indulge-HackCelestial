@@ -5,6 +5,7 @@ import Review from '../models/Review.js';
 import { requireAuth, optionalAuth, requireBusinessUser } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { getAvailabilityCalendar, getAvailableQuantity } from '../services/availability.service.js';
+import { validate, createResourceSchema, updateResourceSchema } from '../middleware/validate.middleware.js';
 
 const router = Router();
 
@@ -24,6 +25,7 @@ router.post(
   '/',
   requireAuth,
   requireBusinessUser,
+  validate(createResourceSchema),
   asyncHandler(async (req, res) => {
     const body = { ...req.body, owner: req.user._id };
 
@@ -63,6 +65,7 @@ router.patch(
   '/:id',
   requireAuth,
   requireBusinessUser,
+  validate(updateResourceSchema),
   asyncHandler(async (req, res) => {
     const resource = await Resource.findById(req.params.id);
     if (!resource) throw new HttpError(404, 'Resource not found.');

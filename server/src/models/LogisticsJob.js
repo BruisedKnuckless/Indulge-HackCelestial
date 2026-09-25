@@ -121,5 +121,6 @@ const logisticsJobSchema = new mongoose.Schema(
 );
 
 logisticsJobSchema.index({ status: 1, logisticsPartner: 1 });
+logisticsJobSchema.index({ logisticsPartner: 1, status: 1, createdAt: -1 });
 
 export default mongoose.model('LogisticsJob', logisticsJobSchema);

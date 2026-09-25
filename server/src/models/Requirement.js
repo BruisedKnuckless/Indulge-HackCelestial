@@ -169,5 +169,6 @@ requirementSchema.pre('save', function (next) {
 requirementSchema.index({ 'location.coordinates': '2dsphere' });
 requirementSchema.index({ category: 1, status: 1, startDateTime: 1 });
 requirementSchema.index({ status: 1, startDateTime: 1 });
+requirementSchema.index({ seeker: 1, status: 1, createdAt: -1 });
 
 export default mongoose.model('Requirement', requirementSchema);

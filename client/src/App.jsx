@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './context/AuthContext';
@@ -9,35 +10,37 @@ import ScrollToTop from './components/ScrollToTop';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { Spinner } from './components/ui';
 
+// Core lightweight routes loaded eagerly
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Search from './pages/Search';
-import Nearby from './pages/Nearby';
-import ResourceDetail from './pages/ResourceDetail';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Bookings from './pages/Bookings';
 import BookingDetail from './pages/BookingDetail';
 import Listings from './pages/Listings';
-import ListingForm from './pages/ListingForm';
-import Analytics from './pages/Analytics';
 import Account from './pages/Account';
 import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
-import ProviderProfile from './pages/ProviderProfile';
-import PostRequirement from './pages/PostRequirement';
 import RequirementsFeed from './pages/RequirementsFeed';
 import MyRFQs from './pages/MyRFQs';
-import MyRequirements from './pages/MyRequirements';
 import RequirementBoard from './pages/RequirementBoard';
-import RequirementDetail from './pages/RequirementDetail';
 import Payment from './pages/Payment';
 import HowItWorks from './pages/HowItWorks';
-import Admin from './pages/Admin';
 import AdminLocked from './components/admin/AdminLocked';
-import LogisticsDashboard from './pages/LogisticsDashboard';
-import ProcurementOrderDetail from './pages/ProcurementOrderDetail';
+
+// Route-based code-splitting for heavy or specialized sub-systems
+const Admin = lazy(() => import('./pages/Admin'));
+const Nearby = lazy(() => import('./pages/Nearby'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const LogisticsDashboard = lazy(() => import('./pages/LogisticsDashboard'));
+const ResourceDetail = lazy(() => import('./pages/ResourceDetail'));
+const ProviderProfile = lazy(() => import('./pages/ProviderProfile'));
+const ListingForm = lazy(() => import('./pages/ListingForm'));
+const PostRequirement = lazy(() => import('./pages/PostRequirement'));
+const RequirementDetail = lazy(() => import('./pages/RequirementDetail'));
+const ProcurementOrderDetail = lazy(() => import('./pages/ProcurementOrderDetail'));
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -115,7 +118,17 @@ function Shell({ children }) {
     <div className="min-h-screen flex flex-col bg-surface">
       <Header />
       <main className="flex-1">
-        <ErrorBoundary>{children}</ErrorBoundary>
+        <ErrorBoundary>
+          <Suspense
+            fallback={
+              <div className="min-h-[50vh] flex items-center justify-center py-16">
+                <Spinner label="Loading view" />
+              </div>
+            }
+          >
+            {children}
+          </Suspense>
+        </ErrorBoundary>
       </main>
       <Footer />
     </div>

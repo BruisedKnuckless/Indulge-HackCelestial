@@ -97,5 +97,7 @@ const bookingSchema = new mongoose.Schema(
 
 // Drives the overlap scan in availability.service.js.
 bookingSchema.index({ resource: 1, status: 1, startDateTime: 1, endDateTime: 1 });
+bookingSchema.index({ seeker: 1, status: 1, createdAt: -1 });
+bookingSchema.index({ provider: 1, status: 1, createdAt: -1 });
 
 export default mongoose.model('Booking', bookingSchema);

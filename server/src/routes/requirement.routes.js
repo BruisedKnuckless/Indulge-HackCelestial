@@ -13,6 +13,7 @@ import { isPlatformAdmin } from '../config/admin.js';
 import { solveRequirementProcurement } from '../services/procurement-solver.service.js';
 import { executeProcurementPlan } from '../services/procurement-execution.service.js';
 import CapacityRecoveryOpportunity from '../models/CapacityRecoveryOpportunity.js';
+import { validate, createRequirementSchema, executeProcurementPlanSchema } from '../middleware/validate.middleware.js';
 
 const router = Router();
 
@@ -34,6 +35,7 @@ router.post(
   '/',
   requireAuth,
   requireBusinessUser,
+  validate(createRequirementSchema),
   asyncHandler(async (req, res) => {
     const {
       title,
@@ -434,6 +436,7 @@ router.post(
   '/:id/execute-procurement-plan',
   requireAuth,
   requireBusinessUser,
+  validate(executeProcurementPlanSchema),
   asyncHandler(async (req, res) => {
     const { plan, idempotencyKey, paymentMethod } = req.body;
 

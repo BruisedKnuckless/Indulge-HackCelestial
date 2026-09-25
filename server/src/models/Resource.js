@@ -105,6 +105,8 @@ const resourceSchema = new mongoose.Schema(
 
 resourceSchema.index({ 'location.coordinates': '2dsphere' });
 resourceSchema.index({ category: 1, status: 1 });
+resourceSchema.index({ owner: 1, status: 1 });
+resourceSchema.index({ status: 1, createdAt: -1 });
 
 export function doesResourceRequireLogistics(resource, booking) {
   if (booking?.logistics === 'provider_transport') return true;
