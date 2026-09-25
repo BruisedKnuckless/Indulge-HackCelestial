@@ -111,6 +111,11 @@ const logisticsJobSchema = new mongoose.Schema(
     operationalNotes: String,
     declineReason: String,
     cancellationReason: String,
+    isSample: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   { timestamps: true }
 );

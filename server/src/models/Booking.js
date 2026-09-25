@@ -88,6 +88,7 @@ const bookingSchema = new mongoose.Schema(
     // Set to true once the rental-expiry notification has been sent so we never
     // send it twice even if the endpoint is called multiple times.
     rentalExpiryNotified: { type: Boolean, default: false },
+    isSample: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

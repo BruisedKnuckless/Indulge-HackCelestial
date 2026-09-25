@@ -22,6 +22,8 @@ import {
   Eye,
   Search,
   Filter,
+  RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import api, { errorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -160,6 +162,10 @@ export default function LogisticsDashboard({ view: viewProp }) {
     () => myJobs.filter((j) => ['completed', 'declined', 'cancelled'].includes(j.status)),
     [myJobs]
   );
+  const hasSampleJobs = useMemo(
+    () => myJobs.some((j) => j.isSample) || availableJobs.some((j) => j.isSample),
+    [myJobs, availableJobs]
+  );
 
   // Today's & Upcoming scheduled jobs chronologically
   const scheduledOperationsJobs = useMemo(() => {
@@ -289,7 +295,21 @@ export default function LogisticsDashboard({ view: viewProp }) {
       return res.data;
     },
     onSuccess: (data) => {
-      toast.success(`${data.count || 5} sample dispatch jobs loaded!`);
+      toast.success(hasSampleJobs ? 'Sample dispatch jobs reset!' : `${data.count || 5} sample dispatch jobs loaded!`);
+      qc.invalidateQueries({ queryKey: ['logistics-my-jobs'] });
+      qc.invalidateQueries({ queryKey: ['logistics-available-jobs'] });
+      qc.invalidateQueries({ queryKey: ['me'] });
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+
+  const clearSamplesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.delete('/logistics/sample-jobs');
+      return res.data;
+    },
+    onSuccess: (data) => {
+      toast.success(data?.message || 'Sample jobs cleared!');
       qc.invalidateQueries({ queryKey: ['logistics-my-jobs'] });
       qc.invalidateQueries({ queryKey: ['logistics-available-jobs'] });
       qc.invalidateQueries({ queryKey: ['me'] });
@@ -599,6 +619,44 @@ export default function LogisticsDashboard({ view: viewProp }) {
     );
   };
 
+  const renderSampleControls = (btnSize = 'btn-sm') => (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <button
+        type="button"
+        onClick={() => generateSamplesMutation.mutate()}
+        disabled={generateSamplesMutation.isPending || clearSamplesMutation.isPending}
+        className={`btn-secondary ${btnSize} gap-1.5 text-xs`}
+        title={hasSampleJobs ? 'Reset canonical sample jobs' : 'Populate test jobs across forward and return workflows'}
+      >
+        {hasSampleJobs ? (
+          <RefreshCw size={13} className={`text-amber-accent ${generateSamplesMutation.isPending ? 'animate-spin' : ''}`} />
+        ) : (
+          <Zap size={13} className="text-amber-accent" />
+        )}
+        {generateSamplesMutation.isPending
+          ? (hasSampleJobs ? 'Resetting…' : 'Generating…')
+          : (hasSampleJobs ? 'Reset Sample Jobs' : 'Load Sample Jobs')}
+      </button>
+
+      {hasSampleJobs && (
+        <button
+          type="button"
+          onClick={() => {
+            if (window.confirm('Clear all demo sample dispatch jobs? Real customer bookings will not be affected.')) {
+              clearSamplesMutation.mutate();
+            }
+          }}
+          disabled={generateSamplesMutation.isPending || clearSamplesMutation.isPending}
+          className={`btn-secondary ${btnSize} gap-1 text-xs text-rose hover:text-rose-light hover:border-rose/40`}
+          title="Clear all demo sample jobs"
+        >
+          <Trash2 size={13} />
+          {clearSamplesMutation.isPending ? 'Clearing…' : 'Clear Samples'}
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="shell pt-8 pb-20">
       {/* ═══════════════════════════════════════════════════════════════════
@@ -617,18 +675,9 @@ export default function LogisticsDashboard({ view: viewProp }) {
               </p>
             </div>
 
-            {/* Operating Status & Sample Job Button */}
+            {/* Operating Status & Sample Job Controls */}
             <div className="flex items-center gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={() => generateSamplesMutation.mutate()}
-                disabled={generateSamplesMutation.isPending}
-                className="btn-secondary btn-sm gap-1.5 text-xs"
-                title="Populate test jobs across forward and return workflows"
-              >
-                <Zap size={13} className="text-amber-accent" />
-                {generateSamplesMutation.isPending ? 'Generating…' : 'Load Sample Jobs'}
-              </button>
+              {renderSampleControls()}
 
               <div className="flex items-center gap-1.5 p-1.5 rounded-xl border border-line bg-surface-alt/70">
                 <span className="text-xs font-semibold text-ink-soft pl-1.5 pr-1">Operating Status:</span>
@@ -824,6 +873,11 @@ export default function LogisticsDashboard({ view: viewProp }) {
                           JOB #{String(job._id).slice(-6).toUpperCase()}
                         </span>
                         {getStatusBadge(job.status)}
+                        {job.isSample && (
+                          <span className="badge badge-amber text-[10px] uppercase font-bold tracking-wider">
+                            Demo Sample
+                          </span>
+                        )}
                         {job.returnRequired && (
                           <span className="badge badge-muted text-[11px] flex items-center gap-1">
                             <RotateCcw size={10} /> Round-trip Return
@@ -925,16 +979,8 @@ export default function LogisticsDashboard({ view: viewProp }) {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => generateSamplesMutation.mutate()}
-                disabled={generateSamplesMutation.isPending}
-                className="btn-secondary btn-sm gap-1.5 text-xs"
-              >
-                <Zap size={13} className="text-amber-accent" />
-                {generateSamplesMutation.isPending ? 'Generating…' : 'Load Sample Jobs'}
-              </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {renderSampleControls()}
               <button
                 type="button"
                 onClick={() => setEditFleetOpen(true)}
@@ -1028,11 +1074,17 @@ export default function LogisticsDashboard({ view: viewProp }) {
                     <button
                       type="button"
                       onClick={() => generateSamplesMutation.mutate()}
-                      disabled={generateSamplesMutation.isPending}
+                      disabled={generateSamplesMutation.isPending || clearSamplesMutation.isPending}
                       className="btn-primary btn-sm gap-1.5"
                     >
-                      <Zap size={14} />
-                      {generateSamplesMutation.isPending ? 'Generating…' : 'Generate Sample Dispatch Jobs'}
+                      {hasSampleJobs ? (
+                        <RefreshCw size={14} className={generateSamplesMutation.isPending ? 'animate-spin' : ''} />
+                      ) : (
+                        <Zap size={14} />
+                      )}
+                      {generateSamplesMutation.isPending
+                        ? (hasSampleJobs ? 'Resetting…' : 'Generating…')
+                        : (hasSampleJobs ? 'Reset Sample Jobs' : 'Generate Sample Dispatch Jobs')}
                     </button>
                   )}
                 </div>
@@ -1051,6 +1103,11 @@ export default function LogisticsDashboard({ view: viewProp }) {
                         JOB #{String(job._id).slice(-6).toUpperCase()}
                       </span>
                       {getStatusBadge(job.status)}
+                      {job.isSample && (
+                        <span className="badge badge-amber text-[10px] uppercase font-bold tracking-wider">
+                          Demo Sample
+                        </span>
+                      )}
                       {job.returnRequired && (
                         <span className="badge badge-muted text-[11px] flex items-center gap-1">
                           <RotateCcw size={10} /> Round-trip Return
@@ -1174,19 +1231,11 @@ export default function LogisticsDashboard({ view: viewProp }) {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="badge badge-indigo text-xs font-semibold">
                 {scheduledOperationsJobs.length} active scheduled run{scheduledOperationsJobs.length === 1 ? '' : 's'}
               </span>
-              <button
-                type="button"
-                onClick={() => generateSamplesMutation.mutate()}
-                disabled={generateSamplesMutation.isPending}
-                className="btn-secondary btn-sm gap-1.5 text-xs"
-              >
-                <Zap size={13} className="text-amber-accent" />
-                {generateSamplesMutation.isPending ? 'Generating…' : 'Load Sample Jobs'}
-              </button>
+              {renderSampleControls()}
             </div>
           </div>
 
@@ -1322,8 +1371,13 @@ export default function LogisticsDashboard({ view: viewProp }) {
                   <h3 className="text-base font-bold text-ink font-mono">
                     JOB #{String(selectedJob._id).slice(-6).toUpperCase()}
                   </h3>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     {getStatusBadge(selectedJob.status)}
+                    {selectedJob.isSample && (
+                      <span className="badge badge-amber text-[10px] uppercase font-bold tracking-wider">
+                        Demo Sample
+                      </span>
+                    )}
                     {selectedJob.returnRequired && (
                       <span className="badge badge-muted text-[10px] flex items-center gap-1">
                         <RotateCcw size={10} /> Round-trip Return

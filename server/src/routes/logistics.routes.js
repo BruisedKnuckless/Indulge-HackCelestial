@@ -273,9 +273,18 @@ router.patch(
   })
 );
 
+const SAMPLE_OPERATIONAL_NOTES = [
+  'Fragile banquet setup gear. Handle with care.',
+  'Express delivery. Destination contact ready at gate.',
+  'Event concluded. Return inspection and inventory check required.',
+  'Catering warmer boxes. Direct one-way transfer.',
+  'Completed banquet furniture dispatch and return inspection.',
+];
+
 /**
  * POST /api/logistics/sample-jobs
  * Seeds interactive sample dispatch jobs for the active partner to explore the full lifecycle.
+ * Strictly idempotent: replaces previous sample jobs rather than creating endless duplicates.
  */
 router.post(
   '/sample-jobs',
@@ -292,6 +301,31 @@ router.post(
       throw new HttpError(400, 'Insufficient business users in system.');
     }
 
+    // 0. Clean up any previous sample jobs for this partner (or unassigned sample jobs)
+    // so loading sample jobs is strictly idempotent and never accumulates redundant duplicates.
+    const sampleFilter = {
+      $and: [
+        {
+          $or: [
+            { isSample: true },
+            { operationalNotes: { $in: SAMPLE_OPERATIONAL_NOTES } },
+          ],
+        },
+        {
+          $or: [{ logisticsPartner: req.user._id }, { status: 'unassigned' }],
+        },
+      ],
+    };
+
+    const existingSamples = await LogisticsJob.find(sampleFilter);
+    if (existingSamples.length > 0) {
+      const sampleBookingIds = existingSamples.map((j) => j.booking).filter(Boolean);
+      await Promise.all([
+        Booking.deleteMany({ _id: { $in: sampleBookingIds } }),
+        LogisticsJob.deleteMany({ _id: { $in: existingSamples.map((j) => j._id) } }),
+      ]);
+    }
+
     const createdJobs = [];
     const now = Date.now();
 
@@ -306,6 +340,7 @@ router.post(
       status: 'confirmed',
       agreedPrice: 7500,
       paymentStatus: 'paid',
+      isSample: true,
     });
     const job1 = await LogisticsJob.create({
       booking: b1._id,
@@ -321,6 +356,7 @@ router.post(
       returnRequired: true,
       operationalNotes: 'Fragile banquet setup gear. Handle with care.',
       status: 'assigned',
+      isSample: true,
       timeline: [
         { status: 'unassigned', timestamp: new Date(now - 3600000), notes: 'Job initialized' },
         { status: 'assigned', timestamp: new Date(), notes: `Assigned to ${req.user.businessName}` },
@@ -340,6 +376,7 @@ router.post(
       agreedPrice: 3200,
       paymentStatus: 'paid',
       fulfillment: { status: 'out_for_delivery', outForDeliveryAt: new Date() },
+      isSample: true,
     });
     const job2 = await LogisticsJob.create({
       booking: b2._id,
@@ -355,6 +392,7 @@ router.post(
       returnRequired: true,
       operationalNotes: 'Express delivery. Destination contact ready at gate.',
       status: 'in_transit',
+      isSample: true,
       timeline: [
         { status: 'assigned', timestamp: new Date(now - 4 * 3600000), notes: 'Assigned' },
         { status: 'accepted', timestamp: new Date(now - 3 * 3600000), notes: 'Accepted' },
@@ -377,6 +415,7 @@ router.post(
       paymentStatus: 'paid',
       fulfillment: { status: 'delivered', deliveredAt: new Date(now - 24 * 3600000) },
       return: { status: 'return_requested', returnRequestedAt: new Date(now - 2 * 3600000) },
+      isSample: true,
     });
     const job3 = await LogisticsJob.create({
       booking: b3._id,
@@ -392,6 +431,7 @@ router.post(
       returnRequired: true,
       operationalNotes: 'Event concluded. Return inspection and inventory check required.',
       status: 'return_requested',
+      isSample: true,
       timeline: [
         { status: 'delivered', timestamp: new Date(now - 24 * 3600000), notes: 'Forward delivery completed' },
         { status: 'return_requested', timestamp: new Date(now - 2 * 3600000), notes: 'Return transport requested' },
@@ -410,6 +450,7 @@ router.post(
       status: 'confirmed',
       agreedPrice: 2000,
       paymentStatus: 'paid',
+      isSample: true,
     });
     const job4 = await LogisticsJob.create({
       booking: b4._id,
@@ -424,6 +465,7 @@ router.post(
       returnRequired: false,
       operationalNotes: 'Catering warmer boxes. Direct one-way transfer.',
       status: 'unassigned',
+      isSample: true,
       timeline: [
         { status: 'unassigned', timestamp: new Date(), notes: 'Broadcasted to logistics network' },
       ],
@@ -443,6 +485,7 @@ router.post(
       paymentStatus: 'paid',
       fulfillment: { status: 'delivered', deliveredAt: new Date(now - 70 * 3600000) },
       return: { status: 'return_completed', returnCompletedAt: new Date(now - 48 * 3600000) },
+      isSample: true,
     });
     const job5 = await LogisticsJob.create({
       booking: b5._id,
@@ -458,6 +501,7 @@ router.post(
       returnRequired: true,
       operationalNotes: 'Completed banquet furniture dispatch and return inspection.',
       status: 'completed',
+      isSample: true,
       timeline: [
         { status: 'assigned', timestamp: new Date(now - 73 * 3600000), notes: `Assigned to ${req.user.businessName}` },
         { status: 'accepted', timestamp: new Date(now - 72.5 * 3600000), notes: 'Partner accepted assignment' },
@@ -470,11 +514,60 @@ router.post(
     });
     createdJobs.push(job5);
 
+    // Recalculate partner's completedJobs accurately from real database count (never arbitrary $inc)
+    const completedCount = await LogisticsJob.countDocuments({
+      logisticsPartner: req.user._id,
+      status: 'completed',
+    });
     await User.findByIdAndUpdate(req.user._id, {
-      $inc: { 'logisticsProfile.completedJobs': 1 },
+      'logisticsProfile.completedJobs': completedCount,
     });
 
-    res.status(201).json({ count: createdJobs.length, message: 'Sample jobs created' });
+    res.status(201).json({ count: createdJobs.length, message: 'Sample jobs loaded successfully' });
+  })
+);
+
+/**
+ * DELETE /api/logistics/sample-jobs
+ * Clears all sample dispatch jobs for the active partner, leaving only real orders.
+ */
+router.delete(
+  '/sample-jobs',
+  requireAuth,
+  requireLogisticsPartner,
+  asyncHandler(async (req, res) => {
+    const sampleFilter = {
+      $and: [
+        {
+          $or: [
+            { isSample: true },
+            { operationalNotes: { $in: SAMPLE_OPERATIONAL_NOTES } },
+          ],
+        },
+        {
+          $or: [{ logisticsPartner: req.user._id }, { status: 'unassigned' }],
+        },
+      ],
+    };
+
+    const existingSamples = await LogisticsJob.find(sampleFilter);
+    if (existingSamples.length > 0) {
+      const sampleBookingIds = existingSamples.map((j) => j.booking).filter(Boolean);
+      await Promise.all([
+        Booking.deleteMany({ _id: { $in: sampleBookingIds } }),
+        LogisticsJob.deleteMany({ _id: { $in: existingSamples.map((j) => j._id) } }),
+      ]);
+    }
+
+    const completedCount = await LogisticsJob.countDocuments({
+      logisticsPartner: req.user._id,
+      status: 'completed',
+    });
+    await User.findByIdAndUpdate(req.user._id, {
+      'logisticsProfile.completedJobs': completedCount,
+    });
+
+    res.json({ message: 'Sample jobs cleared successfully', count: existingSamples.length });
   })
 );
 
@@ -657,10 +750,14 @@ router.patch(
       await booking.save();
     }
 
-    // Increment completed jobs on final completion
+    // Recalculate completed jobs accurately on final completion
     if (status === 'completed' && job.logisticsPartner) {
+      const completedCount = await LogisticsJob.countDocuments({
+        logisticsPartner: job.logisticsPartner,
+        status: 'completed',
+      });
       await User.findByIdAndUpdate(job.logisticsPartner, {
-        $inc: { 'logisticsProfile.completedJobs': 1 },
+        'logisticsProfile.completedJobs': completedCount,
       });
     }
 
