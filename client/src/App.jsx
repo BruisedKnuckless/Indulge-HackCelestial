@@ -38,6 +38,8 @@ import Admin from './pages/Admin';
 import AdminLocked from './components/admin/AdminLocked';
 import LogisticsDashboard from './pages/LogisticsDashboard';
 import ProcurementOrderDetail from './pages/ProcurementOrderDetail';
+import AIAssistantButton from './components/ai/AIAssistantButton';
+import AIAssistantPage from './pages/AIAssistantPage';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -118,6 +120,8 @@ function Shell({ children }) {
         <ErrorBoundary>{children}</ErrorBoundary>
       </main>
       <Footer />
+      {/* Floating AI assistant — only shows for authenticated business users */}
+      <AIAssistantButton />
     </div>
   );
 }
@@ -161,6 +165,14 @@ export default function App() {
                 <Route path="/r/:id" element={<RequireBusiness><ResourceDetail /></RequireBusiness>} />
                 <Route path="/provider/:id" element={<RequireBusiness><ProviderProfile /></RequireBusiness>} />
                 <Route path="/how-it-works" element={<HowItWorks />} />
+                <Route
+                  path="/assistant"
+                  element={
+                    <RequireBusinessAuth>
+                      <AIAssistantPage />
+                    </RequireBusinessAuth>
+                  }
+                />
 
                 <Route
                   path="/cart"

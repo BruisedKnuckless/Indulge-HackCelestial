@@ -6,6 +6,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import App from "./App";
 import "./styles/index.css";
+import "./styles/ai-assistant.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

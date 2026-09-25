@@ -10,4 +10,6 @@ export const env = {
   jwtExpires: process.env.JWT_EXPIRES || '7d',
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
   nodeEnv: process.env.NODE_ENV || 'development',
+  // AI layer — NEVER expose this to the React client
+  geminiApiKey: process.env.GEMINI_API_KEY || '',
 };
