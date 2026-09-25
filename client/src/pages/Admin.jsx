@@ -8,7 +8,7 @@ import {
 import {
   Gauge, Radio, ShieldCheck, Users, Boxes, ShoppingBag, Receipt, FileText,
   MessageSquare, Star, Megaphone, Truck, Building2, IndianRupee, AlertTriangle,
-  RefreshCw, Package,
+  RefreshCw, Package, Award,
 } from 'lucide-react';
 import { useAdminOverview, useAdminMeta, useAdminActions } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
