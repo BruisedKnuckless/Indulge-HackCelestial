@@ -363,7 +363,7 @@ export default function Header() {
                   to="/home"
                   label="Home"
                 />
-              /* Explore dropdown */
+              {/* Explore dropdown */}
               <div
                 className="relative"
                 ref={exploreRef}
@@ -881,11 +881,11 @@ export default function Header() {
                   Dashboard
                 </Link>
                 <Link
-                  to="/logistics?tab=assigned"
+                  to="/logistics/jobs"
                   onClick={() => setMobileOpen(false)}
                   className={[
                     "py-2 px-3 text-sm rounded-lg transition-all duration-200 ease-out",
-                    resolveActive("/logistics?tab=assigned", pathname, search)
+                    resolveActive("/logistics/jobs", pathname, search)
                       ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
                       : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
                   ].join(" ")}
@@ -893,11 +893,11 @@ export default function Header() {
                   Jobs
                 </Link>
                 <Link
-                  to="/logistics?tab=active"
+                  to="/logistics/schedule"
                   onClick={() => setMobileOpen(false)}
                   className={[
                     "py-2 px-3 text-sm rounded-lg transition-all duration-200 ease-out",
-                    resolveActive("/logistics?tab=active", pathname, search)
+                    resolveActive("/logistics/schedule", pathname, search)
                       ? "font-semibold text-zinc-950 dark:text-white bg-[rgba(99,102,241,0.16)] dark:bg-[rgba(99,102,241,0.22)] shadow-xs"
                       : "font-medium text-zinc-900/80 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white hover:bg-[rgba(99,102,241,0.10)] dark:hover:bg-[rgba(99,102,241,0.16)]",
                   ].join(" ")}
