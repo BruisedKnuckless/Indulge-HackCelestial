@@ -9,12 +9,12 @@ import { useState, useCallback, useRef } from 'react';
 import api from '../api/client';
 
 export const QUICK_ACTIONS = [
-  { id: 'requirements', label: '📋 My Requirements', prompt: 'Show me my current open requirements.' },
-  { id: 'find', label: '🔍 Find Resources', prompt: 'Help me find resources available near me.' },
-  { id: 'bookings', label: '📦 My Bookings', prompt: 'What is the status of my recent bookings?' },
-  { id: 'how', label: '❓ How It Works', prompt: 'How does the Indulge marketplace work?' },
-  { id: 'create', label: '✏️ Create Requirement', prompt: 'Help me create a new requirement.' },
-  { id: 'pricing', label: '💰 Pricing Help', prompt: 'Explain how pricing and budgets work on Indulge.' },
+  { id: 'requirements', label: 'My Requirements', prompt: 'Show me my current open requirements.' },
+  { id: 'find', label: 'Find Resources', prompt: 'Help me find resources available near me.' },
+  { id: 'bookings', label: 'My Bookings', prompt: 'What is the status of my recent bookings?' },
+  { id: 'how', label: 'How It Works', prompt: 'How does the Indulge marketplace work?' },
+  { id: 'create', label: 'Create Requirement', prompt: 'Help me create a new requirement.' },
+  { id: 'pricing', label: 'Pricing Help', prompt: 'Explain how pricing and budgets work on Indulge.' },
 ];
 
 export function useAIChat({ requirementId, bookingId, resourceId } = {}) {

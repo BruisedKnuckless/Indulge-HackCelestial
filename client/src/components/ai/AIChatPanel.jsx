@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useAIChat, QUICK_ACTIONS } from '../../hooks/useAIChat';
+import Logo from '../layout/Logo';
 
 // ─── Markdown renderer ────────────────────────────────────────────────────────
 
@@ -38,13 +39,6 @@ function MessageBubble({ message }) {
 
   return (
     <div className={`ai-message-row ${isUser ? 'ai-message-row--user' : 'ai-message-row--assistant'}`}>
-      {!isUser && (
-        <div className="ai-avatar">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
-          </svg>
-        </div>
-      )}
       <div className={`ai-bubble ${isUser ? 'ai-bubble--user' : isError ? 'ai-bubble--error' : 'ai-bubble--assistant'}`}>
         {isUser ? (
           <p className="ai-bubble-user-text">{message.content}</p>
@@ -57,13 +51,6 @@ function MessageBubble({ message }) {
             : ''}
         </span>
       </div>
-      {isUser && (
-        <div className="ai-avatar ai-avatar--user">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>
-          </svg>
-        </div>
-      )}
     </div>
   );
 }
@@ -73,11 +60,6 @@ function MessageBubble({ message }) {
 function TypingIndicator() {
   return (
     <div className="ai-message-row ai-message-row--assistant">
-      <div className="ai-avatar">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
-        </svg>
-      </div>
       <div className="ai-bubble ai-bubble--assistant ai-bubble--typing">
         <span className="ai-typing-dot" style={{ animationDelay: '0ms' }} />
         <span className="ai-typing-dot" style={{ animationDelay: '150ms' }} />
@@ -178,13 +160,14 @@ export default function AIChatPanel({
       {/* Header */}
       <div className="ai-panel-header">
         <div className="ai-panel-header-left">
-          <div className="ai-panel-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
-            </svg>
+          <div className="ai-panel-logo-wrap" title="Indulge">
+            <Logo size={20} showText={false} dark={false} />
           </div>
           <div>
-            <h2 className="ai-panel-title">Indulge Assistant</h2>
+            <div className="ai-panel-title-row">
+              <span className="ai-panel-title">Indulge</span>
+              <span className="ai-panel-badge">Assistant</span>
+            </div>
             <p className="ai-panel-subtitle">
               <span className="ai-status-dot" />
               Grounded in real marketplace data
@@ -237,7 +220,11 @@ export default function AIChatPanel({
             ref={inputRef}
             className="ai-input"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+            }}
             onKeyDown={handleKey}
             placeholder="Ask anything about resources, bookings, requirements..."
             rows={1}
