@@ -5,7 +5,7 @@
  * Appears as a premium floating action button in the bottom-right corner.
  */
 
-import { useState, useCallback, Suspense, lazy } from 'react';
+import { useState, useCallback, useEffect, useRef, Suspense, lazy } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Logo from '../layout/Logo';
 
@@ -21,9 +21,38 @@ export default function AIAssistantButton({
 }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(!!inline);
+  const panelRef = useRef(null);
+  const buttonRef = useRef(null);
 
   const handleOpen = useCallback(() => setOpen(true), []);
   const handleClose = useCallback(() => setOpen(false), []);
+
+  // Close chatbot when clicking outside panel
+  useEffect(() => {
+    if (!open || inline) return;
+
+    const handlePointerDown = (event) => {
+      // If clicking inside the panel, keep it open
+      if (panelRef.current && panelRef.current.contains(event.target)) {
+        return;
+      }
+      // If clicking the launcher button itself, let button's onClick handle it
+      if (buttonRef.current && buttonRef.current.contains(event.target)) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    // Register listener on next tick so the opening click does not immediately trigger outside-click
+    const timer = setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDown);
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [open, inline]);
 
   // Only show for authenticated business users
   if (!user || user.userType === 'logistics_partner') return null;
@@ -48,7 +77,7 @@ export default function AIAssistantButton({
     <>
       {/* Floating chat panel */}
       {open && (
-        <div className="ai-panel-overlay">
+        <div className="ai-panel-overlay" ref={panelRef}>
           <Suspense fallback={null}>
             <AIChatPanel
               onClose={handleClose}
@@ -65,16 +94,17 @@ export default function AIAssistantButton({
       {!open && (
         <button
           id="ai-assistant-fab"
+          ref={buttonRef}
           className="ai-fab"
           onClick={handleOpen}
           aria-label="Open Indulge AI Assistant"
-          title="Ask Indulge AI"
+          title="Indulge Assistant"
           type="button"
         >
           <div className="ai-fab-logo">
             <Logo size={16} showText={false} dark={false} />
           </div>
-          <span className="ai-fab-label">Ask AI</span>
+          <span className="ai-fab-label">Indulge Assistant</span>
           <span className="ai-fab-pulse" />
         </button>
       )}
