@@ -5,7 +5,7 @@ import {
   Truck, Clock, MapPin, User, CheckCircle2, AlertTriangle, XCircle, ArrowRight,
   ShieldCheck, RefreshCw, Eye, Calendar,
 } from 'lucide-react';
-import api, { errorMessage } from '../../api/client';
+import { adminApi, errorMessage } from '../../api/client';
 import { dateTime, relative } from '../../lib/format';
 import { Spinner, EmptyState } from '../ui';
 import {
@@ -57,14 +57,14 @@ export default function AdminLogistics() {
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ['admin', 'logistics'],
     queryFn: async () => {
-      return (await api.get('/admin/logistics')).data;
+      return (await adminApi.get('/admin/logistics')).data;
     },
     refetchInterval: 15000,
   });
 
   const assignMutation = useMutation({
     mutationFn: async ({ id, partnerId, notes }) => {
-      return (await api.patch(`/admin/logistics/${id}/assign`, { partnerId, notes })).data;
+      return (await adminApi.patch(`/admin/logistics/${id}/assign`, { partnerId, notes })).data;
     },
     onSuccess: () => {
       toast.success('Logistics partner assigned successfully');

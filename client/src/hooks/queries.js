@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '../api/client';
+import api, { adminApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useAdminAuth } from '../context/AdminAuthContext';
 
 /* ------------------------------------------------------------------ Search */
 
@@ -335,19 +336,19 @@ export function useRequirementActions() {
 
 /**
  * Platform administration. Every one of these reads across tenant boundaries,
- * so the API answers 404 rather than 403 to a non-admin — which means these
- * hooks stay disabled unless the session actually carries the flag, and a
- * demoted admin degrades to an empty console instead of a wall of errors.
+ * so they go through adminApi with the separate admin session's token — never
+ * the business token — and stay disabled until an admin is signed in, so a
+ * signed-out console degrades to empty instead of a wall of errors.
  */
 function useAdminSession() {
-  const { user } = useAuth();
-  return Boolean(user?.isPlatformAdmin);
+  const { admin } = useAdminAuth();
+  return Boolean(admin);
 }
 
 export function useAdminOverview() {
   return useQuery({
     queryKey: ['admin', 'overview'],
-    queryFn: async () => (await api.get('/admin/overview')).data,
+    queryFn: async () => (await adminApi.get('/admin/overview')).data,
     enabled: useAdminSession(),
     refetchInterval: 60000,
   });
@@ -357,8 +358,18 @@ export function useAdminOverview() {
 export function useAdminLive(limit = 60) {
   return useQuery({
     queryKey: ['admin', 'live', limit],
-    queryFn: async () => (await api.get('/admin/live', { params: { limit } })).data,
+    queryFn: async () => (await adminApi.get('/admin/live', { params: { limit } })).data,
     enabled: useAdminSession(),
+    refetchInterval: 15000,
+  });
+}
+
+/** Lifecycle behind one Live item; refreshes on the feed's own 15s cadence. */
+export function useAdminLiveTimeline(kind, id, enabled = true) {
+  return useQuery({
+    queryKey: ['admin', 'live', 'timeline', kind, id],
+    queryFn: async () => (await adminApi.get(`/admin/live/${kind}/${id}/timeline`)).data,
+    enabled: useAdminSession() && enabled && Boolean(kind && id),
     refetchInterval: 15000,
   });
 }
@@ -366,7 +377,7 @@ export function useAdminLive(limit = 60) {
 export function useAdminHealth() {
   return useQuery({
     queryKey: ['admin', 'health'],
-    queryFn: async () => (await api.get('/admin/health')).data,
+    queryFn: async () => (await adminApi.get('/admin/health')).data,
     enabled: useAdminSession(),
     // The audit sweeps every collection, so it is the one call here worth
     // holding onto rather than refetching on a timer.
@@ -377,7 +388,7 @@ export function useAdminHealth() {
 export function useAdminMeta() {
   return useQuery({
     queryKey: ['admin', 'meta'],
-    queryFn: async () => (await api.get('/admin/meta')).data,
+    queryFn: async () => (await adminApi.get('/admin/meta')).data,
     enabled: useAdminSession(),
     staleTime: 5 * 60_000,
   });
@@ -391,7 +402,7 @@ export function useAdminMeta() {
 export function useAdminList(resource, params = {}) {
   return useQuery({
     queryKey: ['admin', resource, params],
-    queryFn: async () => (await api.get(`/admin/${resource}`, { params })).data,
+    queryFn: async () => (await adminApi.get(`/admin/${resource}`, { params })).data,
     enabled: useAdminSession(),
     placeholderData: (prev) => prev, // keep rows on screen while refiltering
   });
@@ -401,7 +412,7 @@ export function useAdminList(resource, params = {}) {
 export function useAdminBusiness(id) {
   return useQuery({
     queryKey: ['admin', 'business', id],
-    queryFn: async () => (await api.get(`/admin/users/${id}`)).data,
+    queryFn: async () => (await adminApi.get(`/admin/users/${id}`)).data,
     enabled: useAdminSession() && Boolean(id),
   });
 }
@@ -410,7 +421,7 @@ export function useAdminBusiness(id) {
  * Administrative writes. Each one can move counts, money, the audit and
  * somebody's notification list at once, so they all invalidate the whole
  * admin namespace rather than guessing which table was affected — and the
- * marketplace queries too, since the acting admin is also a business.
+ * marketplace queries too, in case a business session is open in this browser.
  */
 export function useAdminActions() {
   const qc = useQueryClient();
@@ -429,45 +440,45 @@ export function useAdminActions() {
   return {
     suspendBusiness: useMutation(
       mutate(async ({ id, suspended, reason }) =>
-        (await api.patch(`/admin/users/${id}/suspend`, { suspended, reason })).data
+        (await adminApi.patch(`/admin/users/${id}/suspend`, { suspended, reason })).data
       )
     ),
     unlistBusiness: useMutation(
       mutate(async ({ id, status, reason }) =>
-        (await api.post(`/admin/users/${id}/unlist`, { status, reason })).data
+        (await adminApi.post(`/admin/users/${id}/unlist`, { status, reason })).data
       )
     ),
     resetPassword: useMutation(
-      mutate(async ({ id }) => (await api.post(`/admin/users/${id}/reset-password`)).data)
+      mutate(async ({ id }) => (await adminApi.post(`/admin/users/${id}/reset-password`)).data)
     ),
     setListingStatus: useMutation(
       mutate(async ({ id, status, reason }) =>
-        (await api.patch(`/admin/listings/${id}/status`, { status, reason })).data
+        (await adminApi.patch(`/admin/listings/${id}/status`, { status, reason })).data
       )
     ),
     overrideBooking: useMutation(
       mutate(async ({ id, status, reason }) =>
-        (await api.patch(`/admin/bookings/${id}/status`, { status, reason })).data
+        (await adminApi.patch(`/admin/bookings/${id}/status`, { status, reason })).data
       )
     ),
     setRequirementStatus: useMutation(
       mutate(async ({ id, status, reason }) =>
-        (await api.patch(`/admin/requirements/${id}/status`, { status, reason })).data
+        (await adminApi.patch(`/admin/requirements/${id}/status`, { status, reason })).data
       )
     ),
     refund: useMutation(
       mutate(async ({ id, reason }) =>
-        (await api.patch(`/admin/transactions/${id}/refund`, { reason })).data
+        (await adminApi.patch(`/admin/transactions/${id}/refund`, { reason })).data
       )
     ),
-    deleteReview: useMutation(mutate(async ({ id }) => (await api.delete(`/admin/reviews/${id}`)).data)),
-    broadcast: useMutation(mutate(async (payload) => (await api.post('/admin/broadcast', payload)).data)),
+    deleteReview: useMutation(mutate(async ({ id }) => (await adminApi.delete(`/admin/reviews/${id}`)).data)),
+    broadcast: useMutation(mutate(async (payload) => (await adminApi.post('/admin/broadcast', payload)).data)),
     repair: useMutation(
-      mutate(async ({ checkId }) => (await api.post('/admin/health/repair', { checkId })).data)
+      mutate(async ({ checkId }) => (await adminApi.post('/admin/health/repair', { checkId })).data)
     ),
     assignLogistics: useMutation(
       mutate(async ({ id, partnerId, notes }) =>
-        (await api.patch(`/admin/logistics/${id}/assign`, { partnerId, notes })).data
+        (await adminApi.patch(`/admin/logistics/${id}/assign`, { partnerId, notes })).data
       )
     ),
   };
@@ -495,7 +506,7 @@ export function usePublicReputation(businessId) {
 export function useAdminContribution(params) {
   return useQuery({
     queryKey: ['admin', 'contribution', params],
-    queryFn: async () => (await api.get('/admin/contribution', { params })).data,
+    queryFn: async () => (await adminApi.get('/admin/contribution', { params })).data,
   });
 }
 

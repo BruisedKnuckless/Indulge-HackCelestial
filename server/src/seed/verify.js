@@ -10,18 +10,18 @@ process.env.IN_VERIFY = 'true';
 global.__IN_VERIFY__ = true;
 
 import http from 'http';
-import { execFileSync } from 'child_process';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import { createApp } from '../app.js';
 import { connectDB, disconnectDB } from '../config/db.js';
 import { validateEnv } from '../config/env.js';
-import { runSeed } from './seed.js';
 import mongoose from 'mongoose';
 import Booking from '../models/Booking.js';
 import Resource from '../models/Resource.js';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
+import Admin from '../models/Admin.js';
+import { runSeed, seedAdmins } from './seed.js';
+import { ADMINS } from './seedData.js';
+import { ensureBootstrapAdmin, readBootstrapAdmin, adminPasswordAllowed } from '../config/admin.js';
 import LogisticsJob from '../models/LogisticsJob.js';
 import Requirement from '../models/Requirement.js';
 import Transaction from '../models/Transaction.js';
@@ -124,6 +124,14 @@ async function login(email) {
   return body.token;
 }
 
+async function adminLogin(email = 'admin@indulge.com', password = 'indulge123') {
+  const { body } = await api('POST', '/api/admin/auth/login', { body: { email, password } });
+  return body?.token;
+}
+
+/** Claims of a JWT, without verifying it — enough to assert its type. */
+const claims = (token) => JSON.parse(Buffer.from(String(token).split('.')[1], 'base64url').toString());
+
 async function main() {
   await connectDB();
   await runSeed({ quiet: true });
@@ -139,7 +147,9 @@ async function main() {
   const orchid = await login('ops@grandorchid.in');
   const seasons = await login('events@seasonsbanquet.in');
   const kalpataru = await login('desk@kalpataruevents.in');
+  const admin = await adminLogin();
   check('demo accounts log in', Boolean(orchid && seasons && kalpataru));
+  check('the platform admin signs in separately at /api/admin/auth/login', Boolean(admin));
 
   const bad = await api('POST', '/api/auth/login', {
     body: { email: 'ops@grandorchid.in', password: 'wrong' },
@@ -723,14 +733,17 @@ async function main() {
   // worth proving rather than assuming.
   console.log('\nAdmin console — access control');
 
+  // The business session is untouched by admin separation: no admin flag, and
+  // the account that used to be on the allowlist is now just a business.
   const meRes = await api('GET', '/api/auth/me', { token: orchid });
-  check('the session exposes a computed platform-admin flag', meRes.body.user?.isPlatformAdmin === true);
-
-  const nonAdminMe = await api('GET', '/api/auth/me', { token: kalpataru });
-  check('a non-admin session is not flagged', nonAdminMe.body.user?.isPlatformAdmin === false);
+  check('a business session carries no platform-admin flag', meRes.body.user?.isPlatformAdmin === undefined);
+  check('business tokens are typed as business sessions', claims(orchid).type === 'business');
 
   const adminBlocked = await api('GET', '/api/admin/overview', { token: kalpataru });
   check("a non-admin gets 404, so the console's existence is not advertised", adminBlocked.status === 404);
+
+  const formerAdmin = await api('GET', '/api/admin/overview', { token: orchid });
+  check('a business once on the admin allowlist is no longer an admin', formerAdmin.status === 404);
 
   const anon = await api('GET', '/api/admin/overview');
   check('an anonymous request to the console is rejected', anon.status === 401);
@@ -744,87 +757,161 @@ async function main() {
     check(`non-admin cannot reach ${method} ${path}`, res.status === 404, String(res.status));
   }
 
-  // ---- deployment posture ----
-  // ADMIN_EMAILS and NODE_ENV are read when config/admin.js is imported, so
-  // the only honest way to test the production lock is a fresh process. This
-  // rule decides between a publicly administrable marketplace and a console
-  // nobody can reach, which is worth more than the ~200ms it costs.
-  console.log('\nAdmin console — deployment posture');
+  // ---- admin / business separation ----
+  // An administrator is its own account type: it manages business data from
+  // the console but is never itself a business, seeker or provider.
+  console.log('\nAdmin console — separate admin identity');
 
-  const resolveAdmins = (envOverrides) => {
-    const out = execFileSync(
-      process.execPath,
-      [
-        '--input-type=module',
-        '-e',
-        "const m = await import('./src/config/admin.js');" +
-          'process.stdout.write(JSON.stringify(m.adminConfigStatus()));',
-      ],
-      {
-        cwd: path.resolve(fileURLToPath(new URL('../../', import.meta.url))),
-        env: { ...process.env, ADMIN_EMAILS: '', ADMIN_EMAIL: '', NODE_ENV: '', ...envOverrides },
-        encoding: 'utf8',
-      }
-    );
-    return JSON.parse(out);
-  };
-
-  const prodUnset = resolveAdmins({ NODE_ENV: 'production' });
-  check(
-    'production with no ADMIN_EMAILS locks the console instead of falling back to the demo account',
-    prodUnset.state === 'locked' && prodUnset.emails.length === 0,
-    JSON.stringify(prodUnset)
-  );
-  check(
-    'the locked state explains how to enable it, so a deployment is debuggable',
-    /ADMIN_EMAILS/.test(prodUnset.message) && /404/.test(prodUnset.message)
-  );
-
-  const prodSet = resolveAdmins({ NODE_ENV: 'production', ADMIN_EMAILS: 'Ops@GrandOrchid.in' });
-  check(
-    'an explicit allowlist works in production and is case-insensitive',
-    prodSet.state === 'configured' && prodSet.emails.includes('ops@grandorchid.in'),
-    JSON.stringify(prodSet)
-  );
-
-  const devUnset = resolveAdmins({});
-  check(
-    'local development still falls back to the demo account for zero-config use',
-    devUnset.state === 'development-fallback' && devUnset.emails.includes('ops@grandorchid.in'),
-    JSON.stringify(devUnset)
-  );
-
-  // A plural 'S' must not be the difference between a working deployment and a
-  // console nobody can reach — this exact typo locked a real deployment.
-  const singular = resolveAdmins({ NODE_ENV: 'production', ADMIN_EMAIL: 'ops@grandorchid.in' });
-  check(
-    'the singular ADMIN_EMAIL is honoured as well as the plural',
-    singular.state === 'configured' && singular.emails.includes('ops@grandorchid.in'),
-    JSON.stringify(singular)
-  );
-  check('the banner names which variable supplied the allowlist', singular.source === 'ADMIN_EMAIL');
-
-  const bothSet = resolveAdmins({
-    NODE_ENV: 'production',
-    ADMIN_EMAILS: 'canonical@x.com',
-    ADMIN_EMAIL: 'alias@x.com',
+  const adminSignIn = await api('POST', '/api/admin/auth/login', {
+    body: { email: 'admin@indulge.com', password: 'indulge123' },
   });
   check(
-    'when both are set the canonical plural wins',
-    bothSet.emails.length === 1 && bothSet.emails[0] === 'canonical@x.com',
-    JSON.stringify(bothSet.emails)
+    'admin sign-in returns an admin with no business fields',
+    adminSignIn.status === 200 &&
+      adminSignIn.body.admin?.email === 'admin@indulge.com' &&
+      adminSignIn.body.admin?.role === 'super_admin' &&
+      adminSignIn.body.admin?.businessName === undefined &&
+      adminSignIn.body.admin?.passwordHash === undefined,
+    JSON.stringify(adminSignIn.body)
+  );
+  check(
+    'admin tokens are typed as admin sessions',
+    claims(admin).type === 'admin' && claims(admin).role === 'super_admin'
   );
 
-  const multi = resolveAdmins({ NODE_ENV: 'production', ADMIN_EMAILS: 'a@b.com, c@d.com ,' });
+  const adminMe = await api('GET', '/api/admin/auth/me', { token: admin });
   check(
-    'a comma-separated allowlist is parsed and trailing blanks ignored',
-    multi.emails.length === 2 && multi.emails.join(',') === 'a@b.com,c@d.com',
-    JSON.stringify(multi.emails)
+    'an admin session restores from /api/admin/auth/me',
+    adminMe.status === 200 && adminMe.body.admin?.email === 'admin@indulge.com'
   );
+  check(
+    'a business token cannot restore an admin session',
+    (await api('GET', '/api/admin/auth/me', { token: orchid })).status === 404
+  );
+  check('an anonymous admin session check is a 401', (await api('GET', '/api/admin/auth/me')).status === 401);
+
+  const adminAtBusinessLogin = await api('POST', '/api/auth/login', {
+    body: { email: 'admin@indulge.com', password: 'indulge123' },
+  });
+  check('admin credentials do not sign in at the business login', adminAtBusinessLogin.status === 401);
+
+  const businessAtAdminLogin = await api('POST', '/api/admin/auth/login', {
+    body: { email: 'ops@grandorchid.in', password: 'indulge123' },
+  });
+  check('business credentials do not sign in at the admin login', businessAtAdminLogin.status === 401);
+
+  const wrongAdminPassword = await api('POST', '/api/admin/auth/login', {
+    body: { email: 'admin@indulge.com', password: 'wrong' },
+  });
+  check('a wrong admin password is rejected', wrongAdminPassword.status === 401);
+
+  for (const path of ['/api/auth/me', '/api/cart', '/api/bookings/sent', '/api/requirements/mine']) {
+    const res = await api('GET', path, { token: admin });
+    check(`an admin session cannot act as a business on GET ${path}`, res.status === 403, String(res.status));
+  }
+
+  const adminEmails = ADMINS.map((a) => a.email);
+  check(
+    'seeded admins live only in the Admin collection, never as businesses',
+    (await User.countDocuments({ email: { $in: adminEmails } })) === 0 &&
+      (await Admin.countDocuments({ email: { $in: adminEmails } })) === adminEmails.length
+  );
+
+  const adminId = adminMe.body.admin?._id;
+  check(
+    'an admin has no public business profile',
+    (await api('GET', `/api/auth/users/${adminId}/public`)).status === 404
+  );
+  const adminAsBusiness = await api('GET', `/api/admin/users/${adminId}`, { token: admin });
+  check('an admin does not appear in the business directory', adminAsBusiness.status === 404);
+
+  const adminSearch = await api('GET', '/api/admin/users?q=admin', { token: admin });
+  check(
+    'searching businesses for "admin" finds no platform admin',
+    adminSearch.status === 200 && !adminSearch.body.users.some((u) => adminEmails.includes(u.email))
+  );
+
+  const metaAdmins = (await api('GET', '/api/admin/meta', { token: admin })).body.admins || [];
+  check(
+    'the console lists administrators from the Admin collection',
+    metaAdmins.some((a) => a.email === 'admin@indulge.com' && a.name) &&
+      metaAdmins.every((a) => a.businessName === undefined)
+  );
+
+  await seedAdmins();
+  await seedAdmins();
+  check(
+    're-seeding admins is idempotent — one account per email',
+    (await Admin.countDocuments({ email: 'admin@indulge.com' })) === 1 &&
+      (await Admin.countDocuments()) === adminEmails.length
+  );
+
+  // ---- deployment posture ----
+  // A deployment's administrator comes from ADMIN_EMAIL + ADMIN_PASSWORD. This
+  // rule decides between a publicly administrable marketplace and a console
+  // nobody can reach, so the parsing and the production lock are both proven.
+  console.log('\nAdmin console — deployment posture');
+
+  check(
+    'production refuses the published demo password for any admin',
+    adminPasswordAllowed('indulge123', 'production') === false &&
+      adminPasswordAllowed('indulge123', 'development') === true &&
+      adminPasswordAllowed('a-real-secret', 'production') === true
+  );
+  check('no ADMIN_EMAIL means no bootstrap admin', readBootstrapAdmin({}, 'production') === null);
+
+  const noPassword = readBootstrapAdmin({ ADMIN_EMAIL: 'ops@x.com' }, 'production');
+  check(
+    'an email without ADMIN_PASSWORD is reported rather than silently ignored',
+    Boolean(noPassword?.error) && /ADMIN_PASSWORD/.test(noPassword.error)
+  );
+  const demoInProd = readBootstrapAdmin({ ADMIN_EMAIL: 'ops@x.com', ADMIN_PASSWORD: 'indulge123' }, 'production');
+  check('production will not bootstrap an admin with the demo password', Boolean(demoInProd?.error));
+
+  const plural = readBootstrapAdmin(
+    { ADMIN_EMAILS: ' Ops@X.com , other@x.com', ADMIN_PASSWORD: 'secret-pass' },
+    'production'
+  );
+  check(
+    'the legacy ADMIN_EMAILS name is honoured, lower-cased, first address only',
+    plural?.email === 'ops@x.com' && plural.source === 'ADMIN_EMAILS' && !plural.error,
+    JSON.stringify(plural)
+  );
+  const bothNames = readBootstrapAdmin(
+    { ADMIN_EMAIL: 'canonical@x.com', ADMIN_EMAILS: 'legacy@x.com', ADMIN_PASSWORD: 'secret-pass' },
+    'production'
+  );
+  check('when both are set the canonical ADMIN_EMAIL wins', bothNames?.email === 'canonical@x.com');
+
+  const bootEnv = { ADMIN_EMAIL: 'Boot@Indulge.test', ADMIN_PASSWORD: 'boot-secret-1', ADMIN_NAME: 'Boot Admin' };
+  const bootFirst = await ensureBootstrapAdmin(bootEnv);
+  const bootAgain = await ensureBootstrapAdmin(bootEnv);
+  check(
+    'the environment admin is created once and left alone on restart',
+    bootFirst?.action === 'created' &&
+      bootAgain?.action === 'unchanged' &&
+      (await Admin.countDocuments({ email: 'boot@indulge.test' })) === 1
+  );
+  const bootRotated = await ensureBootstrapAdmin({ ...bootEnv, ADMIN_PASSWORD: 'boot-secret-2' });
+  const bootToken = await adminLogin('boot@indulge.test', 'boot-secret-2');
+  check(
+    'rotating ADMIN_PASSWORD takes effect on the next boot',
+    bootRotated?.action === 'updated' &&
+      Boolean(bootToken) &&
+      !(await adminLogin('boot@indulge.test', 'boot-secret-1'))
+  );
+
+  await Admin.updateOne({ email: 'boot@indulge.test' }, { $set: { isActive: false } });
+  check(
+    'a deactivated admin is locked out immediately, even with a live token',
+    (await api('GET', '/api/admin/overview', { token: bootToken })).status === 401 &&
+      !(await adminLogin('boot@indulge.test', 'boot-secret-2'))
+  );
+  await Admin.deleteOne({ email: 'boot@indulge.test' });
 
   console.log('\nAdmin console — platform view');
 
-  const overview = await api('GET', '/api/admin/overview', { token: orchid });
+  const overview = await api('GET', '/api/admin/overview', { token: admin });
   check('overview loads the whole platform in one call', overview.status === 200);
   check(
     'GMV counts only settled payments, never accepted-but-unpaid bookings',
@@ -842,20 +929,113 @@ async function main() {
     overview.body.topProviders.length > 0 && overview.body.topSeekers.length > 0
   );
 
-  const live = await api('GET', '/api/admin/live', { token: orchid });
+  const live = await api('GET', '/api/admin/live', { token: admin });
   check(
     'the activity feed merges every record type in reverse-chronological order',
     live.body.feed.length > 0 &&
       live.body.feed.every((f, i, a) => i === 0 || new Date(a[i - 1].at) >= new Date(f.at))
   );
 
-  const admNegotiations = await api('GET', '/api/admin/negotiations', { token: orchid });
+  // ---- live activity timelines ----
+  // The expandable timeline must be re-derived from records, never padded.
+  const timelineOf = (item) =>
+    api('GET', `/api/admin/live/${item.kind}/${item.id}/timeline`, { token: admin });
+  const STATES = ['completed', 'current', 'upcoming', 'missing', 'stopped'];
+
+  const rfqItem = live.body.feed.find((f) => f.kind === 'requirement');
+  const rfqTimeline = await timelineOf(rfqItem);
+  const rfqStages = rfqTimeline.body.stages || [];
+  check(
+    'an RFQ timeline starts at its real posting time',
+    rfqTimeline.status === 200 &&
+      rfqStages[0]?.key === 'posted' &&
+      new Date(rfqStages[0].at).getTime() === new Date(rfqItem.at).getTime()
+  );
+  check(
+    'every stage has a known state and at most one is current',
+    rfqStages.every((s) => STATES.includes(s.state)) && rfqStages.filter((s) => s.state === 'current').length <= 1
+  );
+
+  const rfqDoc = await Requirement.findById(rfqItem.id).lean();
+  const quoteCount =
+    (await Proposal.countDocuments({ requirement: rfqItem.id })) + (rfqDoc.offers || []).length;
+  const quotesStage = rfqStages.find((s) => s.key === 'quotes');
+  check(
+    'the quotes stage is complete only when quotes really exist',
+    quotesStage && quotesStage.items.length === quoteCount && (quotesStage.state === 'completed') === quoteCount > 0,
+    JSON.stringify({ quoteCount, state: quotesStage?.state })
+  );
+
+  const unquoted = await Requirement.findOne({ status: 'open', proposalCount: 0, 'offers.0': { $exists: false } }).lean();
+  if (unquoted) {
+    const t = (await timelineOf({ kind: 'requirement', id: unquoted._id })).body;
+    check(
+      'an RFQ with no quotes shows quotes as the current stage, nothing later completed',
+      t.current?.stage === 'quotes' &&
+        t.stages.slice(t.stages.findIndex((s) => s.key === 'quotes')).every((s) => s.state !== 'completed')
+    );
+  }
+
+  const paidIds = await Transaction.distinct('booking', { status: { $in: ['paid', 'simulated_paid'] } });
+  const done = await Booking.findOne({ status: 'completed', sourceRequirement: null, _id: { $in: paidIds } }).lean();
+  const doneTimeline = (await timelineOf({ kind: 'booking', id: done._id })).body;
+  check(
+    'a completed direct booking has every stage completed and no current stage',
+    doneTimeline.current?.state === 'done' && doneTimeline.stages.every((s) => s.state === 'completed')
+  );
+
+  const txIds = await Transaction.distinct('booking');
+  const unpaidDone = await Booking.findOne({ status: 'completed', sourceRequirement: null, _id: { $nin: txIds } }).lean();
+  if (unpaidDone) {
+    const t = (await timelineOf({ kind: 'booking', id: unpaidDone._id })).body;
+    check(
+      'a finished booking with no transaction shows payment as missing, not as paid or in progress',
+      t.stages.find((s) => s.key === 'paid')?.state === 'missing' && t.current?.state === 'done'
+    );
+  }
+
+  const pendingBooking = await Booking.findOne({ status: 'pending' }).lean();
+  const pendingTimeline = (await timelineOf({ kind: 'booking', id: pendingBooking._id })).body;
+  check(
+    'a pending request is waiting on acceptance, with payment not yet reached',
+    pendingTimeline.stages.find((s) => s.key === 'accepted')?.state !== 'completed' &&
+      pendingTimeline.stages.find((s) => s.key === 'paid')?.state !== 'completed'
+  );
+
+  const unstamped = doneTimeline.stages.find((s) => s.key === 'completed');
+  check(
+    'a stage without a recorded time carries no invented timestamp',
+    unstamped &&
+      (unstamped.at === null ||
+        [done.return?.returnCompletedAt, done.return?.returnedAt, done.fulfillment?.deliveredAt]
+          .filter(Boolean)
+          .some((d) => new Date(d).getTime() === new Date(unstamped.at).getTime()))
+  );
+
+  const payItem = live.body.feed.find((f) => f.kind === 'transaction');
+  const payTimeline = await timelineOf(payItem);
+  check(
+    'a payment in the feed opens the lifecycle of the request it paid for',
+    payTimeline.status === 200 && ['booking', 'requirement'].includes(payTimeline.body.subject?.type)
+  );
+
+  const someBusiness = await User.findOne({}).lean();
+  check(
+    'a signup has no request lifecycle',
+    (await timelineOf({ kind: 'signup', id: someBusiness._id })).status === 404
+  );
+  check(
+    'timelines are admin-only',
+    (await api('GET', `/api/admin/live/requirement/${rfqItem.id}/timeline`, { token: orchid })).status === 404
+  );
+
+  const admNegotiations = await api('GET', '/api/admin/negotiations', { token: admin });
   check(
     'the negotiation log exposes counter-offers no single tenant can read',
     admNegotiations.status === 200 && admNegotiations.body.messages.length > 0
   );
 
-  const dossier = await api('GET', `/api/admin/users/${meRes.body.user._id}`, { token: orchid });
+  const dossier = await api('GET', `/api/admin/users/${meRes.body.user._id}`, { token: admin });
   check(
     'a business dossier carries both provider and seeker activity at once',
     Array.isArray(dossier.body.bookings?.provided) && Array.isArray(dossier.body.bookings?.sought)
@@ -863,7 +1043,7 @@ async function main() {
 
   console.log('\nAdmin console — integrity audit');
 
-  const audit = await api('GET', '/api/admin/health', { token: orchid });
+  const audit = await api('GET', '/api/admin/health', { token: admin });
   check('the audit runs every check', audit.status === 200 && audit.body.checks.length >= 11);
 
   // The seed leaves accepted bookings without transactions, which is exactly
@@ -876,7 +1056,7 @@ async function main() {
   );
 
   const repair = await api('POST', '/api/admin/health/repair', {
-    token: orchid,
+    token: admin,
     body: { checkId: 'missing_transaction' },
   });
   check('repairing backfills the missing transactions', repair.body.repaired > 0);
@@ -887,7 +1067,7 @@ async function main() {
 
   // A backfill must never invent a settled payment — that would inflate GMV to
   // tidy a dashboard.
-  const afterRepair = await api('GET', '/api/admin/overview', { token: orchid });
+  const afterRepair = await api('GET', '/api/admin/overview', { token: admin });
   check(
     'backfilled transactions land as pending, not as settled revenue',
     afterRepair.body.headline.pendingSettlement > overview.body.headline.pendingSettlement
@@ -907,7 +1087,7 @@ async function main() {
     location: hall.location,
     status: 'paused',
   });
-  const seekerId = (await api('GET', '/api/admin/users?q=kalpataru', { token: orchid })).body.users[0]._id;
+  const seekerId = (await api('GET', '/api/admin/users?q=kalpataru', { token: admin })).body.users[0]._id;
 
   const backToBack = [
     { start: new Date(at(200, 9)), end: new Date(at(200, 12)) },
@@ -926,7 +1106,7 @@ async function main() {
     });
   }
 
-  let sweep = await api('GET', '/api/admin/health', { token: orchid });
+  let sweep = await api('GET', '/api/admin/health', { token: admin });
   let oversub = sweep.body.checks.find((c) => c.id === 'oversubscribed');
   check(
     'two non-overlapping bookings are not reported as oversubscription (sweep line, not a sum)',
@@ -947,7 +1127,7 @@ async function main() {
     agreedPrice: 1000,
   });
 
-  sweep = await api('GET', '/api/admin/health', { token: orchid });
+  sweep = await api('GET', '/api/admin/health', { token: admin });
   oversub = sweep.body.checks.find((c) => c.id === 'oversubscribed');
   const probe = oversub.rows.find((r) => String(r.id) === String(spare._id));
   check('a genuine concurrent overlap is reported as oversubscribed', Boolean(probe));
@@ -955,7 +1135,7 @@ async function main() {
   check('inventory conflicts are marked critical', oversub.severity === 'critical');
 
   const noRepair = await api('POST', '/api/admin/health/repair', {
-    token: orchid,
+    token: admin,
     body: { checkId: 'oversubscribed' },
   });
   check('an inventory conflict has no automatic repair — a human picks who gives way', noRepair.status === 400);
@@ -982,13 +1162,13 @@ async function main() {
   });
 
   const noReason = await api('PATCH', `/api/admin/bookings/${rival._id}/status`, {
-    token: orchid,
+    token: admin,
     body: { status: 'cancelled' },
   });
   check('an override without a reason is refused', noReason.status === 400);
 
   const overbook = await api('PATCH', `/api/admin/bookings/${rival._id}/status`, {
-    token: orchid,
+    token: admin,
     body: { status: 'confirmed', reason: 'attempting to oversubscribe' },
   });
   check(
@@ -998,7 +1178,7 @@ async function main() {
   );
 
   const cancelOverride = await api('PATCH', `/api/admin/bookings/${rival._id}/status`, {
-    token: orchid,
+    token: admin,
     body: { status: 'cancelled', reason: 'verification cleanup' },
   });
   check('an override to a non-reserving status succeeds', cancelOverride.status === 200);
@@ -1009,12 +1189,12 @@ async function main() {
   await Booking.deleteOne({ _id: rival._id });
 
   // ---- suspension ----
-  const suspendTarget = (await api('GET', '/api/admin/users?q=spiceroute', { token: orchid })).body.users[0];
+  const suspendTarget = (await api('GET', '/api/admin/users?q=spiceroute', { token: admin })).body.users[0];
   const spiceToken = await login('hello@spiceroute.co.in');
   check('the account works before suspension', Boolean(spiceToken));
 
   const suspend = await api('PATCH', `/api/admin/users/${suspendTarget._id}/suspend`, {
-    token: orchid,
+    token: admin,
     body: { suspended: true, reason: 'verification' },
   });
   check('a business can be suspended', suspend.status === 200 && suspend.body.business.suspended);
@@ -1028,14 +1208,14 @@ async function main() {
   const deadToken = await api('GET', '/api/bookings/sent', { token: spiceToken });
   check('an existing token stops working the moment the account is suspended', deadToken.status === 403);
 
-  const selfSuspend = await api('PATCH', `/api/admin/users/${meRes.body.user._id}/suspend`, {
-    token: orchid,
+  const selfSuspend = await api('PATCH', `/api/admin/users/${adminId}/suspend`, {
+    token: admin,
     body: { suspended: true, reason: 'lockout' },
   });
-  check('an admin cannot suspend itself out of the console', selfSuspend.status === 400);
+  check('an admin is not a business, so the console cannot suspend it', selfSuspend.status === 404);
 
   const restore = await api('PATCH', `/api/admin/users/${suspendTarget._id}/suspend`, {
-    token: orchid,
+    token: admin,
     body: { suspended: false },
   });
   check('a suspended business can be restored', restore.status === 200 && !restore.body.business.suspended);
@@ -1047,10 +1227,10 @@ async function main() {
   );
 
   // ---- moderation ----
-  const someListing = (await api('GET', '/api/admin/listings?status=active&limit=1', { token: orchid }))
+  const someListing = (await api('GET', '/api/admin/listings?status=active&limit=1', { token: admin }))
     .body.listings[0];
   const takedown = await api('PATCH', `/api/admin/listings/${someListing._id}/status`, {
-    token: orchid,
+    token: admin,
     body: { status: 'paused', reason: 'verification' },
   });
   check('a listing can be taken off the market', takedown.status === 200 && takedown.body.resource.status === 'paused');
@@ -1059,29 +1239,29 @@ async function main() {
     typeof takedown.body.upcomingBookingsRetained === 'number'
   );
   await api('PATCH', `/api/admin/listings/${someListing._id}/status`, {
-    token: orchid,
+    token: admin,
     body: { status: 'active' },
   });
 
   // ---- review removal must re-settle the denormalised ratings ----
-  const reviewRow = (await api('GET', '/api/admin/reviews?limit=1', { token: orchid })).body.reviews[0];
+  const reviewRow = (await api('GET', '/api/admin/reviews?limit=1', { token: admin })).body.reviews[0];
   const revieweeId = reviewRow.reviewee._id;
   const countBefore = await Review.countDocuments({ reviewee: revieweeId });
-  await api('DELETE', `/api/admin/reviews/${reviewRow._id}`, { token: orchid });
-  const dossierAfter = await api('GET', `/api/admin/users/${revieweeId}`, { token: orchid });
+  await api('DELETE', `/api/admin/reviews/${reviewRow._id}`, { token: admin });
+  const dossierAfter = await api('GET', `/api/admin/users/${revieweeId}`, { token: admin });
   check(
     'removing a review recomputes the denormalised rating count',
     dossierAfter.body.business.ratingCount === countBefore - 1,
     `${countBefore} -> ${dossierAfter.body.business.ratingCount}`
   );
-  const driftCheck = (await api('GET', '/api/admin/health', { token: orchid })).body.checks.find(
+  const driftCheck = (await api('GET', '/api/admin/health', { token: admin })).body.checks.find(
     (c) => c.id === 'rating_drift'
   );
   check('deleting a review leaves no rating drift behind', driftCheck.count === 0, `${driftCheck.count} findings`);
 
   // ---- refund ----
   const allSettled = (await api('GET', '/api/admin/transactions?status=simulated_paid&limit=200', {
-    token: orchid,
+    token: admin,
   })).body.transactions;
 
   // A live booking must be released by its refund, or the provider is holding
@@ -1089,7 +1269,7 @@ async function main() {
   const liveSettled = allSettled.find((t) => t.booking?.status === 'confirmed');
   if (liveSettled) {
     const refund = await api('PATCH', `/api/admin/transactions/${liveSettled._id}/refund`, {
-      token: orchid,
+      token: admin,
       body: { reason: 'verification' },
     });
     check('a settled payment can be refunded', refund.status === 200 && refund.body.transaction.status === 'refunded');
@@ -1101,7 +1281,7 @@ async function main() {
     check(
       'a refund cannot be applied twice',
       (await api('PATCH', `/api/admin/transactions/${liveSettled._id}/refund`, {
-        token: orchid,
+        token: admin,
         body: { reason: 'again' },
       })).status === 400
     );
@@ -1112,7 +1292,7 @@ async function main() {
   const doneSettled = allSettled.find((t) => t.booking?.status === 'completed');
   if (doneSettled) {
     const refundDone = await api('PATCH', `/api/admin/transactions/${doneSettled._id}/refund`, {
-      token: orchid,
+      token: admin,
       body: { reason: 'goodwill' },
     });
     check(
@@ -1126,7 +1306,7 @@ async function main() {
 
   // ---- broadcast ----
   const broadcast = await api('POST', '/api/admin/broadcast', {
-    token: orchid,
+    token: admin,
     body: { title: 'Verification notice', message: 'Sent by the verification suite.' },
   });
   check('a broadcast reaches every active business', broadcast.status === 200 && broadcast.body.sent > 1);
@@ -1137,7 +1317,7 @@ async function main() {
   );
   check(
     'a broadcast with no message is refused',
-    (await api('POST', '/api/admin/broadcast', { token: orchid, body: { title: 'x' } })).status === 400
+    (await api('POST', '/api/admin/broadcast', { token: admin, body: { title: 'x' } })).status === 400
   );
 
   // =========================================================================
@@ -1807,7 +1987,7 @@ async function main() {
 
   // 6. Admin can assign logistics partner
   const assignRes = await api('PATCH', `/api/logistics/jobs/${jobId}/assign`, {
-    token: orchid,
+    token: admin,
     body: {
       partnerId: expressUser._id,
       notes: 'Please dispatch morning pickup team',
@@ -1877,7 +2057,7 @@ async function main() {
   const job2Id = job2Fetch.body.job._id;
 
   await api('PATCH', `/api/logistics/jobs/${job2Id}/assign`, {
-    token: orchid,
+    token: admin,
     body: { partnerId: expressUser._id },
   });
 
@@ -2004,7 +2184,7 @@ async function main() {
 
   // 18. Admin can reassign where allowed
   const reassignRes = await api('PATCH', `/api/logistics/jobs/${job2Id}/assign`, {
-    token: orchid,
+    token: admin,
     body: {
       partnerId: partner2User._id,
       notes: 'Reassigned to Apex Transport following previous decline',
@@ -4806,7 +4986,7 @@ async function main() {
   );
 
   // 21. admin can inspect aggregate contribution data
-  const adminContribRes = await api('GET', '/api/admin/contribution', { token: orchid });
+  const adminContribRes = await api('GET', '/api/admin/contribution', { token: admin });
   check(
     '21. admin can inspect aggregate contribution data',
     adminContribRes.status === 200 &&
@@ -5579,7 +5759,7 @@ async function main() {
   // ═══════════════════════════════════════════════════════════════════════════
   console.log('\nLogistics ↔ Admin Data Consistency');
   {
-    const adminToken = await login('ops@grandorchid.in');
+    const adminToken = await adminLogin();
     const swiftfleetUser = await User.findOne({ email: 'dispatch@swiftfleet.in' });
     const partnerToken = signToken(swiftfleetUser._id);
 

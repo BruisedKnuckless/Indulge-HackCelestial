@@ -11,14 +11,15 @@ import Cart from '../models/Cart.js';
 import Negotiation from '../models/Negotiation.js';
 import Notification from '../models/Notification.js';
 import LogisticsJob from '../models/LogisticsJob.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.middleware.js';
+import Admin from '../models/Admin.js';
+import { requireAdmin } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest } from '../services/availability.service.js';
 import { runIntegrityAudit, recomputeRatings } from '../services/audit.service.js';
 import { notify } from '../services/notification.service.js';
-import { isPlatformAdmin } from '../config/admin.js';
 import { getAdminRecoveryMetrics } from '../services/capacity-recovery.service.js';
 import { calculateContributionProfile } from '../services/contribution.service.js';
+import { getLiveTimeline } from '../services/live-timeline.service.js';
 import { validate, adminAssignLogisticsSchema, adminSuspendUserSchema } from '../middleware/validate.middleware.js';
 
 /**
@@ -29,9 +30,12 @@ import { validate, adminAssignLogisticsSchema, adminSuspendUserSchema } from '..
  * req.user by construction. That makes this file the one place where a missing
  * guard leaks the whole marketplace, so the gate is applied to the router
  * itself rather than per-endpoint.
+ *
+ * The caller is an Admin account (req.admin), never a business User — the
+ * console manages business data without being a business itself.
  */
 const router = Router();
-router.use(requireAuth, requireAdmin);
+router.use(requireAdmin);
 
 const oid = (id) => new mongoose.Types.ObjectId(String(id));
 const DAY = 24 * 3600 * 1000;
@@ -489,6 +493,20 @@ router.get(
   })
 );
 
+/**
+ * Lifecycle behind one Live-feed item — the request it belongs to, rebuilt
+ * from stored records (see services/live-timeline.service.js). Quotes, payments
+ * and reviews resolve to their RFQ or booking; signups have no lifecycle.
+ */
+router.get(
+  '/live/:kind/:id/timeline',
+  asyncHandler(async (req, res) => {
+    const timeline = await getLiveTimeline(req.params.kind, req.params.id);
+    if (!timeline) throw new HttpError(404, 'No request lifecycle for this activity.');
+    res.json(timeline);
+  })
+);
+
 /* ═════════════════════════════════════════════════════════════════ HEALTH */
 
 router.get(
@@ -801,7 +819,6 @@ router.get(
           ratingCount: u.ratingCount || 0,
           suspended: Boolean(u.suspended),
           suspensionReason: u.suspensionReason || null,
-          isPlatformAdmin: isPlatformAdmin(u),
           createdAt: u.createdAt,
           lastActivityAt: lastAt,
           listings: L.get(key)?.total || 0,
@@ -893,7 +910,6 @@ router.get(
       business: {
         ...user,
         passwordHash: undefined,
-        isPlatformAdmin: isPlatformAdmin(user),
       },
       listings,
       bookings: { provided, sought },
@@ -920,15 +936,6 @@ router.patch(
     const user = await User.findById(req.params.id);
     if (!user) throw new HttpError(404, 'Business not found.');
 
-    // An admin who suspends themselves locks the console with no way back in
-    // except a database edit.
-    if (String(user._id) === String(req.user._id)) {
-      throw new HttpError(400, 'You cannot suspend your own account.');
-    }
-    if (isPlatformAdmin(user) && req.body.suspended) {
-      throw new HttpError(400, 'Platform administrators cannot be suspended from the console.');
-    }
-
     const suspended = Boolean(req.body.suspended);
     user.suspended = suspended;
     user.suspendedAt = suspended ? new Date() : undefined;
@@ -947,7 +954,7 @@ router.patch(
     }
 
     res.json({
-      business: { ...user.toJSON(), isPlatformAdmin: isPlatformAdmin(user) },
+      business: user.toJSON(),
     });
   })
 );
@@ -1651,9 +1658,7 @@ router.get(
       bookingStatuses: BOOKING_STATUSES,
       requirementStatuses: REQUIREMENT_STATUSES,
       cities: cities.filter(Boolean).sort(),
-      admins: (await User.find({}).select('email businessName').lean())
-        .filter(isPlatformAdmin)
-        .map((u) => ({ email: u.email, businessName: u.businessName })),
+      admins: await Admin.find({ isActive: true }).select('name email role').sort('createdAt').lean(),
     });
   })
 );
@@ -1791,7 +1796,7 @@ router.patch(
     job.timeline.push({
       status: 'assigned',
       timestamp: new Date(),
-      updatedBy: req.user._id,
+      updatedBy: req.admin._id,
       notes: notes || (previousPartner ? `Admin re-assigned to ${partner.businessName}` : `Admin assigned to ${partner.businessName}`),
     });
     await job.save();

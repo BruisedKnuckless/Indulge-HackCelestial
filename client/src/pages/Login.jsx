@@ -150,6 +150,14 @@ export default function Login() {
           <Link to="/register" className="btn-secondary w-full mt-4">
             Create your Indulge account
           </Link>
+
+          {/* Admins are separate platform accounts with their own sign-in. */}
+          <p className="text-xs text-ink-soft text-center mt-4">
+            Platform administrator?{' '}
+            <Link to="/admin/login" className="link">
+              Admin sign in
+            </Link>
+          </p>
         </div>
       </div>
 

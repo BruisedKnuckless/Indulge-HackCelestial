@@ -162,7 +162,7 @@ export const PaymentService = {
     const booking = await Booking.findById(bookingId).populate('resource');
     if (!booking) throw new HttpError(404, 'Booking not found.');
 
-    if (String(booking.seeker) !== String(user._id) && !user.isPlatformAdmin) {
+    if (String(booking.seeker) !== String(user._id)) {
       throw new HttpError(403, 'Only the requesting seeker can initiate payment.');
     }
 
@@ -214,7 +214,7 @@ export const PaymentService = {
     const booking = await Booking.findById(bookingId).populate('resource');
     if (!booking) throw new HttpError(404, 'Request not found.');
 
-    if (String(booking.seeker) !== String(user._id) && !user.isPlatformAdmin) {
+    if (String(booking.seeker) !== String(user._id)) {
       throw new HttpError(403, 'Only the requesting business can pay.');
     }
 
@@ -398,7 +398,7 @@ export const PaymentService = {
 
     const isPayer = String(transaction.payer) === String(user._id);
     const isPayee = String(transaction.payee) === String(user._id);
-    const isAdmin = Boolean(user.isPlatformAdmin || adminOverride);
+    const isAdmin = Boolean(adminOverride);
 
     if (!isPayer && !isPayee && !isAdmin) {
       throw new HttpError(403, 'You do not have permission to refund this transaction.');

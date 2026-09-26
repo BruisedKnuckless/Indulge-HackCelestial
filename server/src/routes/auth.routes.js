@@ -4,7 +4,6 @@ import Booking from '../models/Booking.js';
 import Resource from '../models/Resource.js';
 import Requirement from '../models/Requirement.js';
 import { signToken, requireAuth } from '../middleware/auth.middleware.js';
-import { sessionUser } from '../config/admin.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validate, registerSchema, loginSchema } from '../middleware/validate.middleware.js';
 
@@ -113,7 +112,7 @@ router.post(
       logisticsProfile: normalizedLogisticsProfile,
     });
 
-    res.status(201).json({ user: sessionUser(user), token: signToken(user._id) });
+    res.status(201).json({ user: user, token: signToken(user._id) });
   })
 );
 
@@ -140,7 +139,7 @@ router.post(
       );
     }
 
-    res.json({ user: sessionUser(user), token: signToken(user._id) });
+    res.json({ user: user, token: signToken(user._id) });
   })
 );
 
@@ -148,7 +147,7 @@ router.get(
   '/me',
   requireAuth,
   asyncHandler(async (req, res) => {
-    res.json({ user: sessionUser(req.user) });
+    res.json({ user: req.user });
   })
 );
 
@@ -200,7 +199,7 @@ router.patch(
       req.user.customBusinessType = undefined;
     }
     await req.user.save();
-    res.json({ user: sessionUser(req.user) });
+    res.json({ user: req.user });
   })
 );
 

@@ -10,7 +10,8 @@ import Transaction from '../models/Transaction.js';
 import Requirement from '../models/Requirement.js';
 import Proposal from '../models/Proposal.js';
 import LogisticsJob from '../models/LogisticsJob.js';
-import { BUSINESSES, RESOURCES } from './seedData.js';
+import Admin from '../models/Admin.js';
+import { ADMINS, BUSINESSES, RESOURCES } from './seedData.js';
 import { estimatePrice } from '../utils/pricing.js';
 
 const DEMO_PASSWORD = 'indulge123';
@@ -23,8 +24,29 @@ function at(daysFromNow, hour = 9) {
   return d;
 }
 
+/**
+ * Upsert the development admins by email. Unlike businesses they are not wiped
+ * first, so an admin created by ADMIN_EMAIL survives a re-seed and running the
+ * seed any number of times leaves exactly one account per email.
+ */
+export async function seedAdmins() {
+  const passwordHash = await Admin.hashPassword(DEMO_PASSWORD);
+  for (const a of ADMINS) {
+    await Admin.updateOne(
+      { email: a.email },
+      { $set: { name: a.name, role: a.role, isActive: true, passwordHash } },
+      { upsert: true }
+    );
+  }
+}
+
 export async function runSeed({ quiet = false } = {}) {
   const log = quiet ? () => {} : console.log;
+
+  // Mongoose builds indexes in the background. On a fresh in-memory database
+  // the first $geoNear search can otherwise land before the 2dsphere index
+  // exists and fail with "requires a 2d or 2dsphere index".
+  await Promise.all(mongoose.modelNames().map((name) => mongoose.model(name).init()));
 
   await Promise.all([
     User.deleteMany({}),
@@ -48,6 +70,9 @@ export async function runSeed({ quiet = false } = {}) {
     users[key] = await User.create({ ...rest, passwordHash });
   }
   log(`  ✓ ${Object.keys(users).length} businesses`);
+
+  await seedAdmins();
+  log(`  ✓ ${ADMINS.length} platform admins (separate from businesses)`);
 
   const resources = [];
   for (const r of RESOURCES) {
@@ -482,7 +507,8 @@ export async function runSeed({ quiet = false } = {}) {
   log(`  ✓ ${requirementCount} open requirements, 2 listings with availability windows`);
   log(`\n  Demo login — any of these emails, password: ${DEMO_PASSWORD}`);
   log(`    ${users.grandOrchid.email}   (hotel, has listings + incoming requests)`);
-  log(`    ${users.seasons.email}  (banquet venue)\n`);
+  log(`    ${users.seasons.email}  (banquet venue)`);
+  log(`  Platform admin — ${ADMINS[0].email} at /admin/login, same password\n`);
 
   return { users, resources };
 }

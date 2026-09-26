@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -11,7 +11,7 @@ import {
   RefreshCw, Package, Award,
 } from 'lucide-react';
 import { useAdminOverview, useAdminMeta, useAdminActions } from '../hooks/queries';
-import { useAuth } from '../context/AuthContext';
+import { useAdminAuth } from '../context/AdminAuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { errorMessage } from '../api/client';
 import { Spinner, EmptyState } from '../components/ui';
@@ -37,9 +37,9 @@ import AdminContribution from '../components/admin/AdminContribution';
  * invisible from inside a single tenant, because each party only sees their own
  * half of it.
  *
- * Admin identity is an env allowlist (ADMIN_EMAILS), not a field on User —
- * provider versus seeker is decided by context here and nothing is allowed to
- * add a role column.
+ * The viewer is a platform Admin account (AdminAuthContext, /admin/login), not a
+ * business: it manages business data here without being a provider or seeker,
+ * and User still has no role column.
  */
 
 /* Chart palette matches pages/Analytics.jsx rather than introducing a second
@@ -82,7 +82,11 @@ const TABS = [
 ];
 
 export default function Admin() {
-  const [tab, setTab] = useState('overview');
+  // The open tab lives in the URL (?tab=health) so the header's links and a
+  // page refresh land on the same view.
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'overview';
+  const setTab = (key) => setParams(key === 'overview' ? {} : { tab: key });
   const [businessId, setBusinessId] = useState(null);
 
   return (
@@ -650,7 +654,7 @@ function ChartTip({ active, payload, label, formatters = {} }) {
 function Broadcast() {
   const { broadcast } = useAdminActions();
   const { data: meta } = useAdminMeta();
-  const { user } = useAuth();
+  const { admin } = useAdminAuth();
 
   const [form, setForm] = useState({
     title: '',
@@ -747,7 +751,7 @@ function Broadcast() {
 
         <div className="flex items-center justify-between gap-3 pt-1">
           <p className="text-xs text-ink-mute">
-            Sent as {user?.businessName} — recipients see it as a platform notice.
+            Sent as {admin?.name} — recipients see it as a platform notice.
           </p>
           <button type="submit" className="btn-primary" disabled={broadcast.isPending}>
             <Megaphone size={15} />
@@ -772,16 +776,17 @@ function Broadcast() {
       <div className="card mt-6">
         <h3 className="h-card mb-2">Platform administrators</h3>
         <p className="text-sm muted mb-3">
-          Admin access is granted by the <code className="font-mono text-xs">ADMIN_EMAILS</code>{' '}
-          environment variable on the API, not by a field on any account — provider and seeker are
-          decided by context in this marketplace and nothing adds a role column. Changing the list
-          takes a redeploy and a fresh sign-in.
+          Administrators are separate platform accounts that sign in at{' '}
+          <code className="font-mono text-xs">/admin/login</code> — they are not businesses and take
+          no part in the marketplace. A deployment's administrator is created from{' '}
+          <code className="font-mono text-xs">ADMIN_EMAIL</code> and{' '}
+          <code className="font-mono text-xs">ADMIN_PASSWORD</code> on the API.
         </p>
         <ul className="space-y-1">
           {(meta?.admins || []).map((a) => (
             <li key={a.email} className="flex items-center gap-2 text-sm">
               <ShieldCheck size={13} className="text-indigo shrink-0" />
-              <span className="font-medium">{a.businessName}</span>
+              <span className="font-medium">{a.name}</span>
               <span className="font-mono text-xs text-ink-mute truncate">{a.email}</span>
             </li>
           ))}

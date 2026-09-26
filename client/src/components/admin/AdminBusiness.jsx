@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  Ban, Play, KeyRound, Archive, ShieldCheck, Star, MapPin, Phone, Mail, Copy,
+  Ban, Play, KeyRound, Archive, Star, MapPin, Phone, Mail, Copy,
 } from 'lucide-react';
 import { useAdminBusiness, useAdminActions } from '../../hooks/queries';
 import { errorMessage } from '../../api/client';
@@ -52,11 +52,6 @@ export default function AdminBusiness({ id, onClose }) {
         <>
           {/* ── Flags ─────────────────────────────────────────────────────── */}
           <div className="flex flex-wrap items-center gap-2">
-            {b.isPlatformAdmin && (
-              <span className="badge-indigo">
-                <ShieldCheck size={11} /> Platform admin
-              </span>
-            )}
             {b.suspended ? (
               <span className="badge-red">
                 <Ban size={11} /> Suspended {b.suspendedAt ? relative(b.suspendedAt) : ''}
@@ -284,8 +279,6 @@ export default function AdminBusiness({ id, onClose }) {
                   type="button"
                   className="btn-danger btn-sm"
                   onClick={() => setDialog('suspend')}
-                  disabled={b.isPlatformAdmin}
-                  title={b.isPlatformAdmin ? 'Platform administrators cannot be suspended' : undefined}
                 >
                   <Ban size={13} /> Suspend account
                 </button>

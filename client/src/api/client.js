@@ -25,35 +25,61 @@ function normaliseBase(value) {
 
 const baseURL = normaliseBase(import.meta.env.VITE_API_URL);
 
-const api = axios.create({ baseURL });
+/**
+ * Admin and business sessions are separate accounts with separate tokens,
+ * held under separate keys and sent by separate clients — so signing in or out
+ * of one never touches the other, and an admin token is never attached to a
+ * marketplace request (or vice versa).
+ */
+function createClient(tokenKey, onUnauthorized) {
+  const client = axios.create({ baseURL });
 
-// An API that answers with HTML is a misrouted request, not a real response.
-// Surfacing it as an error beats rendering a silently empty page.
-api.interceptors.response.use((res) => {
-  const type = res.headers?.['content-type'] || '';
-  if (type.includes('text/html')) {
-    throw new Error(
-      `Expected JSON from ${res.config?.url} but received HTML — the API base URL is probably ` +
-        `pointing at the frontend. Current baseURL: "${baseURL}"`
-    );
-  }
-  return res;
-});
+  // An API that answers with HTML is a misrouted request, not a real response.
+  // Surfacing it as an error beats rendering a silently empty page.
+  client.interceptors.response.use((res) => {
+    const type = res.headers?.['content-type'] || '';
+    if (type.includes('text/html')) {
+      throw new Error(
+        `Expected JSON from ${res.config?.url} but received HTML — the API base URL is probably ` +
+          `pointing at the frontend. Current baseURL: "${baseURL}"`
+      );
+    }
+    return res;
+  });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+  client.interceptors.request.use((config) => {
+    const token = localStorage.getItem(tokenKey);
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  });
 
-api.interceptors.response.use(
-  (res) => res,
-  (error) => {
-    // A dead session should not leave a stale token behind, but let the caller
-    // decide whether to redirect — some pages are browsable signed out.
-    if (error.response?.status === 401) localStorage.removeItem(TOKEN_KEY);
-    return Promise.reject(error);
-  }
+  client.interceptors.response.use(
+    (res) => res,
+    (error) => {
+      // A dead session should not leave a stale token behind, but let the caller
+      // decide whether to redirect — some pages are browsable signed out.
+      if (error.response?.status === 401) {
+        localStorage.removeItem(tokenKey);
+        onUnauthorized?.();
+      }
+      return Promise.reject(error);
+    }
+  );
+
+  return client;
+}
+
+export const ADMIN_TOKEN_KEY = 'indulge.adminToken';
+
+/** Fired when the admin session is rejected, so AdminAuthContext can sign out
+ *  instead of leaving the console rendering empty tabs. */
+export const ADMIN_UNAUTHORIZED_EVENT = 'indulge:admin-unauthorized';
+
+const api = createClient(TOKEN_KEY);
+
+/** Platform-admin client — used only by the admin console. */
+export const adminApi = createClient(ADMIN_TOKEN_KEY, () =>
+  window.dispatchEvent(new Event(ADMIN_UNAUTHORIZED_EVENT))
 );
 
 /** Pull the server's message out of an axios error for display. */

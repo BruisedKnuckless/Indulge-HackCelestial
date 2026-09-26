@@ -7,6 +7,16 @@
  * factor also separates the options.
  */
 
+/**
+ * Platform administrators. Stored in the Admin collection, never as businesses:
+ * they sign in at /admin/login and have no listings, cart or marketplace
+ * presence. Upserted by email, so re-seeding never duplicates them.
+ */
+export const ADMINS = [
+  { name: 'Platform Admin', email: 'admin@indulge.com', role: 'super_admin' },
+  { name: 'Nitish Gupta', email: 'nitishgupta7009@gmail.com', role: 'super_admin' },
+];
+
 export const BUSINESSES = [
   {
     key: 'grandOrchid',
@@ -15,14 +25,6 @@ export const BUSINESSES = [
     businessType: 'hotel',
     phone: '+91 98200 11001',
     location: { address: 'Eastern Express Hwy', city: 'Thane', pincode: '400603', coordinates: [72.9781, 19.2183] },
-  },
-  {
-    key: 'nitishAdmin',
-    businessName: 'Nitish Gupta (Platform Admin)',
-    email: 'nitishgupta7009@gmail.com',
-    businessType: 'other',
-    phone: '+91 98200 11999',
-    location: { address: 'Bandra Kurla Complex', city: 'Mumbai', pincode: '400051', coordinates: [72.8656, 19.0660] },
   },
   {
     key: 'seasons',

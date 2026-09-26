@@ -2,10 +2,12 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './context/AuthContext';
+import { useAdminAuth } from './context/AdminAuthContext';
 import useNotificationSocket from './hooks/useNotificationSocket';
 
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
+import AdminHeader from './components/admin/AdminHeader';
 import ScrollToTop from './components/ScrollToTop';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { Spinner } from './components/ui';
@@ -28,7 +30,7 @@ import MyRFQs from './pages/MyRFQs';
 import RequirementBoard from './pages/RequirementBoard';
 import Payment from './pages/Payment';
 import HowItWorks from './pages/HowItWorks';
-import AdminLocked from './components/admin/AdminLocked';
+import AdminLogin from './pages/AdminLogin';
 
 // Route-based code-splitting for heavy or specialized sub-systems
 const Admin = lazy(() => import('./pages/Admin'));
@@ -88,28 +90,51 @@ function RequireLogisticsPartner({ children }) {
 
   if (loading) return <Spinner label="Loading your account" />;
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  if (user.userType !== 'logistics_partner' && !user.isPlatformAdmin) {
+  if (user.userType !== 'logistics_partner') {
     return <Navigate to="/" replace />;
   }
   return children;
 }
 
 /**
- * The admin console is gated on the server too — /api/admin answers 404 to a
- * non-admin, so a forced route would render an empty shell rather than leak
- * anything. This guard exists to keep it out of the way, not to secure it.
+ * Admin routes require the separate admin session (AdminAuthContext). A
+ * business or logistics session grants nothing here — without an admin
+ * sign-in every /admin path goes to /admin/login. The server enforces the same
+ * rule: /api/admin only accepts admin tokens.
  */
-function RequireAdmin({ children }) {
-  const { user, loading } = useAuth();
+function RequireAdminAuth({ children }) {
+  const { admin, loading } = useAdminAuth();
   const location = useLocation();
 
   if (loading) return <Spinner label="Loading your account" />;
-  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  // Explain rather than silently bounce to the homepage: a console locked by
-  // unset configuration is indistinguishable from one locked by design, and
-  // that ambiguity is what makes a deployment hard to debug.
-  if (!user.isPlatformAdmin) return <AdminLocked />;
+  if (!admin) return <Navigate to="/admin/login" state={{ from: location.pathname }} replace />;
   return children;
+}
+
+/**
+ * Chrome for the admin console. The marketplace header belongs to business
+ * sessions, so the console gets its own bar (same look) driven by the admin
+ * session: home, platform alerts, theme switch and the admin's profile menu.
+ */
+function AdminShell({ children }) {
+  return (
+    <div className="min-h-screen flex flex-col bg-surface">
+      <AdminHeader />
+      <main className="flex-1">
+        <ErrorBoundary>
+          <Suspense
+            fallback={
+              <div className="min-h-[50vh] flex items-center justify-center py-16">
+                <Spinner label="Loading view" />
+              </div>
+            }
+          >
+            {children}
+          </Suspense>
+        </ErrorBoundary>
+      </main>
+    </div>
+  );
 }
 
 /** Standard chrome: grey header, white page, quiet footer. */
@@ -161,6 +186,22 @@ export default function App() {
         {/* Auth pages render without the marketplace chrome. */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        {/* Platform admin — its own sign-in, session and chrome. */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route
+          path="/admin/*"
+          element={
+            <RequireAdminAuth>
+              <AdminShell>
+                <Routes>
+                  <Route index element={<Admin />} />
+                  <Route path="*" element={<Navigate to="/admin" replace />} />
+                </Routes>
+              </AdminShell>
+            </RequireAdminAuth>
+          }
+        />
 
         <Route
           path="*"
@@ -261,14 +302,6 @@ export default function App() {
                     <RequireBusinessAuth>
                       <Analytics />
                     </RequireBusinessAuth>
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    <RequireAdmin>
-                      <Admin />
-                    </RequireAdmin>
                   }
                 />
                 <Route

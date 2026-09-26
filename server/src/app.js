@@ -20,6 +20,7 @@ import notificationRoutes from './routes/notification.routes.js';
 import requirementRoutes from './routes/requirement.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import adminAuthRoutes from './routes/admin-auth.routes.js';
 import logisticsRoutes from './routes/logistics.routes.js';
 import procurementOrderRoutes from './routes/procurement-order.routes.js';
 import capacityRecoveryRoutes from './routes/capacity-recovery.routes.js';
@@ -98,6 +99,7 @@ export function createApp() {
   app.use('/api', apiLimiter);
   app.use('/api/auth/login', authLimiter);
   app.use('/api/auth/register', authLimiter);
+  app.use('/api/admin/auth/login', authLimiter);
 
   // 7. Observability: Health and Readiness Endpoints
   app.get('/api/health', (req, res) => {
@@ -144,6 +146,9 @@ export function createApp() {
   app.use('/api/capacity-recovery', capacityRecoveryRoutes);
   app.use('/api/contribution', contributionRoutes);
   app.use('/api/analytics', analyticsRoutes);
+  // Admin sign-in must be mounted before the console, whose router requires an
+  // admin token on every path beneath /api/admin.
+  app.use('/api/admin/auth', adminAuthRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/logistics', logisticsRoutes);
   app.use('/api/payments', paymentRoutes);
