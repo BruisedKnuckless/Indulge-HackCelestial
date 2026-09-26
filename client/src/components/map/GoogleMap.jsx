@@ -26,24 +26,13 @@ const SELECTED_COLOR = '#059669';
 const PIN_SVG_PATH =
   'M 12 2 C 8.13 2 5 5.13 5 9 C 5 14.25 12 22 12 22 C 12 22 19 14.25 19 9 C 19 5.13 15.87 2 12 2 Z M 12 6.5 A 2.5 2.5 0 1 0 12 11.5 A 2.5 2.5 0 1 0 12 6.5 Z';
 
-let globalGmAuthError = false;
-
-if (typeof window !== 'undefined') {
-  window.gm_authFailure = () => {
-    globalGmAuthError = true;
-    console.warn(
-      'Google Maps API authentication warning: Please ensure "Maps JavaScript API" is enabled in Google Cloud Console for this key.'
-    );
-  };
-}
-
 /**
  * Loads the Google Maps JavaScript API script dynamically if an API key is provided.
  */
 export function useGoogleMapsLoader() {
   const [loaded, setLoaded] = useState(() => typeof window.google?.maps?.Map === 'function');
   const [loadError, setLoadError] = useState(false);
-  const [authError, setAuthError] = useState(() => globalGmAuthError);
+  const [authError, setAuthError] = useState(false);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   useEffect(() => {
@@ -53,11 +42,11 @@ export function useGoogleMapsLoader() {
     }
 
     // Capture auth failures if the provided API key has restrictions or needs API enabled
-    const prevAuthFailure = window.gm_authFailure;
     window.gm_authFailure = () => {
-      globalGmAuthError = true;
+      console.warn(
+        'Google Maps API authentication warning: Please ensure "Maps JavaScript API" is enabled in Google Cloud Console for this key.'
+      );
       setAuthError(true);
-      if (typeof prevAuthFailure === 'function') prevAuthFailure();
     };
 
     if (typeof window.google?.maps?.Map === 'function') {
@@ -331,8 +320,8 @@ export default function GoogleMap({
     }
   }, [isLoaded, items, selectedId, onSelect]);
 
-  // Fallback when key is missing, auth failed, or script network request failed completely
-  if (!hasKey || authError || (loadError && !isLoaded)) {
+  // Fallback when key is missing or script network request failed completely
+  if (!hasKey || (loadError && !isLoaded)) {
     return (
       <div className="relative w-full h-full min-h-[380px] rounded-xl overflow-hidden border border-line shadow-sm">
         <NoMapKeyFallback userCoords={userCoords} radiusKm={radiusKm} isAuthError={authError} />
