@@ -9,6 +9,7 @@ import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest, getAvailableQuantity } from '../services/availability.service.js';
 import { scoreSingleResource } from '../services/matching.service.js';
 import { notify } from '../services/notification.service.js';
+import { recordEvent, roleOn } from '../services/request-events.service.js';
 import { solveRequirementProcurement } from '../services/procurement-solver.service.js';
 import { executeProcurementPlan } from '../services/procurement-execution.service.js';
 import CapacityRecoveryOpportunity from '../models/CapacityRecoveryOpportunity.js';
@@ -571,6 +572,10 @@ router.post(
     requirement.fulfilledBooking = booking._id;
     requirement.resultingBooking = booking._id;
     await requirement.save();
+    await recordEvent({
+      requirement, booking, actor: req.user, role: 'seeker', action: 'offer_accepted',
+      toPrice: offer.price, note: String(offer._id),
+    });
 
     await notify({
       user: offer.provider,
@@ -603,6 +608,10 @@ router.patch(
 
     offer.status = 'withdrawn';
     await requirement.save();
+    await recordEvent({
+      requirement, actor: req.user, role: 'lister', action: 'offer_withdrawn',
+      fromPrice: offer.price, note: String(offer._id),
+    });
     res.json({ requirement });
   })
 );
@@ -719,11 +728,24 @@ router.patch(
     }
 
     const { quotedPrice, notes, status } = req.body;
+    const priceBefore = proposal.quotedPrice;
     if (quotedPrice != null && Number(quotedPrice) > 0) proposal.quotedPrice = Number(quotedPrice);
     if (notes !== undefined) proposal.notes = notes.trim();
     if (status === 'withdrawn') proposal.status = 'withdrawn';
 
     await proposal.save();
+    if (proposal.quotedPrice !== priceBefore) {
+      await recordEvent({
+        requirement: proposal.requirement, proposal, actor: req.user, role: 'lister',
+        action: 'proposal_revised', fromPrice: priceBefore, toPrice: proposal.quotedPrice,
+      });
+    }
+    if (status === 'withdrawn') {
+      await recordEvent({
+        requirement: proposal.requirement, proposal, actor: req.user, role: 'lister',
+        action: 'proposal_withdrawn', fromPrice: proposal.quotedPrice,
+      });
+    }
     res.json({ proposal });
   })
 );
@@ -836,6 +858,10 @@ router.post(
     requirement.resultingBooking = booking._id;
     requirement.fulfilledBooking = booking._id;
     await requirement.save();
+    await recordEvent({
+      requirement, booking, proposal, actor: req.user, role: 'seeker', action: 'proposal_accepted',
+      toPrice: proposal.quotedPrice,
+    });
 
     // Convert any matching capacity recovery opportunity
     try {
@@ -903,6 +929,7 @@ router.put(
     if (String(requirement.seeker) !== String(req.user._id)) {
       throw new HttpError(403, 'You can only edit your own requirements.');
     }
+    const budgetBefore = requirement.maxBudget;
 
     // 2. Lifecycle status check
     if (requirement.status === 'fulfilled') {
@@ -1008,6 +1035,11 @@ router.put(
 
     // Save and update updatedAt while preserving seeker, createdAt, proposals, offers
     await requirement.save();
+    await recordEvent({
+      requirement, actor: req.user, role: 'seeker', action: 'requirement_updated',
+      fromPrice: budgetBefore !== requirement.maxBudget ? budgetBefore : undefined,
+      toPrice: budgetBefore !== requirement.maxBudget ? requirement.maxBudget : undefined,
+    });
 
     res.json({ requirement: await requirement.populate(POPULATE) });
   })
@@ -1033,6 +1065,7 @@ router.patch(
 
     requirement.status = 'closed';
     await requirement.save();
+    await recordEvent({ requirement, actor: req.user, role: 'seeker', action: 'requirement_closed' });
     res.json({ requirement });
   })
 );
@@ -1057,6 +1090,7 @@ router.patch(
 
     requirement.status = 'cancelled';
     await requirement.save();
+    await recordEvent({ requirement, actor: req.user, role: 'seeker', action: 'requirement_cancelled' });
     res.json({ requirement });
   })
 );

@@ -936,97 +936,231 @@ async function main() {
       live.body.feed.every((f, i, a) => i === 0 || new Date(a[i - 1].at) >= new Date(f.at))
   );
 
-  // ---- live activity timelines ----
-  // The expandable timeline must be re-derived from records, never padded.
-  const timelineOf = (item) =>
-    api('GET', `/api/admin/live/${item.kind}/${item.id}/timeline`, { token: admin });
-  const STATES = ['completed', 'current', 'upcoming', 'missing', 'stopped'];
+  // ---- live activity trackers ----
+  // The tracker must be re-derived from records, never padded. Seeded records
+  // predate the RequestEvent log, so they exercise the reconstruction rules;
+  // the stories below drive the real API so the log is exercised end to end.
+  console.log('\nAdmin console — Live request tracker');
+  const timelineOf = (kind, id) => api('GET', `/api/admin/live/${kind}/${id}/timeline`, { token: admin });
+  const STATES = ['completed', 'current', 'upcoming', 'skipped', 'missing', 'stopped'];
+  const ROLES = ['seeker', 'lister', 'logistics', 'platform'];
+  const stage = (t, key) => t.stages.find((s) => s.key === key);
+  const chronological = (events) => {
+    const timed = events.filter((e) => e.at).map((e) => new Date(e.at).getTime());
+    return timed.every((v, i) => i === 0 || timed[i - 1] <= v);
+  };
 
   const rfqItem = live.body.feed.find((f) => f.kind === 'requirement');
-  const rfqTimeline = await timelineOf(rfqItem);
-  const rfqStages = rfqTimeline.body.stages || [];
+  const rfqT = (await timelineOf('requirement', rfqItem.id)).body;
   check(
-    'an RFQ timeline starts at its real posting time',
-    rfqTimeline.status === 200 &&
-      rfqStages[0]?.key === 'posted' &&
-      new Date(rfqStages[0].at).getTime() === new Date(rfqItem.at).getTime()
+    'an RFQ tracker starts at its real posting time',
+    rfqT.stages?.[0]?.key === 'posted' && new Date(rfqT.stages[0].at).getTime() === new Date(rfqItem.at).getTime()
   );
   check(
     'every stage has a known state and at most one is current',
-    rfqStages.every((s) => STATES.includes(s.state)) && rfqStages.filter((s) => s.state === 'current').length <= 1
+    rfqT.stages.every((s) => STATES.includes(s.state)) && rfqT.stages.filter((s) => s.state === 'current').length <= 1
+  );
+  check(
+    'every event names its actor and the stream is chronological',
+    rfqT.events.every((e) => ROLES.includes(e.role) && e.actor) && chronological(rfqT.events)
   );
 
   const rfqDoc = await Requirement.findById(rfqItem.id).lean();
-  const quoteCount =
-    (await Proposal.countDocuments({ requirement: rfqItem.id })) + (rfqDoc.offers || []).length;
-  const quotesStage = rfqStages.find((s) => s.key === 'quotes');
+  const quoteCount = (await Proposal.countDocuments({ requirement: rfqItem.id })) + (rfqDoc.offers || []).length;
   check(
-    'the quotes stage is complete only when quotes really exist',
-    quotesStage && quotesStage.items.length === quoteCount && (quotesStage.state === 'completed') === quoteCount > 0,
-    JSON.stringify({ quoteCount, state: quotesStage?.state })
+    'the proposals stage and list count only quotes that really exist',
+    rfqT.proposals.length === quoteCount && (stage(rfqT, 'proposals').state === 'completed') === quoteCount > 0
   );
 
   const unquoted = await Requirement.findOne({ status: 'open', proposalCount: 0, 'offers.0': { $exists: false } }).lean();
   if (unquoted) {
-    const t = (await timelineOf({ kind: 'requirement', id: unquoted._id })).body;
+    const t = (await timelineOf('requirement', unquoted._id)).body;
     check(
-      'an RFQ with no quotes shows quotes as the current stage, nothing later completed',
-      t.current?.stage === 'quotes' &&
-        t.stages.slice(t.stages.findIndex((s) => s.key === 'quotes')).every((s) => s.state !== 'completed')
+      'an RFQ with no quotes has negotiation not started and proposals as the current stage',
+      t.negotiation.status === 'not_started' &&
+        t.current?.stage === 'proposals' &&
+        t.stages.slice(t.stages.findIndex((s) => s.key === 'proposals')).every((s) => s.state !== 'completed')
     );
   }
 
   const paidIds = await Transaction.distinct('booking', { status: { $in: ['paid', 'simulated_paid'] } });
   const done = await Booking.findOne({ status: 'completed', sourceRequirement: null, _id: { $in: paidIds } }).lean();
-  const doneTimeline = (await timelineOf({ kind: 'booking', id: done._id })).body;
+  const doneT = (await timelineOf('booking', done._id)).body;
   check(
-    'a completed direct booking has every stage completed and no current stage',
-    doneTimeline.current?.state === 'done' && doneTimeline.stages.every((s) => s.state === 'completed')
+    'a completed booking with no messages marks negotiation as not needed, not as done',
+    doneT.current?.state === 'done' &&
+      stage(doneT, 'negotiation').state === 'skipped' &&
+      doneT.stages.every((s) => ['completed', 'skipped'].includes(s.state))
+  );
+  const legacyAccept = doneT.events.find((e) => e.action === 'request_accepted');
+  check(
+    'an older acceptance is attributed to the lister, timed by the transaction it created',
+    legacyAccept?.role === 'lister' &&
+      new Date(legacyAccept.at).getTime() ===
+        new Date((await Transaction.findOne({ booking: done._id }).sort('createdAt').lean()).createdAt).getTime()
+  );
+  const doneFulfilled = stage(doneT, 'fulfilment');
+  check(
+    'a stage without a recorded time carries no invented timestamp',
+    doneFulfilled.at === null ||
+      [done.return?.returnCompletedAt, done.return?.returnedAt, done.fulfillment?.deliveredAt]
+        .filter(Boolean)
+        .some((d) => new Date(d).getTime() === new Date(doneFulfilled.at).getTime())
   );
 
   const txIds = await Transaction.distinct('booking');
   const unpaidDone = await Booking.findOne({ status: 'completed', sourceRequirement: null, _id: { $nin: txIds } }).lean();
   if (unpaidDone) {
-    const t = (await timelineOf({ kind: 'booking', id: unpaidDone._id })).body;
+    const t = (await timelineOf('booking', unpaidDone._id)).body;
     check(
-      'a finished booking with no transaction shows payment as missing, not as paid or in progress',
-      t.stages.find((s) => s.key === 'paid')?.state === 'missing' && t.current?.state === 'done'
+      'a finished booking with no transaction shows payment as missing, not paid',
+      stage(t, 'payment').state === 'missing' && !t.events.some((e) => e.action === 'paid')
     );
   }
 
-  const pendingBooking = await Booking.findOne({ status: 'pending' }).lean();
-  const pendingTimeline = (await timelineOf({ kind: 'booking', id: pendingBooking._id })).body;
-  check(
-    'a pending request is waiting on acceptance, with payment not yet reached',
-    pendingTimeline.stages.find((s) => s.key === 'accepted')?.state !== 'completed' &&
-      pendingTimeline.stages.find((s) => s.key === 'paid')?.state !== 'completed'
-  );
-
-  const unstamped = doneTimeline.stages.find((s) => s.key === 'completed');
-  check(
-    'a stage without a recorded time carries no invented timestamp',
-    unstamped &&
-      (unstamped.at === null ||
-        [done.return?.returnCompletedAt, done.return?.returnedAt, done.fulfillment?.deliveredAt]
-          .filter(Boolean)
-          .some((d) => new Date(d).getTime() === new Date(unstamped.at).getTime()))
-  );
-
   const payItem = live.body.feed.find((f) => f.kind === 'transaction');
-  const payTimeline = await timelineOf(payItem);
+  const payT = await timelineOf('transaction', payItem.id);
   check(
-    'a payment in the feed opens the lifecycle of the request it paid for',
-    payTimeline.status === 200 && ['booking', 'requirement'].includes(payTimeline.body.subject?.type)
+    'a payment opens the story of the request it paid for',
+    payT.status === 200 && ['booking', 'requirement'].includes(payT.body.subject?.type)
+  );
+  const someBusiness = await User.findOne({}).lean();
+  check('a signup has no request story', (await timelineOf('signup', someBusiness._id)).status === 404);
+  check('trackers are admin-only', (await api('GET', `/api/admin/live/requirement/${rfqItem.id}/timeline`, { token: orchid })).status === 404);
+
+  // ── Story 1: a direct request negotiated to agreement ──
+  const story = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: { resourceId: ballroom._id, quantity: 1, startDateTime: at(80, 10), endDateTime: at(80, 20) },
+  });
+  const sId = story.body.booking?._id;
+  const opening = story.body.booking?.quotedPrice;
+  await api('POST', `/api/negotiations/${sId}`, {
+    token: kalpataru,
+    body: { type: 'counter_offer', proposedPrice: opening - 5000, message: 'Can you do better?' },
+  });
+  const listerCounter = await api('POST', `/api/negotiations/${sId}`, {
+    token: seasons,
+    body: { type: 'counter_offer', proposedPrice: opening - 2000, message: 'Meet in the middle' },
+  });
+  await api('POST', `/api/negotiations/${sId}/accept-offer/${listerCounter.body.message?._id}`, { token: kalpataru });
+  await api('PATCH', `/api/bookings/${sId}/accept`, { token: seasons, body: {} });
+  await api('PATCH', `/api/bookings/${sId}/confirm`, { token: kalpataru });
+
+  const s1 = (await timelineOf('booking', sId)).body;
+  const moves = s1.events
+    .filter((e) => ['request_created', 'counter_offer', 'counter_offer_accepted', 'request_accepted', 'booking_confirmed', 'paid'].includes(e.action))
+    .map((e) => `${e.role}:${e.action}`);
+  check(
+    'every seeker and lister move appears, in order, with its actor',
+    JSON.stringify(moves) ===
+      JSON.stringify([
+        'seeker:request_created',
+        'seeker:counter_offer',
+        'lister:counter_offer',
+        'seeker:counter_offer_accepted',
+        'lister:request_accepted',
+        'seeker:booking_confirmed',
+        'seeker:paid',
+      ]),
+    moves.join(' → ')
+  );
+  const lc = s1.events.find((e) => e.role === 'lister' && e.action === 'counter_offer');
+  check('a counter-offer shows the price it moved from and to', lc?.fromPrice === opening - 5000 && lc?.toPrice === opening - 2000);
+  check(
+    'the negotiation reports its final agreement against the opening price',
+    s1.negotiation.status === 'completed' &&
+      s1.negotiation.count === 3 &&
+      s1.negotiation.agreement?.original === opening &&
+      s1.negotiation.agreement?.final === opening - 2000 &&
+      s1.negotiation.agreement?.change === -2000 &&
+      s1.negotiation.agreement?.acceptedBy === 'lister',
+    JSON.stringify(s1.negotiation.agreement)
+  );
+  check(
+    'the tracker moves from negotiation through booking and payment to fulfilment',
+    stage(s1, 'negotiation').state === 'completed' &&
+      stage(s1, 'negotiation').count === 3 &&
+      ['agreement', 'booking', 'payment'].every((k) => stage(s1, k).state === 'completed') &&
+      s1.current?.stage === 'fulfilment'
   );
 
-  const someBusiness = await User.findOne({}).lean();
+  // ── Story 2: negotiation still under way ──
+  const open = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: { resourceId: ballroom._id, quantity: 1, startDateTime: at(82, 10), endDateTime: at(82, 20) },
+  });
+  await api('POST', `/api/negotiations/${open.body.booking._id}`, {
+    token: kalpataru,
+    body: { type: 'counter_offer', proposedPrice: open.body.booking.quotedPrice - 1000 },
+  });
+  const s2 = (await timelineOf('booking', open.body.booking._id)).body;
   check(
-    'a signup has no request lifecycle',
-    (await timelineOf({ kind: 'signup', id: someBusiness._id })).status === 404
+    'a live negotiation is the current stage, waiting on the other side',
+    s2.negotiation.status === 'in_progress' && s2.current?.stage === 'negotiation' && /lister/.test(s2.current.text)
+  );
+
+  // ── Story 3: declined by the lister ──
+  const declined = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: { resourceId: ballroom._id, quantity: 1, startDateTime: at(84, 10), endDateTime: at(84, 20) },
+  });
+  await api('PATCH', `/api/bookings/${declined.body.booking._id}/reject`, { token: seasons, body: { reason: 'Maintenance' } });
+  const s3 = (await timelineOf('booking', declined.body.booking._id)).body;
+  const lastStage = s3.stages[s3.stages.length - 1];
+  check(
+    'a declined request stops there, attributed to the lister with the reason',
+    s3.negotiation.status === 'cancelled' &&
+      lastStage.state === 'stopped' &&
+      lastStage.label === 'Declined' &&
+      lastStage.sub === 'by lister' &&
+      s3.events.some((e) => e.action === 'request_rejected' && e.role === 'lister' && e.detail === 'Maintenance')
+  );
+
+  // ── Story 4: an RFQ whose proposal is revised, then awarded ──
+  const storyRfq = await api('POST', '/api/requirements', {
+    token: kalpataru,
+    body: {
+      title: 'Tracker story — product launch hall',
+      category: 'banquet_space',
+      requiredQuantity: 1,
+      maxBudget: 95000,
+      startDateTime: at(90, 10),
+      endDateTime: at(90, 20),
+    },
+  });
+  const rId = storyRfq.body.requirement?._id;
+  const prop = await api('POST', `/api/requirements/${rId}/proposals`, {
+    token: seasons,
+    body: { resourceId: ballroom._id, quotedPrice: 85000 },
+  });
+  await api('PATCH', `/api/requirements/${rId}/proposals/${prop.body.proposal?._id}`, {
+    token: seasons,
+    body: { quotedPrice: 80000 },
+  });
+  await api('POST', `/api/requirements/${rId}/proposals/${prop.body.proposal?._id}/accept`, { token: kalpataru });
+  const s4 = (await timelineOf('requirement', rId)).body;
+  const rfqMoves = s4.events
+    .filter((e) => ['request_posted', 'proposal_submitted', 'proposal_revised', 'proposal_accepted', 'paid'].includes(e.action))
+    .map((e) => `${e.role}:${e.action}`);
+  check(
+    'an RFQ story shows the lister’s proposal, its revision and the seeker’s award',
+    JSON.stringify(rfqMoves) ===
+      JSON.stringify(['seeker:request_posted', 'lister:proposal_submitted', 'lister:proposal_revised', 'seeker:proposal_accepted', 'seeker:paid']),
+    rfqMoves.join(' → ')
   );
   check(
-    'timelines are admin-only',
-    (await api('GET', `/api/admin/live/requirement/${rfqItem.id}/timeline`, { token: orchid })).status === 404
+    'the proposal keeps its opening price and is marked selected',
+    s4.proposals[0]?.initialPrice === 85000 &&
+      s4.proposals[0]?.price === 80000 &&
+      s4.proposals[0]?.revisions === 1 &&
+      s4.proposals[0]?.outcome === 'selected'
+  );
+  check(
+    'the RFQ agreement shows the negotiated saving',
+    s4.negotiation.agreement?.original === 85000 &&
+      s4.negotiation.agreement?.final === 80000 &&
+      s4.negotiation.agreement?.change === -5000
   );
 
   const admNegotiations = await api('GET', '/api/admin/negotiations', { token: admin });

@@ -4,6 +4,7 @@ import Negotiation from '../models/Negotiation.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { notify } from '../services/notification.service.js';
+import { recordEvent, roleOn } from '../services/request-events.service.js';
 
 const router = Router();
 
@@ -98,11 +99,16 @@ router.post(
       throw new HttpError(400, 'You cannot accept your own offer.');
     }
 
+    const priceBefore = booking.quotedPrice;
     if (offer.proposedPrice != null) booking.quotedPrice = offer.proposedPrice;
     if (offer.proposedStart) booking.startDateTime = offer.proposedStart;
     if (offer.proposedEnd) booking.endDateTime = offer.proposedEnd;
     booking.status = 'pending'; // terms agreed; provider still formally accepts
     await booking.save();
+    await recordEvent({
+      booking, requirement: booking.sourceRequirement, actor: req.user, role: roleOn(booking, req.user._id),
+      action: 'counter_offer_accepted', fromPrice: priceBefore, toPrice: offer.proposedPrice, note: String(offer._id),
+    });
 
     await notify({
       user: offer.sender,
