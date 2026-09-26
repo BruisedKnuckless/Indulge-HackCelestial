@@ -11,6 +11,7 @@ import Requirement from '../models/Requirement.js';
 import Proposal from '../models/Proposal.js';
 import LogisticsJob from '../models/LogisticsJob.js';
 import Admin from '../models/Admin.js';
+import RequestEvent from '../models/RequestEvent.js';
 import { ADMINS, BUSINESSES, RESOURCES } from './seedData.js';
 import { estimatePrice } from '../utils/pricing.js';
 
@@ -60,6 +61,7 @@ export async function runSeed({ quiet = false } = {}) {
     Requirement.deleteMany({}),
     Proposal.deleteMany({}),
     LogisticsJob.deleteMany({}),
+    RequestEvent.deleteMany({}),
   ]);
 
   const passwordHash = await User.hashPassword(DEMO_PASSWORD);

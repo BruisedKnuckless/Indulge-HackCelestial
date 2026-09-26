@@ -74,6 +74,20 @@ a business route — the console reads across tenants through `/api/admin/*`.
 
 Seeded dev admin: `admin@indulge.com` / `indulge123` (upserted, never duplicated).
 
+### Request story log (admin Live tracker)
+
+Admin → Live rows expand into the full story of a request
+(`server/src/services/live-timeline.service.js`, `GET /api/admin/live/:kind/:id/timeline`,
+client `components/admin/LiveTimeline.jsx`). Most of it comes from records that
+already carry timestamps; **status decisions** (accept, reject, confirm, cancel,
+complete, counter-offer accepted, proposal revised/withdrawn/awarded, RFQ
+edited/closed/cancelled) come from the append-only `RequestEvent` log, written by
+`recordEvent()` in the routes that make them. **If you add a new status transition
+to a booking, proposal, offer or requirement, record an event for it** or the
+tracker will show the new state with no actor or time. `recordEvent` never throws,
+so it cannot break the action it logs. Never pad the story: a time that was not
+recorded must stay `null`.
+
 ## Architecture
 
 Two independent apps in one repo — `client/` (React + Vite) and `server/`

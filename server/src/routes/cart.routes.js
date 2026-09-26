@@ -7,6 +7,7 @@ import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest } from '../services/availability.service.js';
 import { scoreSingleResource } from '../services/matching.service.js';
 import { notify } from '../services/notification.service.js';
+import { recordEvent, roleOn } from '../services/request-events.service.js';
 import { estimatePrice } from '../utils/pricing.js';
 
 const router = Router();
@@ -203,6 +204,9 @@ router.post(
         quotedPrice: estimatePrice(resource, item),
         matchScore: scored?.matchScore,
         matchBreakdown: scored?.matchBreakdown,
+      });
+      await recordEvent({
+        booking, actor: req.user, role: 'seeker', action: 'request_created', toPrice: booking.quotedPrice,
       });
 
       await notify({

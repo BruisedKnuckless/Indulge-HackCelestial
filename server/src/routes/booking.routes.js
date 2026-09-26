@@ -8,6 +8,7 @@ import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest } from '../services/availability.service.js';
 import { scoreSingleResource } from '../services/matching.service.js';
 import { notify } from '../services/notification.service.js';
+import { recordEvent, roleOn } from '../services/request-events.service.js';
 import { estimatePrice } from '../utils/pricing.js';
 import { ensureLogisticsJobForBooking } from '../services/logistics.service.js';
 import { PaymentService } from '../services/payment.service.js';
@@ -74,6 +75,9 @@ router.post(
       quotedPrice: estimatePrice(resource, { quantity, startDateTime: start, endDateTime: end }),
       matchScore: scored?.matchScore,
       matchBreakdown: scored?.matchBreakdown,
+    });
+    await recordEvent({
+      booking, actor: req.user, role: 'seeker', action: 'request_created', toPrice: booking.quotedPrice,
     });
 
     await notify({
@@ -187,10 +191,15 @@ router.patch(
     });
     if (!check.ok) throw new HttpError(409, check.reason);
 
+    const priceBefore = booking.quotedPrice;
     booking.status = 'accepted';
     if (req.body.agreedPrice != null) booking.agreedPrice = Number(req.body.agreedPrice);
     if (booking.agreedPrice == null) booking.agreedPrice = booking.quotedPrice;
     await booking.save();
+    await recordEvent({
+      booking, requirement: booking.sourceRequirement, actor: req.user, role: 'lister',
+      action: 'request_accepted', fromPrice: priceBefore, toPrice: booking.agreedPrice,
+    });
 
     await Transaction.create({
       booking: booking._id,
@@ -225,6 +234,10 @@ router.patch(
     booking.status = 'rejected';
     booking.rejectionReason = req.body.reason || 'No reason given';
     await booking.save();
+    await recordEvent({
+      booking, requirement: booking.sourceRequirement, actor: req.user, role: 'lister',
+      action: 'request_rejected', note: booking.rejectionReason,
+    });
 
     await notify({
       user: booking.seeker,
@@ -254,6 +267,10 @@ router.patch(
 
     booking.status = 'confirmed';
     await booking.save();
+    await recordEvent({
+      booking, requirement: booking.sourceRequirement, actor: req.user, role: 'seeker',
+      action: 'booking_confirmed', toPrice: booking.agreedPrice,
+    });
 
     await Transaction.findOneAndUpdate(
       { booking: booking._id },
@@ -333,6 +350,10 @@ router.patch(
     booking.status = 'cancelled';
     booking.cancellationReason = req.body.reason || 'No reason given';
     await booking.save();
+    await recordEvent({
+      booking, requirement: booking.sourceRequirement, actor: req.user, role: roleOn(booking, req.user._id),
+      action: 'booking_cancelled', note: booking.cancellationReason,
+    });
 
     const other = String(booking.provider) === String(req.user._id) ? booking.seeker : booking.provider;
     await notify({
@@ -378,6 +399,10 @@ router.patch(
     // directly by either party.
     booking.status = 'completed';
     await booking.save();
+    await recordEvent({
+      booking, requirement: booking.sourceRequirement, actor: req.user, role: roleOn(booking, req.user._id),
+      action: 'booking_completed',
+    });
 
     res.json({ booking: await booking.populate(POPULATE) });
   })
