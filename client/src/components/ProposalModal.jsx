@@ -57,8 +57,8 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-xs">
-      <div className="card w-full max-w-lg bg-surface border border-line shadow-2xl overflow-hidden animate-fade-in">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-surface-sunk/40">
+      <div className="card w-full max-w-lg bg-surface border border-line shadow-2xl overflow-hidden animate-fade-in max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-surface-sunk/40 shrink-0">
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-ink leading-tight">Submit Quotation</h3>
             <p className="text-xs text-ink-soft mt-0.5 truncate">{requirement.title}</p>
@@ -72,7 +72,7 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
           <div>
             <label className="label">
               Select Your Listed Resource ({CATEGORY_LABELS[requirement.category]})

@@ -396,7 +396,7 @@ export default function AdminLogistics() {
       {/* ── Assign / Reassign Dialog ─────────────────────────────────────── */}
       {assignTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="card max-w-lg w-full p-6 space-y-4 shadow-xl border border-line">
+          <div className="card max-w-lg w-full p-6 space-y-4 shadow-xl border border-line max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="icon-box icon-box-indigo w-8 h-8">

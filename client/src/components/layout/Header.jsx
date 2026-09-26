@@ -406,6 +406,7 @@ export default function Header() {
                       "rounded-xl",
                       "shadow-[0_8px_28px_rgba(0,0,0,0.13)]",
                       "dark:shadow-[0_8px_32px_rgba(0,0,0,0.45)]",
+                      "max-h-[calc(100dvh-5rem)] max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain",
                     ].join(" ")}
                   >
                     {/* Mode selector */}
@@ -631,6 +632,7 @@ export default function Header() {
                   "bg-surface-alt",
                   "border border-line",
                   "rounded-xl shadow-[0_8px_28px_rgba(0,0,0,0.13)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45)]",
+                  "max-h-[calc(100dvh-5rem)] max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain",
                 ].join(" ")}
               >
                 {user ? (
@@ -831,7 +833,7 @@ export default function Header() {
       {/* ── Mobile nav panel ─────────────────────────────────────── */}
 
       {mobileOpen && (
-        <div className="lg:hidden border-t border-black/10 dark:border-white/10 bg-nav/95">
+        <div className="lg:hidden border-t border-black/10 dark:border-white/10 bg-nav/95 max-h-[calc(100dvh-4.5rem)] max-h-[calc(100vh-4.5rem)] overflow-y-auto overscroll-contain">
           <nav
             className="shell py-3 flex flex-col gap-1"
             aria-label="Mobile navigation"
