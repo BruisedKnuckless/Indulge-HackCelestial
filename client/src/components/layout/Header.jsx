@@ -88,17 +88,20 @@ const LISTER_NAV = [
   { to: "/bookings/received", label: "Requests" },
   { to: "/requirements/feed", label: "RFQ Feed" },
   { to: "/analytics", label: "Analytics" },
+  { to: "/inspector", label: "Inspector" },
 ];
 
 const EXPLORE_OPTIONS = [
   { key: "seeker", label: "Seeker", to: "/s" },
   { key: "lister", label: "Lister", to: "/listings" },
+  { key: "inspector", label: "Inspector", to: "/inspector" },
 ];
 
 const ACCOUNT_LINKS = [
   { to: "/account", label: "Account" },
   { to: "/history", label: "History & Records" },
   { to: "/billing", label: "Billing & Transactions" },
+  { to: "/inspector", label: "Field Inspector Station" },
   { to: "/nearby", label: "Nearby Map" },
   { to: "/bookings/sent", label: "Requests you sent" },
   { to: "/bookings/received", label: "Requests received" },

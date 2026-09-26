@@ -7,6 +7,7 @@ import { ensureBootstrapAdmin, logAdminConfig } from './config/admin.js';
 import { initSockets } from './sockets/index.js';
 import { runSeed } from './seed/seed.js';
 import { BUSINESSES } from './seed/seedData.js';
+import { seedVerificationData } from './seed/seedVerification.js';
 import User from './models/User.js';
 import { logger } from './utils/logger.js';
 
@@ -70,6 +71,9 @@ async function main() {
       }
     }
   }
+
+  // Ensure verification templates and inspector setup
+  await seedVerificationData();
 
   // ADMIN_EMAIL + ADMIN_PASSWORD give a deployment its administrator; upserted
   // on every boot, so it is idempotent and follows password rotation.

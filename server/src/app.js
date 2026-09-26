@@ -29,6 +29,7 @@ import paymentRoutes from './routes/payment.routes.js';
 import transactionRoutes from './routes/transaction.routes.js';
 import historyRoutes from './routes/history.routes.js';
 import billingRoutes from './routes/billing.routes.js';
+import verificationRoutes from './routes/verification.routes.js';
 
 export function createApp() {
   const app = express();
@@ -158,6 +159,8 @@ export function createApp() {
   app.use('/api/transactions', transactionRoutes);
   app.use('/api/history', historyRoutes);
   app.use('/api/billing', billingRoutes);
+  app.use('/api/verifications', verificationRoutes);
+  app.use('/api/verification-templates', verificationRoutes);
 
   // 9. Error Handling
   app.use(notFound);

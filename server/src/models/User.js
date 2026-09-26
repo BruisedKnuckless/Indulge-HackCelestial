@@ -130,10 +130,10 @@ const userSchema = new mongoose.Schema(
     suspendedAt: Date,
     suspensionReason: String,
 
-    // Account architecture: business (default) or logistics_partner.
+    // Account architecture: business (default), logistics_partner, or inspector.
     userType: {
       type: String,
-      enum: ['business', 'logistics_partner'],
+      enum: ['business', 'logistics_partner', 'inspector'],
       default: 'business',
       index: true,
     },

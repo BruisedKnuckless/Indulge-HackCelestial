@@ -12,6 +12,8 @@ import {
   replaceResourceMedia,
   deleteResourceMedia,
 } from '../services/media.service.js';
+import { createVerificationForResource } from '../services/verification/verification.service.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 
@@ -44,6 +46,22 @@ router.post(
     }
 
     const resource = await Resource.create(body);
+
+    // Automatic Verification & Inspection Request Generation
+    // Always wrapped in graceful fallback so listing creation succeeds even if verification encounters an issue.
+    try {
+      const vr = await createVerificationForResource(resource, req.user);
+      if (vr) {
+        resource.verificationStatus = 'pending';
+        resource.verificationId = vr._id;
+      }
+    } catch (verifErr) {
+      logger.warn('Non-fatal: failed to trigger verification request on resource create:', {
+        resourceId: resource._id,
+        error: verifErr.message,
+      });
+    }
+
     res.status(201).json({ resource });
   })
 );

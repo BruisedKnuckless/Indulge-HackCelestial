@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { CheckCircle2, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { errorMessage } from '../api/client';
 import { useResource, useCartMutations, useBookingActions } from '../hooks/queries';
@@ -147,6 +148,35 @@ export default function ResourceDetail() {
 
           {/* ------------------------------------------------- details */}
           <div className="min-w-0">
+            {resource.verificationStatus === 'verified' && (
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 mb-2">
+                <CheckCircle2 size={15} className="text-emerald-600 dark:text-emerald-400" />
+                <span>✓ Indulge Verified</span>
+                {resource.conditionScore != null && (
+                  <span className="px-1.5 py-0.2 rounded bg-emerald-200/60 dark:bg-emerald-900/60 text-[11px] font-extrabold">
+                    Condition: {resource.conditionScore}/100
+                  </span>
+                )}
+                {resource.verifiedAt && (
+                  <span className="text-emerald-700/80 dark:text-emerald-400/80 font-normal">
+                    · {new Date(resource.verifiedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {resource.verificationStatus === 'conditionally_verified' && (
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 mb-2">
+                <ShieldCheck size={15} className="text-amber-600 dark:text-amber-400" />
+                <span>Conditionally Verified</span>
+                {resource.conditionScore != null && (
+                  <span className="px-1.5 py-0.2 rounded bg-amber-200/60 dark:bg-amber-900/60 text-[11px] font-extrabold">
+                    Condition: {resource.conditionScore}/100
+                  </span>
+                )}
+              </div>
+            )}
+
             <h1 className="text-3xl font-normal leading-tight mb-1">{resource.title}</h1>
 
             <Link to={`/provider/${owner._id}`} className="link text-base">

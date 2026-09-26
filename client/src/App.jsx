@@ -45,6 +45,8 @@ const RequirementDetail = lazy(() => import('./pages/RequirementDetail'));
 const ProcurementOrderDetail = lazy(() => import('./pages/ProcurementOrderDetail'));
 const HistoryRecords = lazy(() => import('./pages/HistoryRecords'));
 const BillingTransactions = lazy(() => import('./pages/BillingTransactions'));
+const InspectorDashboard = lazy(() => import('./pages/InspectorDashboard'));
+const InspectionDetail = lazy(() => import('./pages/InspectionDetail'));
 import VerificationBanner from './components/layout/VerificationBanner';
 
 function RequireAuth({ children }) {
@@ -204,6 +206,36 @@ export default function App() {
                 </Routes>
               </AdminShell>
             </RequireAdminAuth>
+          }
+        />
+
+        {/* Field Inspector — dedicated inspection operations interface */}
+        <Route
+          path="/inspector"
+          element={
+            <Suspense
+              fallback={
+                <div className="min-h-screen flex items-center justify-center bg-surface">
+                  <Spinner label="Loading Inspector..." />
+                </div>
+              }
+            >
+              <InspectorDashboard />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/inspector/:id"
+          element={
+            <Suspense
+              fallback={
+                <div className="min-h-screen flex items-center justify-center bg-surface">
+                  <Spinner label="Loading Inspection..." />
+                </div>
+              }
+            >
+              <InspectionDetail />
+            </Suspense>
           }
         />
 
