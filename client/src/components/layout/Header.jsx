@@ -132,7 +132,7 @@ const getBusinessNavGroups = (exploreMode) => [
     title: "Organization",
     links: [
       { to: "/account", label: "Account Settings", icon: Settings },
-      { to: "/billing", label: "Billing & Invoices", icon: CreditCard },
+      { to: "/billing", label: "Wallet & Lister Earnings", icon: CreditCard },
     ],
   },
 ];
