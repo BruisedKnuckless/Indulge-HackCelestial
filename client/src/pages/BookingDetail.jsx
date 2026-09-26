@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Check, Truck, Phone, AlertCircle } from 'lucide-react';
+import { Check, Truck, Phone, AlertCircle, MapPin, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { errorMessage } from '../api/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -970,6 +970,13 @@ export default function BookingDetail() {
   const hasReturn    = Boolean(booking.return?.status);
   const rentalEnded  = booking.endDateTime && Date.now() > new Date(booking.endDateTime).getTime();
 
+  // Physical freight dispatch vs on-site space access
+  const isPhysicalTransport =
+    booking.logistics === 'provider_transport' ||
+    Boolean(logisticsJob) ||
+    ['furniture', 'av_equipment', 'vehicle', 'other'].includes(r.category) ||
+    r.requiresLogistics === true;
+
   const run = async (verb, mutation, extra = {}) => {
     setBusy(verb);
     try {
@@ -1017,27 +1024,43 @@ export default function BookingDetail() {
               <div className="mt-5 pt-4 border-t border-line">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-ink-mute uppercase tracking-wide">
-                    Fulfillment detail
+                    {isPhysicalTransport ? 'Fulfillment detail' : 'Venue access detail'}
                   </p>
-                  {isDelivered ? (
+                  {isDelivered || isCompleted ? (
                     <span className="text-xs text-success font-medium inline-flex items-center gap-1">
-                      <Check size={12} strokeWidth={2.5} /> Delivered
+                      <Check size={12} strokeWidth={2.5} /> {isPhysicalTransport ? 'Delivered' : 'Access Ready'}
                     </span>
                   ) : hasAnyFulfillment ? (
                     <span className="text-xs text-ink-mute font-medium">In Progress</span>
                   ) : (
-                    <span className="text-xs text-ink-mute">Awaiting Start</span>
+                    <span className="text-xs text-ink-mute">{isPhysicalTransport ? 'Awaiting Start' : 'Confirmed'}</span>
                   )}
                 </div>
 
-                <FulfillmentTimeline
-                  fulfillment={booking.fulfillment}
-                  isProvider={isProvider && isConfirmed}
-                  onAdvance={advanceFulfillment}
-                  busy={busy === 'fulfillment' ? busy : ''}
-                  partnerAssigned={Boolean(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)}
-                  partnerName={(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)?.businessName}
-                />
+                {isPhysicalTransport ? (
+                  <FulfillmentTimeline
+                    fulfillment={booking.fulfillment}
+                    isProvider={isProvider && isConfirmed}
+                    onAdvance={advanceFulfillment}
+                    busy={busy === 'fulfillment' ? busy : ''}
+                    partnerAssigned={Boolean(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)}
+                    partnerName={(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)?.businessName}
+                  />
+                ) : (
+                  <div className="p-3.5 rounded-lg border border-line bg-surface-alt/60 space-y-2">
+                    <div className="flex items-center gap-2 text-ink font-semibold text-xs">
+                      <MapPin size={14} className="text-accent shrink-0" />
+                      <span>On-Site Venue Reservation — Self Pickup / Direct Access</span>
+                    </div>
+                    <p className="text-xs text-ink-soft">
+                      Access is at <strong>{isProvider ? 'Your venue' : (booking.provider?.businessName || 'Provider venue')}</strong> ({r.location?.address || booking.provider?.location?.address || 'On-site facility'}). No freight transport vehicle is dispatched for stationary spaces.
+                    </p>
+                    <div className="flex items-center gap-1.5 text-[11px] text-ink-mute pt-0.5">
+                      <Clock size={12} className="text-accent" />
+                      <span>Scheduled Event Window: {dateRange(booking.startDateTime, booking.endDateTime)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1104,8 +1127,8 @@ export default function BookingDetail() {
             <LogisticsTrackingSection job={logisticsJob} />
           )}
 
-          {/* ═══ B — FULFILLMENT (standalone card, shown when confirmed) ═══ */}
-          {(isConfirmed || isCompleted) && (
+          {/* ═══ B — FULFILLMENT (standalone card, shown when confirmed for physical transport) ═══ */}
+          {(isConfirmed || isCompleted) && isPhysicalTransport && (
             <Section
               title="Fulfillment"
               defaultOpen={hasAnyFulfillment || isConfirmed}
