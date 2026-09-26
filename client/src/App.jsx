@@ -43,6 +43,8 @@ const ListingForm = lazy(() => import('./pages/ListingForm'));
 const PostRequirement = lazy(() => import('./pages/PostRequirement'));
 const RequirementDetail = lazy(() => import('./pages/RequirementDetail'));
 const ProcurementOrderDetail = lazy(() => import('./pages/ProcurementOrderDetail'));
+const InspectorDashboard = lazy(() => import('./pages/InspectorDashboard'));
+const InspectionDetail = lazy(() => import('./pages/InspectionDetail'));
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -200,6 +202,36 @@ export default function App() {
                 </Routes>
               </AdminShell>
             </RequireAdminAuth>
+          }
+        />
+
+        {/* Field Inspector — dedicated inspection operations interface */}
+        <Route
+          path="/inspector"
+          element={
+            <Suspense
+              fallback={
+                <div className="min-h-screen flex items-center justify-center bg-surface">
+                  <Spinner label="Loading Inspector..." />
+                </div>
+              }
+            >
+              <InspectorDashboard />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/inspector/:id"
+          element={
+            <Suspense
+              fallback={
+                <div className="min-h-screen flex items-center justify-center bg-surface">
+                  <Spinner label="Loading Inspection..." />
+                </div>
+              }
+            >
+              <InspectionDetail />
+            </Suspense>
           }
         />
 

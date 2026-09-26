@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Check, ArrowRight } from 'lucide-react';
+import { Check, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Price, Stars, DealBadge } from './ui';
 import CategoryIcon from './ui/CategoryIcon';
 import MatchBreakdown from './MatchBreakdown';
@@ -178,6 +178,20 @@ export default function ResourceCard({
                   </span>
                 </>
               )}
+              {r.verificationStatus === 'verified' && (
+                <>
+                  <span className="text-ink-mute text-xs">•</span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 size={12} />
+                    <span>✓ Indulge Verified</span>
+                    {r.conditionScore != null && (
+                      <span className="px-1 rounded bg-emerald-100 dark:bg-emerald-950 text-[10px]">
+                        {r.conditionScore}/100
+                      </span>
+                    )}
+                  </span>
+                </>
+              )}
             </div>
 
             {/* Rating • Distance • Location */}
@@ -312,7 +326,15 @@ export default function ResourceCard({
       <div className="flex flex-col flex-1 p-4 gap-3">
         {/* Category */}
         <div className="flex items-center justify-between gap-2">
-          <CategoryBadge category={r.category} />
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <CategoryBadge category={r.category} />
+            {r.verificationStatus === 'verified' && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800" title="Indulge Verified Resource">
+                <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                <span>Verified</span>
+              </span>
+            )}
+          </div>
           <AvailBadge resource={r} />
         </div>
 
