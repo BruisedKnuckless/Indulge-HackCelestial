@@ -14,7 +14,24 @@ export async function notify({
   relatedBooking,
   relatedRequirement,
   relatedLogisticsJob,
+  dedupWindowMs = 5000,
 }) {
+  // Deduplication guard: ignore duplicate identical notifications within dedupWindowMs
+  if (dedupWindowMs > 0) {
+    const filter = {
+      user,
+      type,
+      ...(relatedBooking ? { relatedBooking } : {}),
+      ...(relatedRequirement ? { relatedRequirement } : {}),
+      ...(relatedLogisticsJob ? { relatedLogisticsJob } : {}),
+      createdAt: { $gte: new Date(Date.now() - dedupWindowMs) },
+    };
+    const recent = await Notification.findOne(filter).lean();
+    if (recent) {
+      return recent;
+    }
+  }
+
   const notification = await Notification.create({
     user,
     type,

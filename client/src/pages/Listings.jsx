@@ -277,17 +277,27 @@ export default function Listings() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    <Link to={`/listings/${r._id}/edit`} className="btn-secondary btn-sm gap-1">
+                    <Link
+                      to={`/listings/${r._id}/edit`}
+                      aria-label={`Edit ${r.title}`}
+                      className="btn-secondary btn-sm gap-1"
+                    >
                       <Pencil size={12} />
                       Edit
                     </Link>
-                    <Link to={`/r/${r._id}`} className="btn-secondary btn-sm gap-1">
+                    <Link
+                      to={`/r/${r._id}`}
+                      aria-label={`View listing ${r.title}`}
+                      className="btn-secondary btn-sm gap-1"
+                    >
                       <Eye size={12} />
                       View
                     </Link>
                     {r.status === 'active' && (
                       <button
+                        type="button"
                         onClick={() => toggleStatus(r._id, r.status, r.title)}
+                        aria-label={`Pause listing ${r.title}`}
                         className="btn-secondary btn-sm gap-1 text-amber-accent hover:text-amber-500"
                         title="Temporarily pause listing without affecting existing bookings"
                       >
@@ -297,7 +307,9 @@ export default function Listings() {
                     )}
                     {r.status === 'paused' && (
                       <button
+                        type="button"
                         onClick={() => toggleStatus(r._id, r.status, r.title)}
+                        aria-label={`Reactivate listing ${r.title}`}
                         className="btn-secondary btn-sm gap-1 text-green-accent hover:text-green-500"
                         title="Reactivate listing to accept new bookings"
                       >
@@ -307,7 +319,9 @@ export default function Listings() {
                     )}
                     {r.status !== 'archived' && (
                       <button
+                        type="button"
                         onClick={() => archive(r._id, r.title)}
+                        aria-label={`Archive listing ${r.title}`}
                         className="btn-danger btn-sm gap-1"
                         title="Archive listing safely"
                       >

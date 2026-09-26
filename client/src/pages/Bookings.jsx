@@ -223,10 +223,12 @@ export default function Bookings({ direction = 'sent' }) {
         </Link>
       </header>
 
-      <div className="flex gap-8 border-b border-line mb-2 overflow-x-auto no-scrollbar">
+      <div role="tablist" aria-label="Booking status filters" className="flex gap-8 border-b border-line mb-2 overflow-x-auto no-scrollbar">
         {TABS.map((t) => (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={`pb-3 -mb-px text-sm whitespace-nowrap border-b-2 transition-colors ${
               tab === t.key

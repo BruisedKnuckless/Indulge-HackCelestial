@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Pencil, Check, Layers, ChevronRight, Truck, Package, ShieldCheck, AlertCircle, X, ArrowRight } from 'lucide-react';
+import { Pencil, Check, Layers, ChevronRight, Truck, Package, ShieldCheck, AlertCircle, X, ArrowRight, Scale } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRequirement, useRequirementActions } from '../hooks/queries';
@@ -9,6 +9,7 @@ import api, { errorMessage } from '../api/client';
 import { Spinner, Stars, Price, Alert, EmptyState } from '../components/ui';
 import { CATEGORY_LABELS, resourceImage } from '../lib/constants';
 import { inr, dateRange, relative } from '../lib/format';
+import ProposalComparisonModal from '../components/requirements/ProposalComparisonModal';
 
 const LABEL_CONFIG = {
   CHEAPEST: { text: 'Cheapest', color: 'badge-emerald text-emerald-400 bg-emerald-950/40 border border-emerald-800/40' },
@@ -26,9 +27,10 @@ export default function RequirementDetail() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const { data, isLoading } = useRequirement(id);
-  const { acceptOffer, withdrawOffer, close, cancel } = useRequirementActions();
+  const { acceptOffer, withdrawOffer, close, cancel, acceptProposal } = useRequirementActions();
   const [busy, setBusy] = useState('');
   const [confirmingPlan, setConfirmingPlan] = useState(null);
+  const [showComparison, setShowComparison] = useState(false);
 
   const r = data?.requirement;
   const isOwner = String(r?.seeker?._id) === String(user?._id);
@@ -76,6 +78,34 @@ export default function RequirementDetail() {
 
   const offers = r.offers || [];
   const liveOffers = offers.filter((o) => o.status === 'offered');
+  const proposals = data?.proposals || [];
+  const liveProposals = proposals.filter((p) => p.status === 'submitted' || p.status === 'offered');
+
+  // Normalize candidate proposals / offers for side-by-side comparison
+  const candidateProposals =
+    liveProposals.length > 0
+      ? liveProposals.map((p) => ({
+          _id: p._id,
+          provider: p.provider,
+          resource: p.resource,
+          price: p.quotedPrice ?? p.price,
+          notes: p.notes || p.message,
+          message: p.message || p.notes,
+          proposedStart: p.proposedStart,
+          proposedEnd: p.proposedEnd,
+          status: p.status === 'submitted' ? 'offered' : p.status,
+          isProposalDoc: true,
+        }))
+      : liveOffers.map((o) => ({
+          _id: o._id,
+          provider: o.provider,
+          resource: o.resource,
+          price: o.price,
+          notes: o.message,
+          message: o.message,
+          status: o.status,
+          isProposalDoc: false,
+        }));
 
   const accept = async (offerId) => {
     setBusy(offerId);
@@ -85,6 +115,32 @@ export default function RequirementDetail() {
       navigate(`/bookings/detail/${booking._id}`);
     } catch (err) {
       toast.error(errorMessage(err, 'Could not accept the offer.'));
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const handleAcceptCandidate = async (candidateId) => {
+    const candidate = candidateProposals.find((c) => String(c._id) === String(candidateId));
+    if (!candidate) return;
+    setBusy(candidateId);
+    try {
+      if (candidate.isProposalDoc) {
+        const res = await acceptProposal.mutateAsync({ requirementId: id, proposalId: candidateId });
+        toast.success('Proposal accepted — booking created');
+        if (res.booking?._id) {
+          navigate(`/bookings/detail/${res.booking._id}`);
+        } else {
+          qc.invalidateQueries({ queryKey: ['requirement', id] });
+          setShowComparison(false);
+        }
+      } else {
+        const { booking } = await acceptOffer.mutateAsync({ id, offerId: candidateId });
+        toast.success('Offer accepted — booking created');
+        navigate(`/bookings/detail/${booking._id}`);
+      }
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not accept proposal.'));
     } finally {
       setBusy('');
     }
@@ -504,9 +560,23 @@ export default function RequirementDetail() {
       )}
 
       <section className="mt-10">
-        <h2 className="h-section mb-6">
-          Offers {offers.length > 0 && <span className="muted font-normal">({offers.length})</span>}
-        </h2>
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <h2 className="h-section">
+            Offers {offers.length > 0 && <span className="muted font-normal">({offers.length})</span>}
+          </h2>
+
+          {isOwner && candidateProposals.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => setShowComparison(true)}
+              className="btn-secondary btn-sm inline-flex items-center gap-1.5 shadow-sm"
+            >
+              <Scale size={14} className="text-indigo" />
+              <span>Compare Proposals Side-by-Side</span>
+              <span className="badge badge-indigo text-[10px] py-0 px-1.5">{candidateProposals.length}</span>
+            </button>
+          )}
+        </div>
 
         {offers.length === 0 ? (
           <EmptyState
@@ -616,6 +686,17 @@ export default function RequirementDetail() {
           </p>
         )}
       </section>
+
+      {/* Side-by-side RFQ Proposal Comparison Modal */}
+      <ProposalComparisonModal
+        isOpen={showComparison}
+        onClose={() => setShowComparison(false)}
+        requirement={r}
+        candidates={candidateProposals}
+        onAccept={handleAcceptCandidate}
+        isOwner={isOwner}
+        busyId={busy}
+      />
     </div>
   );
 }
