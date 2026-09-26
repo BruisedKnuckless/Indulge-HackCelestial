@@ -26,167 +26,217 @@
      Level 3: Cards / panels   (#FFFFFF — pure white card surface)
      Level 4: Inputs / sunken  (#EAE7DF — warm tactile sunken)
      ─────────────────────────────────────────────────────────── */
-  --color-surface:         245 243 238;   /* #F5F3EE — warm ivory page bg */
-  --color-surface-section: 248 247 244;   /* #F8F7F4 — alternative section surface */
-  --color-surface-tinted:  241 242 248;   /* #F1F2F8 — soft cool/lavender tinted */
-  --color-surface-warm:    250 248 243;   /* #FAF8F3 — soft warm surface */
-  --color-surface-elevated:255 255 255;   /* #FFFFFF  — elevated surface */
-  --color-surface-alt:     255 255 255;   /* #FFFFFF  — card surface */
-  --color-surface-sunk:    234 231 223;   /* #EAE7DF — inputs / sunken areas */
+  --color-surface: 245 243 238;
+  /* #F5F3EE — warm ivory page bg */
+  --color-surface-section: 248 247 244;
+  /* #F8F7F4 — alternative section surface */
+  --color-surface-tinted: 241 242 248;
+  /* #F1F2F8 — soft cool/lavender tinted */
+  --color-surface-warm: 250 248 243;
+  /* #FAF8F3 — soft warm surface */
+  --color-surface-elevated: 255 255 255;
+  /* #FFFFFF  — elevated surface */
+  --color-surface-alt: 255 255 255;
+  /* #FFFFFF  — card surface */
+  --color-surface-sunk: 234 231 223;
+  /* #EAE7DF — inputs / sunken areas */
 
   /* Navigation bar — #A0A0A2 in light mode, #1A1C23 in dark mode */
-  --color-nav:             160 160 162;   /* #A0A0A2 */
-  --color-nav-soft:        142 142 144;   /* #8E8E90 */
-  --nav-bg:                rgb(160 160 162);
-  --nav-hover:             rgba(99, 102, 241, 0.10);
-  --nav-active:            rgba(99, 102, 241, 0.18);
-  --nav-border:            rgba(0, 0, 0, 0.10);
-  --nav-shadow:            0 2px 8px rgba(0, 0, 0, 0.08);
+  --color-nav: 160 160 162;
+  /* #A0A0A2 */
+  --color-nav-soft: 142 142 144;
+  /* #8E8E90 */
+  --nav-bg: rgb(160 160 162);
+  --nav-hover: rgba(99, 102, 241, 0.10);
+  --nav-active: rgba(99, 102, 241, 0.18);
+  --nav-border: rgba(0, 0, 0, 0.10);
+  --nav-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 
   /* Card hover tokens (Light) */
-  --card-hover-border:     rgba(99, 102, 241, 0.22);
-  --card-hover-bg:         linear-gradient(145deg, rgba(99, 102, 241, 0.035), rgba(255, 255, 255, 0.98));
-  --card-hover-shadow:     0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(99, 102, 241, 0.05);
+  --card-hover-border: rgba(99, 102, 241, 0.22);
+  --card-hover-bg: linear-gradient(145deg, rgba(99, 102, 241, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow: 0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(99, 102, 241, 0.05);
 
   /* Category card hover tokens (Light) */
-  --card-hover-border-av_equipment:     rgba(99, 102, 241, 0.25);
-  --card-hover-bg-av_equipment:         linear-gradient(145deg, rgba(99, 102, 241, 0.035), rgba(255, 255, 255, 0.98));
-  --card-hover-shadow-av_equipment:     0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(99, 102, 241, 0.06);
+  --card-hover-border-av_equipment: rgba(99, 102, 241, 0.25);
+  --card-hover-bg-av_equipment: linear-gradient(145deg, rgba(99, 102, 241, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-av_equipment: 0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(99, 102, 241, 0.06);
 
-  --card-hover-border-banquet_space:    rgba(217, 144, 0, 0.25);
-  --card-hover-bg-banquet_space:        linear-gradient(145deg, rgba(217, 144, 0, 0.035), rgba(255, 255, 255, 0.98));
-  --card-hover-shadow-banquet_space:    0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(217, 144, 0, 0.06);
+  --card-hover-border-banquet_space: rgba(217, 144, 0, 0.25);
+  --card-hover-bg-banquet_space: linear-gradient(145deg, rgba(217, 144, 0, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-banquet_space: 0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(217, 144, 0, 0.06);
 
-  --card-hover-border-furniture:        rgba(139, 92, 246, 0.25);
-  --card-hover-bg-furniture:            linear-gradient(145deg, rgba(139, 92, 246, 0.035), rgba(255, 255, 255, 0.98));
-  --card-hover-shadow-furniture:        0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(139, 92, 246, 0.06);
+  --card-hover-border-furniture: rgba(139, 92, 246, 0.25);
+  --card-hover-bg-furniture: linear-gradient(145deg, rgba(139, 92, 246, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-furniture: 0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(139, 92, 246, 0.06);
 
-  --card-hover-border-vehicle:          rgba(20, 184, 166, 0.25);
-  --card-hover-bg-vehicle:              linear-gradient(145deg, rgba(20, 184, 166, 0.035), rgba(255, 255, 255, 0.98));
-  --card-hover-shadow-vehicle:          0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(20, 184, 166, 0.06);
+  --card-hover-border-vehicle: rgba(20, 184, 166, 0.25);
+  --card-hover-bg-vehicle: linear-gradient(145deg, rgba(20, 184, 166, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-vehicle: 0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(20, 184, 166, 0.06);
 
   --card-hover-border-kitchen_capacity: rgba(249, 115, 22, 0.25);
-  --card-hover-bg-kitchen_capacity:     linear-gradient(145deg, rgba(249, 115, 22, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-bg-kitchen_capacity: linear-gradient(145deg, rgba(249, 115, 22, 0.035), rgba(255, 255, 255, 0.98));
   --card-hover-shadow-kitchen_capacity: 0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(249, 115, 22, 0.06);
 
-  --card-hover-border-parking:          rgba(59, 130, 246, 0.25);
-  --card-hover-bg-parking:              linear-gradient(145deg, rgba(59, 130, 246, 0.035), rgba(255, 255, 255, 0.98));
-  --card-hover-shadow-parking:          0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(59, 130, 246, 0.06);
+  --card-hover-border-parking: rgba(59, 130, 246, 0.25);
+  --card-hover-bg-parking: linear-gradient(145deg, rgba(59, 130, 246, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-parking: 0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(59, 130, 246, 0.06);
 
-  --card-hover-border-staff:            rgba(244, 63, 94, 0.25);
-  --card-hover-bg-staff:                linear-gradient(145deg, rgba(244, 63, 94, 0.035), rgba(255, 255, 255, 0.98));
-  --card-hover-shadow-staff:            0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(244, 63, 94, 0.06);
+  --card-hover-border-staff: rgba(244, 63, 94, 0.25);
+  --card-hover-bg-staff: linear-gradient(145deg, rgba(244, 63, 94, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-staff: 0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(244, 63, 94, 0.06);
 
-  --card-hover-border-other:            rgba(16, 185, 129, 0.25);
-  --card-hover-bg-other:                linear-gradient(145deg, rgba(16, 185, 129, 0.035), rgba(255, 255, 255, 0.98));
-  --card-hover-shadow-other:            0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(16, 185, 129, 0.06);
+  --card-hover-border-other: rgba(16, 185, 129, 0.25);
+  --card-hover-bg-other: linear-gradient(145deg, rgba(16, 185, 129, 0.035), rgba(255, 255, 255, 0.98));
+  --card-hover-shadow-other: 0 10px 28px rgba(40, 40, 70, 0.12), 0 0 16px rgba(16, 185, 129, 0.06);
 
   /* Text */
-  --color-ink:             20 20 22;      /* #141416 */
-  --color-ink-soft:        88 88 94;      /* #58585E — warm mid-gray */
-  --color-ink-mute:        148 146 140;   /* #94928C — warm muted */
-  --color-ink-invert:      255 255 255;   /* #FFFFFF — text on dark button */
+  --color-ink: 20 20 22;
+  /* #141416 */
+  --color-ink-soft: 88 88 94;
+  /* #58585E — warm mid-gray */
+  --color-ink-mute: 148 146 140;
+  /* #94928C — warm muted */
+  --color-ink-invert: 255 255 255;
+  /* #FFFFFF — text on dark button */
 
   /* Borders / hairlines — warm visible neutral */
-  --color-line:            224 222 216;   /* #E0DED8 — warm visible border */
-  --color-line-strong:     206 203 196;   /* #CECBC4 — stronger separator */
+  --color-line: 224 222 216;
+  /* #E0DED8 — warm visible border */
+  --color-line-strong: 206 203 196;
+  /* #CECBC4 — stronger separator */
 
   /* Semantic */
-  --color-accent:          20 20 22;      /* #141416 */
-  --color-success:         23 114 69;     /* #177245 */
-  --color-danger:          163 32 32;     /* #A32020 */
-  --color-warn:            138 106 0;     /* #8A6A00 */
+  --color-accent: 20 20 22;
+  /* #141416 */
+  --color-success: 23 114 69;
+  /* #177245 */
+  --color-danger: 163 32 32;
+  /* #A32020 */
+  --color-warn: 138 106 0;
+  /* #8A6A00 */
 
   /* ── Accent palette — hospitality × B2B ────────────────────── */
-  --color-indigo:          99 102 241;    /* #6366F1 — refined primary accent */
-  --color-teal:            20 184 166;    /* #14B8A6 — refined secondary accent */
-  --color-amber-accent:    217 144 0;     /* #D99000 — warm accent */
-  --color-green-accent:    32 164 100;    /* #20A464 — positive */
-  --color-red-accent:      217 74 74;     /* #D94A4A — negative */
-  --color-violet:          139 92 246;    /* #8B5CF6 — violet accent */
+  --color-indigo: 99 102 241;
+  /* #6366F1 — refined primary accent */
+  --color-teal: 20 184 166;
+  /* #14B8A6 — refined secondary accent */
+  --color-amber-accent: 217 144 0;
+  /* #D99000 — warm accent */
+  --color-green-accent: 32 164 100;
+  /* #20A464 — positive */
+  --color-red-accent: 217 74 74;
+  /* #D94A4A — negative */
+  --color-violet: 139 92 246;
+  /* #8B5CF6 — violet accent */
 }
 
 /* Dark theme — applied when <html class="dark"> */
 .dark {
   /* Surfaces — Charcoal depth hierarchy */
-  --color-surface:         17 19 24;      /* #111318 — main charcoal background */
-  --color-surface-section: 22 25 34;      /* #161922 — section surface */
-  --color-surface-tinted:  24 27 38;      /* #181B26 — soft tinted section surface */
-  --color-surface-warm:    22 25 34;      /* #161922 — warm section surface */
-  --color-surface-elevated:28 31 41;      /* #1C1F29 — elevated surface */
-  --color-surface-alt:     32 35 45;      /* #20232D — elevated card surface */
-  --color-surface-sunk:    13 15 20;      /* #0D0F14 — sunken surface */
+  --color-surface: 17 19 24;
+  /* #111318 — main charcoal background */
+  --color-surface-section: 22 25 34;
+  /* #161922 — section surface */
+  --color-surface-tinted: 24 27 38;
+  /* #181B26 — soft tinted section surface */
+  --color-surface-warm: 22 25 34;
+  /* #161922 — warm section surface */
+  --color-surface-elevated: 28 31 41;
+  /* #1C1F29 — elevated surface */
+  --color-surface-alt: 32 35 45;
+  /* #20232D — elevated card surface */
+  --color-surface-sunk: 13 15 20;
+  /* #0D0F14 — sunken surface */
 
   /* Navigation — #1A1C23 refined dark neutral */
-  --color-nav:             26 28 35;      /* #1A1C23 — refined dark neutral */
-  --color-nav-soft:        35 38 48;      /* #232630 */
-  --nav-bg:                rgb(26 28 35);
-  --nav-hover:             rgba(99, 102, 241, 0.15);
-  --nav-active:            rgba(99, 102, 241, 0.24);
-  --nav-border:            rgba(255, 255, 255, 0.08);
-  --nav-shadow:            0 4px 16px rgba(0, 0, 0, 0.35);
+  --color-nav: 26 28 35;
+  /* #1A1C23 — refined dark neutral */
+  --color-nav-soft: 35 38 48;
+  /* #232630 */
+  --nav-bg: rgb(26 28 35);
+  --nav-hover: rgba(99, 102, 241, 0.15);
+  --nav-active: rgba(99, 102, 241, 0.24);
+  --nav-border: rgba(255, 255, 255, 0.08);
+  --nav-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 
   /* Card hover tokens (Dark) */
-  --card-hover-border:     rgba(99, 102, 241, 0.28);
-  --card-hover-bg:         linear-gradient(145deg, rgba(99, 102, 241, 0.08), rgba(32, 35, 45, 1));
-  --card-hover-shadow:     0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(99, 102, 241, 0.10);
+  --card-hover-border: rgba(99, 102, 241, 0.28);
+  --card-hover-bg: linear-gradient(145deg, rgba(99, 102, 241, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(99, 102, 241, 0.10);
 
   /* Category card hover tokens (Dark) */
-  --card-hover-border-av_equipment:     rgba(99, 102, 241, 0.32);
-  --card-hover-bg-av_equipment:         linear-gradient(145deg, rgba(99, 102, 241, 0.08), rgba(32, 35, 45, 1));
-  --card-hover-shadow-av_equipment:     0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(99, 102, 241, 0.10);
+  --card-hover-border-av_equipment: rgba(99, 102, 241, 0.32);
+  --card-hover-bg-av_equipment: linear-gradient(145deg, rgba(99, 102, 241, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-av_equipment: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(99, 102, 241, 0.10);
 
-  --card-hover-border-banquet_space:    rgba(245, 158, 11, 0.32);
-  --card-hover-bg-banquet_space:        linear-gradient(145deg, rgba(245, 158, 11, 0.08), rgba(32, 35, 45, 1));
-  --card-hover-shadow-banquet_space:    0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(245, 158, 11, 0.10);
+  --card-hover-border-banquet_space: rgba(245, 158, 11, 0.32);
+  --card-hover-bg-banquet_space: linear-gradient(145deg, rgba(245, 158, 11, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-banquet_space: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(245, 158, 11, 0.10);
 
-  --card-hover-border-furniture:        rgba(139, 92, 246, 0.32);
-  --card-hover-bg-furniture:            linear-gradient(145deg, rgba(139, 92, 246, 0.08), rgba(32, 35, 45, 1));
-  --card-hover-shadow-furniture:        0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(139, 92, 246, 0.10);
+  --card-hover-border-furniture: rgba(139, 92, 246, 0.32);
+  --card-hover-bg-furniture: linear-gradient(145deg, rgba(139, 92, 246, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-furniture: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(139, 92, 246, 0.10);
 
-  --card-hover-border-vehicle:          rgba(45, 212, 191, 0.32);
-  --card-hover-bg-vehicle:              linear-gradient(145deg, rgba(45, 212, 191, 0.08), rgba(32, 35, 45, 1));
-  --card-hover-shadow-vehicle:          0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(45, 212, 191, 0.10);
+  --card-hover-border-vehicle: rgba(45, 212, 191, 0.32);
+  --card-hover-bg-vehicle: linear-gradient(145deg, rgba(45, 212, 191, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-vehicle: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(45, 212, 191, 0.10);
 
   --card-hover-border-kitchen_capacity: rgba(249, 115, 22, 0.32);
-  --card-hover-bg-kitchen_capacity:     linear-gradient(145deg, rgba(249, 115, 22, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-bg-kitchen_capacity: linear-gradient(145deg, rgba(249, 115, 22, 0.08), rgba(32, 35, 45, 1));
   --card-hover-shadow-kitchen_capacity: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(249, 115, 22, 0.10);
 
-  --card-hover-border-parking:          rgba(59, 130, 246, 0.32);
-  --card-hover-bg-parking:              linear-gradient(145deg, rgba(59, 130, 246, 0.08), rgba(32, 35, 45, 1));
-  --card-hover-shadow-parking:          0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(59, 130, 246, 0.10);
+  --card-hover-border-parking: rgba(59, 130, 246, 0.32);
+  --card-hover-bg-parking: linear-gradient(145deg, rgba(59, 130, 246, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-parking: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(59, 130, 246, 0.10);
 
-  --card-hover-border-staff:            rgba(244, 63, 94, 0.32);
-  --card-hover-bg-staff:                linear-gradient(145deg, rgba(244, 63, 94, 0.08), rgba(32, 35, 45, 1));
-  --card-hover-shadow-staff:            0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(244, 63, 94, 0.10);
+  --card-hover-border-staff: rgba(244, 63, 94, 0.32);
+  --card-hover-bg-staff: linear-gradient(145deg, rgba(244, 63, 94, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-staff: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(244, 63, 94, 0.10);
 
-  --card-hover-border-other:            rgba(52, 211, 153, 0.32);
-  --card-hover-bg-other:                linear-gradient(145deg, rgba(52, 211, 153, 0.08), rgba(32, 35, 45, 1));
-  --card-hover-shadow-other:            0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(52, 211, 153, 0.10);
+  --card-hover-border-other: rgba(52, 211, 153, 0.32);
+  --card-hover-bg-other: linear-gradient(145deg, rgba(52, 211, 153, 0.08), rgba(32, 35, 45, 1));
+  --card-hover-shadow-other: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(52, 211, 153, 0.10);
 
   /* Text — light on dark */
-  --color-ink:             232 232 237;   /* #E8E8ED */
-  --color-ink-soft:        158 158 165;   /* #9E9EA5 */
-  --color-ink-mute:        100 100 107;   /* #64646B */
-  --color-ink-invert:      17 19 24;      /* #111318 */
+  --color-ink: 232 232 237;
+  /* #E8E8ED */
+  --color-ink-soft: 158 158 165;
+  /* #9E9EA5 */
+  --color-ink-mute: 100 100 107;
+  /* #64646B */
+  --color-ink-invert: 17 19 24;
+  /* #111318 */
 
   /* Borders */
-  --color-line:            38 42 56;      /* #262A38 — visible charcoal border */
-  --color-line-strong:     52 58 76;      /* #343A4C — stronger separator */
+  --color-line: 38 42 56;
+  /* #262A38 — visible charcoal border */
+  --color-line-strong: 52 58 76;
+  /* #343A4C — stronger separator */
 
   /* Semantic — lighter for readability on dark backgrounds */
-  --color-accent:          232 232 237;   /* #E8E8ED */
-  --color-success:         52 199 89;     /* #34C759 */
-  --color-danger:          255 82 82;     /* #FF5252 */
-  --color-warn:            255 196 0;     /* #FFC400 */
+  --color-accent: 232 232 237;
+  /* #E8E8ED */
+  --color-success: 52 199 89;
+  /* #34C759 */
+  --color-danger: 255 82 82;
+  /* #FF5252 */
+  --color-warn: 255 196 0;
+  /* #FFC400 */
 
   /* Accent palette dark equivalents — refined glowing tones */
-  --color-indigo:          129 140 248;   /* #818CF8 */
-  --color-teal:            45 212 191;    /* #2DD4BF */
-  --color-amber-accent:    245 158 11;    /* #F59E0B */
-  --color-green-accent:    52 211 153;    /* #34D399 */
-  --color-red-accent:      248 113 113;   /* #F87171 */
-  --color-violet:          167 139 250;   /* #A78BFA */
+  --color-indigo: 129 140 248;
+  /* #818CF8 */
+  --color-teal: 45 212 191;
+  /* #2DD4BF */
+  --color-amber-accent: 245 158 11;
+  /* #F59E0B */
+  --color-green-accent: 52 211 153;
+  /* #34D399 */
+  --color-red-accent: 248 113 113;
+  /* #F87171 */
+  --color-violet: 167 139 250;
+  /* #A78BFA */
 }
 
 @layer base {
@@ -243,6 +293,7 @@
 }
 
 @layer components {
+
   /* ---- Type ----------------------------------------------------------- */
   .wordmark {
     @apply font-display tracking-tightest lowercase leading-none select-none;
@@ -266,8 +317,7 @@
 
   /* ---- Links ---------------------------------------------------------- */
   .link {
-    @apply underline underline-offset-4 decoration-line-strong
-           hover:decoration-ink transition-colors cursor-pointer;
+    @apply underline underline-offset-4 decoration-line-strong hover:decoration-ink transition-colors cursor-pointer;
   }
 
   .link-quiet {
@@ -278,35 +328,23 @@
      Primary: uses the design ink token but enhanced with subtle gradient.
      Secondary / outline / ghost: progressively lighter treatments.   */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 h-10
-           text-sm font-medium rounded-lg cursor-pointer select-none
-           border transition-all duration-200 whitespace-nowrap
-           disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 h-10 text-sm font-medium rounded-lg cursor-pointer select-none border transition-all duration-200 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
   .btn-primary {
-    @apply btn bg-ink border-ink text-ink-invert
-           hover:opacity-90 hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)]
-           active:opacity-80 active:translate-y-0 active:shadow-none;
+    @apply btn bg-ink border-ink text-ink-invert hover:opacity-90 hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)] active:opacity-80 active:translate-y-0 active:shadow-none;
   }
 
   .btn-secondary {
-    @apply btn bg-surface-alt border-line-strong text-ink
-           hover:bg-surface-sunk hover:border-line-strong hover:-translate-y-[1px]
-           hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)]
-           active:bg-surface-sunk active:translate-y-0 active:shadow-none;
+    @apply btn bg-surface-alt border-line-strong text-ink hover:bg-surface-sunk hover:border-line-strong hover:-translate-y-[1px] hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] active:bg-surface-sunk active:translate-y-0 active:shadow-none;
   }
 
   .btn-outline {
-    @apply btn bg-transparent border-line-strong text-ink
-           hover:bg-surface-sunk hover:-translate-y-[1px]
-           hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)]
-           active:bg-surface-sunk active:translate-y-0;
+    @apply btn bg-transparent border-line-strong text-ink hover:bg-surface-sunk hover:-translate-y-[1px] hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:bg-surface-sunk active:translate-y-0;
   }
 
   .btn-ghost {
-    @apply btn bg-transparent border-transparent text-ink-soft
-           hover:text-ink hover:bg-surface-sunk;
+    @apply btn bg-transparent border-transparent text-ink-soft hover:text-ink hover:bg-surface-sunk;
   }
 
   .btn-danger {
@@ -314,19 +352,19 @@
     background-color: rgb(var(--color-danger) / 0.1);
     border-color: rgb(var(--color-danger) / 0.3);
   }
+
   .btn-danger:hover {
     background-color: rgb(var(--color-danger) / 0.2);
     transform: translateY(-1px);
   }
+
   .btn-danger:active {
     background-color: rgb(var(--color-danger) / 0.25);
     transform: translateY(0);
   }
 
   .btn-accent {
-    @apply btn bg-indigo border-indigo text-white
-           hover:opacity-90 hover:-translate-y-[1px] hover:shadow-[0_4px_14px_rgba(91,91,214,0.35)]
-           active:opacity-80 active:translate-y-0 active:shadow-none;
+    @apply btn bg-indigo border-indigo text-white hover:opacity-90 hover:-translate-y-[1px] hover:shadow-[0_4px_14px_rgba(91,91,214,0.35)] active:opacity-80 active:translate-y-0 active:shadow-none;
   }
 
   .btn-sm {
@@ -337,15 +375,11 @@
   /* Cards sit above the warm page background using white surface + subtle
      shadow. In dark mode borders do the heavy lifting alongside shadows. */
   .card {
-    @apply bg-surface-alt border border-line rounded-xl p-6
-           shadow-[0_2px_8px_rgba(0,0,0,0.07)]
-           dark:shadow-[0_2px_12px_rgba(0,0,0,0.25)];
+    @apply bg-surface-alt border border-line rounded-xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.07)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.25)];
   }
 
   .card-quiet {
-    @apply bg-surface-alt border border-line rounded-xl p-6
-           shadow-[0_1px_4px_rgba(0,0,0,0.05)]
-           dark:shadow-[0_2px_8px_rgba(0,0,0,0.20)];
+    @apply bg-surface-alt border border-line rounded-xl p-6 shadow-[0_1px_4px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.20)];
   }
 
   /* ── Interactive card & Resource card hover system ───────── */
@@ -378,36 +412,43 @@
     --card-cat-bg: var(--card-hover-bg-av_equipment);
     --card-cat-shadow: var(--card-hover-shadow-av_equipment);
   }
+
   .card-cat-banquet_space {
     --card-cat-border: var(--card-hover-border-banquet_space);
     --card-cat-bg: var(--card-hover-bg-banquet_space);
     --card-cat-shadow: var(--card-hover-shadow-banquet_space);
   }
+
   .card-cat-furniture {
     --card-cat-border: var(--card-hover-border-furniture);
     --card-cat-bg: var(--card-hover-bg-furniture);
     --card-cat-shadow: var(--card-hover-shadow-furniture);
   }
+
   .card-cat-vehicle {
     --card-cat-border: var(--card-hover-border-vehicle);
     --card-cat-bg: var(--card-hover-bg-vehicle);
     --card-cat-shadow: var(--card-hover-shadow-vehicle);
   }
+
   .card-cat-kitchen_capacity {
     --card-cat-border: var(--card-hover-border-kitchen_capacity);
     --card-cat-bg: var(--card-hover-bg-kitchen_capacity);
     --card-cat-shadow: var(--card-hover-shadow-kitchen_capacity);
   }
+
   .card-cat-parking {
     --card-cat-border: var(--card-hover-border-parking);
     --card-cat-bg: var(--card-hover-bg-parking);
     --card-cat-shadow: var(--card-hover-shadow-parking);
   }
+
   .card-cat-staff {
     --card-cat-border: var(--card-hover-border-staff);
     --card-cat-bg: var(--card-hover-bg-staff);
     --card-cat-shadow: var(--card-hover-shadow-staff);
   }
+
   .card-cat-other {
     --card-cat-border: var(--card-hover-border-other);
     --card-cat-bg: var(--card-hover-bg-other);
@@ -478,45 +519,42 @@
 
   /* ---- Form controls -------------------------------------------------- */
   .field {
-    @apply w-full h-10 px-3 text-base bg-surface-sunk rounded-lg
-           border border-line-strong outline-none
-           placeholder:text-ink-mute
-           transition-all duration-150;
+    @apply w-full h-10 px-3 text-base bg-surface-sunk rounded-lg border border-line-strong outline-none placeholder:text-ink-mute transition-all duration-150;
   }
+
   .field:hover {
     border-color: rgb(var(--color-indigo) / 0.4);
   }
+
   .field:focus {
     border-color: rgb(var(--color-indigo));
     box-shadow: 0 0 0 2px rgb(var(--color-indigo) / 0.15);
   }
 
   .field-area {
-    @apply w-full px-3 py-2.5 text-base bg-surface-sunk rounded-lg
-           border border-line-strong outline-none
-           placeholder:text-ink-mute
-           transition-all duration-150;
+    @apply w-full px-3 py-2.5 text-base bg-surface-sunk rounded-lg border border-line-strong outline-none placeholder:text-ink-mute transition-all duration-150;
   }
+
   .field-area:hover {
     border-color: rgb(var(--color-indigo) / 0.4);
   }
+
   .field-area:focus {
     border-color: rgb(var(--color-indigo));
     box-shadow: 0 0 0 2px rgb(var(--color-indigo) / 0.15);
   }
 
   .field-select {
-    @apply h-10 pl-3 pr-9 text-base bg-surface-sunk rounded-lg
-           border border-line-strong cursor-pointer outline-none
-           appearance-none
-           transition-all duration-150;
+    @apply h-10 pl-3 pr-9 text-base bg-surface-sunk rounded-lg border border-line-strong cursor-pointer outline-none appearance-none transition-all duration-150;
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238E8E93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
     background-position: right 12px center;
     background-repeat: no-repeat;
   }
+
   .field-select:hover {
     border-color: rgb(var(--color-indigo) / 0.4);
   }
+
   .field-select:focus {
     border-color: rgb(var(--color-indigo));
     box-shadow: 0 0 0 2px rgb(var(--color-indigo) / 0.15);
@@ -537,8 +575,7 @@
 
   /* ---- Small parts ----------------------------------------------------- */
   .tag {
-    @apply inline-flex items-center h-6 px-2.5 text-xs rounded-full
-           border border-line text-ink-soft;
+    @apply inline-flex items-center h-6 px-2.5 text-xs rounded-full border border-line text-ink-soft;
   }
 
   .rule {
@@ -547,8 +584,7 @@
 
   /* ── Badge system ─────────────────────────────────────────── */
   .badge {
-    @apply inline-flex items-center gap-1 h-5 px-2 rounded-full
-           text-[11px] font-medium border;
+    @apply inline-flex items-center gap-1 h-5 px-2 rounded-full text-[11px] font-medium border;
   }
 
   .badge-indigo {
@@ -586,45 +622,61 @@
   }
 
   /* Requirement / booking status pills */
-  .status-open       {
+  .status-open {
     @apply badge text-indigo;
     background-color: rgb(var(--color-indigo) / 0.1);
     border-color: rgb(var(--color-indigo) / 0.25);
   }
-  .status-pending    {
+
+  .status-pending {
     @apply badge text-amber-accent;
     background-color: rgb(var(--color-amber-accent) / 0.1);
     border-color: rgb(var(--color-amber-accent) / 0.25);
   }
-  .status-negotiating{
+
+  .status-negotiating {
     @apply badge text-amber-accent;
     background-color: rgb(var(--color-amber-accent) / 0.1);
     border-color: rgb(var(--color-amber-accent) / 0.25);
   }
-  .status-accepted   {
+
+  .status-accepted {
     @apply badge text-green-accent;
     background-color: rgb(var(--color-green-accent) / 0.1);
     border-color: rgb(var(--color-green-accent) / 0.25);
   }
-  .status-confirmed  {
+
+  .status-confirmed {
     @apply badge text-green-accent;
     background-color: rgb(var(--color-green-accent) / 0.1);
     border-color: rgb(var(--color-green-accent) / 0.25);
   }
-  .status-completed  { @apply badge bg-surface-sunk border-line-strong text-ink-mute; }
-  .status-expired    { @apply badge bg-surface-sunk border-line-strong text-ink-mute; }
-  .status-fulfilled  {
+
+  .status-completed {
+    @apply badge bg-surface-sunk border-line-strong text-ink-mute;
+  }
+
+  .status-expired {
+    @apply badge bg-surface-sunk border-line-strong text-ink-mute;
+  }
+
+  .status-fulfilled {
     @apply badge text-green-accent;
     background-color: rgb(var(--color-green-accent) / 0.1);
     border-color: rgb(var(--color-green-accent) / 0.25);
   }
-  .status-closed     { @apply badge bg-surface-sunk border-line-strong text-ink-soft; }
-  .status-rejected   {
+
+  .status-closed {
+    @apply badge bg-surface-sunk border-line-strong text-ink-soft;
+  }
+
+  .status-rejected {
     @apply badge text-red-accent;
     background-color: rgb(var(--color-red-accent) / 0.1);
     border-color: rgb(var(--color-red-accent) / 0.25);
   }
-  .status-cancelled  {
+
+  .status-cancelled {
     @apply badge text-red-accent;
     background-color: rgb(var(--color-red-accent) / 0.1);
     border-color: rgb(var(--color-red-accent) / 0.25);
@@ -639,6 +691,7 @@
     @apply icon-box text-indigo;
     background-color: rgb(var(--color-indigo) / 0.1);
   }
+
   .dark .icon-box-indigo {
     background-color: rgb(var(--color-indigo) / 0.2);
   }
@@ -647,6 +700,7 @@
     @apply icon-box text-teal;
     background-color: rgb(var(--color-teal) / 0.1);
   }
+
   .dark .icon-box-teal {
     background-color: rgb(var(--color-teal) / 0.2);
   }
@@ -655,6 +709,7 @@
     @apply icon-box text-amber-accent;
     background-color: rgb(var(--color-amber-accent) / 0.1);
   }
+
   .dark .icon-box-amber {
     background-color: rgb(var(--color-amber-accent) / 0.15);
   }
@@ -663,6 +718,7 @@
     @apply icon-box text-green-accent;
     background-color: rgb(var(--color-green-accent) / 0.1);
   }
+
   .dark .icon-box-green {
     background-color: rgb(var(--color-green-accent) / 0.15);
   }
@@ -671,6 +727,7 @@
     @apply icon-box text-violet;
     background-color: rgb(var(--color-violet) / 0.1);
   }
+
   .dark .icon-box-violet {
     background-color: rgb(var(--color-violet) / 0.2);
   }
@@ -693,19 +750,20 @@
   .soft-accent {
     background-color: rgb(var(--color-indigo) / 0.05);
   }
+
   .dark .soft-accent {
     background-color: rgb(var(--color-indigo) / 0.1);
   }
 
   /* ── Nav item ─────────────────────────────────────────────── */
   .nav-item {
-    @apply relative px-2.5 py-1.5 text-sm rounded-md
-           transition-all duration-200 whitespace-nowrap;
+    @apply relative px-2.5 py-1.5 text-sm rounded-md transition-all duration-200 whitespace-nowrap;
   }
 
   .nav-item-active {
     @apply nav-item font-medium text-ink bg-surface-sunk;
   }
+
   .dark .nav-item-active {
     background-color: rgba(255, 255, 255, 0.2);
   }
@@ -714,23 +772,23 @@
     @apply nav-item hover:text-ink hover:bg-surface-sunk;
     color: rgb(var(--color-ink) / 0.65);
   }
+
   .dark .nav-item-inactive:hover {
     background-color: rgba(255, 255, 255, 0.15);
   }
 
   /* ── Icon button ──────────────────────────────────────────── */
   .icon-button {
-    @apply grid place-items-center w-9 h-9 rounded-lg text-ink
-           hover:bg-surface-sunk transition-all duration-200;
+    @apply grid place-items-center w-9 h-9 rounded-lg text-ink hover:bg-surface-sunk transition-all duration-200;
   }
+
   .dark .icon-button:hover {
     background-color: rgba(255, 255, 255, 0.1);
   }
 
   /* ── Notification / count badges ─────────────────────────── */
   .count-badge {
-    @apply absolute top-1 right-1 min-w-[15px] h-[15px] px-1 rounded-full
-           text-[10px] leading-[15px] text-center font-semibold;
+    @apply absolute top-1 right-1 min-w-[15px] h-[15px] px-1 rounded-full text-[10px] leading-[15px] text-center font-semibold;
   }
 
   .count-badge-danger {
@@ -743,17 +801,16 @@
 
   /* ── Chart tooltip ────────────────────────────────────────── */
   .chart-tooltip {
-    @apply bg-surface-alt border border-line rounded-lg text-sm text-ink
-           shadow-[0_4px_16px_rgba(0,0,0,0.12)];
+    @apply bg-surface-alt border border-line rounded-lg text-sm text-ink shadow-[0_4px_16px_rgba(0,0,0,0.12)];
   }
 
   /* ── Empty state ──────────────────────────────────────────── */
   .empty-state-icon {
-    @apply inline-flex items-center justify-center w-14 h-14 rounded-2xl
-           mb-5 mx-auto text-indigo border;
+    @apply inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-5 mx-auto text-indigo border;
     background-color: rgb(var(--color-indigo) / 0.05);
     border-color: rgb(var(--color-indigo) / 0.2);
   }
+
   .dark .empty-state-icon {
     background-color: rgb(var(--color-indigo) / 0.1);
     border-color: rgb(var(--color-indigo) / 0.3);
@@ -764,6 +821,7 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -774,17 +832,21 @@
     scrollbar-width: thin;
     scrollbar-color: rgba(160, 160, 162, 0.45) transparent;
   }
+
   .custom-scrollbar::-webkit-scrollbar {
     width: 5px;
     height: 5px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: rgba(160, 160, 162, 0.4);
     border-radius: 9999px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(160, 160, 162, 0.7);
   }
@@ -821,7 +883,7 @@
     opacity: 0;
     transform: translateY(22px);
     transition: opacity 650ms cubic-bezier(0.16, 1, 0.3, 1),
-                transform 650ms cubic-bezier(0.16, 1, 0.3, 1);
+      transform 650ms cubic-bezier(0.16, 1, 0.3, 1);
     will-change: opacity, transform;
   }
 
@@ -830,13 +892,33 @@
     transform: translateY(0);
   }
 
-  .reveal-delay-100 { transition-delay: 100ms; }
-  .reveal-delay-150 { transition-delay: 150ms; }
-  .reveal-delay-200 { transition-delay: 200ms; }
-  .reveal-delay-250 { transition-delay: 250ms; }
-  .reveal-delay-300 { transition-delay: 300ms; }
-  .reveal-delay-350 { transition-delay: 350ms; }
-  .reveal-delay-400 { transition-delay: 400ms; }
+  .reveal-delay-100 {
+    transition-delay: 100ms;
+  }
+
+  .reveal-delay-150 {
+    transition-delay: 150ms;
+  }
+
+  .reveal-delay-200 {
+    transition-delay: 200ms;
+  }
+
+  .reveal-delay-250 {
+    transition-delay: 250ms;
+  }
+
+  .reveal-delay-300 {
+    transition-delay: 300ms;
+  }
+
+  .reveal-delay-350 {
+    transition-delay: 350ms;
+  }
+
+  .reveal-delay-400 {
+    transition-delay: 400ms;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .reveal {
@@ -846,4 +928,3 @@
     }
   }
 }
-
