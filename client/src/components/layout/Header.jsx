@@ -1,5 +1,19 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import {
+  Layers,
+  CalendarCheck,
+  FileText,
+  BarChart3,
+  Settings,
+  CreditCard,
+  HelpCircle,
+  LogOut,
+  Clock,
+  Sparkles,
+  Truck,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart, useNotifications } from "../../hooks/queries";
 import useTheme from "../../hooks/useTheme";
@@ -97,35 +111,52 @@ const EXPLORE_OPTIONS = [
   { key: "inspector", label: "Inspector", to: "/inspector" },
 ];
 
-const ACCOUNT_LINKS = [
-  { to: "/account", label: "Account" },
-  { to: "/history", label: "History & Records" },
-  { to: "/billing", label: "Billing & Transactions" },
-  { to: "/inspector", label: "Field Inspector Station" },
-  { to: "/nearby", label: "Nearby Map" },
-  { to: "/bookings/sent", label: "Requests you sent" },
-  { to: "/bookings/received", label: "Requests received" },
-  { to: "/requirements", label: "My Requirements" },
-  { to: "/requirements/feed", label: "Supplier RFQ feed" },
-  { to: "/requirements/new", label: "Post a requirement" },
-  { to: "/listings", label: "Your listings" },
-  { to: "/analytics", label: "Analytics" },
-  { to: "/notifications", label: "Notifications" },
-  { to: "/how-it-works", label: "How Indulge works" },
+const getBusinessNavGroups = (exploreMode) => [
+  {
+    title: "Workspace",
+    links:
+      exploreMode === "seeker"
+        ? [
+            { to: "/bookings/sent", label: "Bookings & Orders", icon: CalendarCheck },
+            { to: "/requirements", label: "My Requirements", icon: FileText },
+            { to: "/requirements/new", label: "Post a Requirement", icon: Sparkles },
+            { to: "/history", label: "History & Records", icon: Clock },
+            { to: "/listings", label: "Switch to Listings", icon: Layers },
+          ]
+        : [
+            { to: "/listings", label: "Listings & Capacity", icon: Layers },
+            { to: "/bookings/received", label: "Incoming Requests", icon: CalendarCheck },
+            { to: "/requirements/feed", label: "Supplier RFQ Feed", icon: FileText },
+            { to: "/analytics", label: "Analytics & Trust", icon: BarChart3 },
+            { to: "/inspector", label: "Field Inspector Station", icon: ShieldCheck },
+            { to: "/history", label: "History & Records", icon: Clock },
+          ],
+  },
+  {
+    title: "Organization",
+    links: [
+      { to: "/account", label: "Account Settings", icon: Settings },
+      { to: "/billing", label: "Billing & Invoices", icon: CreditCard },
+    ],
+  },
 ];
 
-const LOGISTICS_NAV = [
-  { to: "/logistics", label: "Dashboard" },
-  { to: "/logistics/jobs", label: "Jobs" },
-  { to: "/logistics/schedule", label: "Schedule" },
-];
-
-const LOGISTICS_ACCOUNT_LINKS = [
-  { to: "/account/profile", label: "Partner Profile" },
-  { to: "/logistics", label: "Logistics Dashboard" },
-  { to: "/history", label: "History & Records" },
-  { to: "/notifications", label: "Notifications" },
-  { to: "/how-it-works", label: "How Indulge Logistics Works" },
+const LOGISTICS_NAV_GROUPS = [
+  {
+    title: "Operations",
+    links: [
+      { to: "/logistics", label: "Logistics Dashboard", icon: BarChart3 },
+      { to: "/logistics/jobs", label: "Delivery Jobs", icon: Truck },
+      { to: "/logistics/schedule", label: "Fleet Schedule", icon: CalendarCheck },
+      { to: "/history", label: "Trip History", icon: Clock },
+    ],
+  },
+  {
+    title: "Settings",
+    links: [
+      { to: "/account/profile", label: "Partner Profile", icon: Settings },
+    ],
+  },
 ];
 
 /* ── NavLink — knows its own active state ────────────────────────────────── */
@@ -633,96 +664,117 @@ export default function Header() {
             {menuOpen && (
               <div
                 className={[
-                  "absolute right-0 top-full mt-2 w-64 py-2 z-50",
+                  "absolute right-0 top-full mt-2 w-72 py-1.5 z-50",
                   "bg-surface-alt",
                   "border border-line",
-                  "rounded-xl shadow-[0_8px_28px_rgba(0,0,0,0.13)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45)]",
-                  "max-h-[calc(100dvh-5.5rem)] max-h-[calc(100vh-5.5rem)] overflow-y-auto overscroll-contain custom-scrollbar",
+                  "rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.16)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.55)]",
+                  "max-h-[calc(100dvh-5rem)] max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain custom-scrollbar",
                 ].join(" ")}
               >
                 {user ? (
                   <>
-                    <div className="px-4 py-2 border-b border-line mb-1">
-                      <p className="text-sm font-medium truncate">
-                        {user.businessName}
-                      </p>
+                    {/* User profile card */}
+                    <div className="px-4 py-3 border-b border-line mb-1 bg-surface-sunk/30">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-ink truncate">
+                          {user.businessName}
+                        </p>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-indigo/10 text-indigo border border-indigo/20 shrink-0">
+                          {user.userType === 'logistics_partner' ? 'Logistics' : (user.businessType?.replace('_', ' ') || 'Business')}
+                        </span>
+                      </div>
 
-                      <p className="text-xs muted truncate">
+                      <p className="text-xs text-ink-mute truncate mt-0.5">
                         {user.email}
                       </p>
                     </div>
 
-                    {/* Homepage Animation toggle */}
-                    <div className="px-4 py-2 border-b border-line mb-1 flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-ink">
-                        Homepage Animation
-                      </span>
-
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-mono text-ink-mute uppercase">
-                          {animationEnabled
-                            ? "ON"
-                            : "OFF"}
-                        </span>
-
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={
-                            animationEnabled
-                          }
-                          aria-label={`Homepage Animation ${
-                            animationEnabled
-                              ? "ON"
-                              : "OFF"
-                          }`}
-                          onClick={
-                            toggleAnimation
-                          }
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
-                            animationEnabled
-                              ? "bg-ink"
-                              : "bg-surface-sunk border border-line"
-                          }`}
-                        >
-                          <span
-                            aria-hidden="true"
-                            className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full shadow-xs transition-transform duration-200 ${
-                              animationEnabled
-                                ? "translate-x-4 bg-ink-invert"
-                                : "translate-x-0.5 bg-ink/40"
-                            }`}
-                          />
-                        </button>
+                    {/* Grouped navigation links */}
+                    {(user.userType === 'logistics_partner' ? LOGISTICS_NAV_GROUPS : getBusinessNavGroups(exploreMode)).map((group, gIdx) => (
+                      <div key={group.title} className={`py-1.5 ${gIdx > 0 ? 'border-t border-line' : ''}`}>
+                        <div className="px-3.5 py-1 text-[10px] font-bold uppercase tracking-wider text-ink-mute">
+                          {group.title}
+                        </div>
+                        {group.links.map((item) => {
+                          const IconComp = item.icon;
+                          const active = pathname === item.to;
+                          return (
+                            <Link
+                              key={item.to}
+                              to={item.to}
+                              onClick={() => setMenuOpen(false)}
+                              className={`flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg mx-1.5 transition-colors duration-150 ${
+                                active
+                                  ? 'bg-indigo/10 text-indigo font-medium'
+                                  : 'text-ink hover:bg-surface-sunk'
+                              }`}
+                            >
+                              <IconComp size={15} className={active ? 'text-indigo shrink-0' : 'text-ink-mute shrink-0'} />
+                              <span className="truncate">{item.label}</span>
+                            </Link>
+                          );
+                        })}
                       </div>
-                    </div>
-
-                    {(user.userType === 'logistics_partner' ? LOGISTICS_ACCOUNT_LINKS : ACCOUNT_LINKS).map((l) => (
-                      <Link
-                        key={l.to}
-                        to={l.to}
-                        className="block px-4 py-2 text-sm text-ink
-                                   hover:bg-surface-sunk
-                                   transition-colors duration-150"
-                      >
-                        {l.label}
-                      </Link>
                     ))}
 
-                    <hr className="rule my-1" />
+                    {/* Preferences & Help footer */}
+                    <div className="py-1.5 border-t border-line">
+                      <div className="px-3 py-1.5 mx-1.5 flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2 text-ink">
+                          <Sparkles size={14} className="text-amber-500 shrink-0" />
+                          <span className="font-medium">Homepage Animation</span>
+                        </div>
 
-                    <button
-                      onClick={() => {
-                        logout();
-                        navigate("/");
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm
-                                 text-ink-soft
-                                 hover:bg-surface-sunk
-                                 transition-colors duration-150"
-                    >
-                      Sign out
-                    </button>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono text-ink-mute uppercase">
+                            {animationEnabled ? 'ON' : 'OFF'}
+                          </span>
+
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={animationEnabled}
+                            aria-label={`Homepage Animation ${animationEnabled ? 'ON' : 'OFF'}`}
+                            onClick={toggleAnimation}
+                            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none ${
+                              animationEnabled ? 'bg-indigo' : 'bg-surface-sunk border border-line'
+                            }`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`pointer-events-none inline-block h-3 w-3 rounded-full shadow-xs transition-transform duration-200 ${
+                                animationEnabled ? 'translate-x-3.5 bg-white' : 'translate-x-0.5 bg-ink/40'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      <Link
+                        to="/how-it-works"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-1.5 text-xs text-ink-soft hover:text-ink hover:bg-surface-sunk rounded-lg mx-1.5 transition-colors duration-150"
+                      >
+                        <HelpCircle size={14} className="text-ink-mute shrink-0" />
+                        <span>How Indulge works</span>
+                      </Link>
+                    </div>
+
+                    {/* Sign out */}
+                    <div className="pt-1.5 border-t border-line">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          logout();
+                          navigate('/');
+                        }}
+                        className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded-lg mx-1.5 transition-colors duration-150 font-medium"
+                      >
+                        <LogOut size={15} className="text-red-500 shrink-0" />
+                        <span>Sign out</span>
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <>
