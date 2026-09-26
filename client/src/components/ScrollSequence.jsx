@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import Logo from './layout/Logo';
 
 /**
  * Scroll-driven image sequence for the landing page.
@@ -208,7 +209,9 @@ export default function ScrollSequence() {
         {!ready && (
           <div className="absolute inset-0 grid place-items-center bg-black">
             <div className="text-center px-6">
-              <p className="wordmark text-white text-2xl mb-2">indulge.</p>
+              <div className="mb-3 flex items-center justify-center">
+                <Logo size={32} dark={true} />
+              </div>
               <p className="text-white/50 text-sm mb-6">Preparing your experience…</p>
 
               <div className="w-[220px] h-[2px] bg-white/15 overflow-hidden mx-auto">
