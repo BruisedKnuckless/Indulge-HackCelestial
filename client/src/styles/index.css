@@ -769,6 +769,26 @@
     scrollbar-width: none;
   }
 
+  /* ── Thin custom scrollbar for dropdown menus & modals ────── */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(160, 160, 162, 0.45) transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(160, 160, 162, 0.4);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(160, 160, 162, 0.7);
+  }
+
   .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;

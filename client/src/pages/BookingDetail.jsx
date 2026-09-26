@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Check, Truck, Phone, AlertCircle } from 'lucide-react';
+import { Check, Truck, Phone, AlertCircle, MapPin, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { errorMessage } from '../api/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -451,13 +451,14 @@ const LOGISTICS_RETURN_STEPS = [
 function LogisticsTrackingSection({ job }) {
   if (!job) return null;
 
-  const partner = job.assignedPartner;
-  const isUnassigned = job.currentStatus === 'unassigned';
-  const isDeclined = job.currentStatus === 'declined';
+  const partner = job.assignedPartner || job.logisticsPartner;
+  const currentStatus = job.currentStatus || job.status;
+  const isUnassigned = currentStatus === 'unassigned';
+  const isDeclined = currentStatus === 'declined';
 
-  const currentIdx = LOGISTICS_FORWARD_STEPS.findIndex(s => s.key === job.currentStatus);
-  const isReturnPhase = LOGISTICS_RETURN_STEPS.some(s => s.key === job.currentStatus);
-  const returnIdx = LOGISTICS_RETURN_STEPS.findIndex(s => s.key === job.currentStatus);
+  const currentIdx = LOGISTICS_FORWARD_STEPS.findIndex(s => s.key === currentStatus);
+  const isReturnPhase = LOGISTICS_RETURN_STEPS.some(s => s.key === currentStatus);
+  const returnIdx = LOGISTICS_RETURN_STEPS.findIndex(s => s.key === currentStatus);
 
   const getStepTime = (stepKey) => {
     const entry = (job.timeline || []).find(t => t.status === stepKey);
@@ -477,15 +478,15 @@ function LogisticsTrackingSection({ job }) {
           </div>
         </div>
         <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-          ['delivered', 'completed'].includes(job.currentStatus)
+          ['delivered', 'completed'].includes(currentStatus)
             ? 'bg-success/10 text-success border border-success/30'
-            : ['in_transit', 'return_in_transit', 'picked_up', 'return_picked_up'].includes(job.currentStatus)
+            : ['in_transit', 'return_in_transit', 'picked_up', 'return_picked_up'].includes(currentStatus)
             ? 'bg-indigo/10 text-indigo border border-indigo/30'
             : isUnassigned || isDeclined
             ? 'bg-amber-accent/10 text-amber-accent border border-amber-accent/30'
             : 'bg-surface-sunk text-ink-soft border border-line'
         }`}>
-          {job.currentStatus?.replace(/_/g, ' ').toUpperCase()}
+          {currentStatus?.replace(/_/g, ' ').toUpperCase()}
         </span>
       </div>
 
@@ -527,8 +528,8 @@ function LogisticsTrackingSection({ job }) {
           {job.pickupLocation?.contactName && (
             <p className="text-ink-mute">Contact: {job.pickupLocation.contactName} ({job.pickupLocation.contactPhone || 'N/A'})</p>
           )}
-          {job.pickupScheduledAt && (
-            <p className="text-indigo font-medium pt-1">Scheduled: {dateTime(job.pickupScheduledAt)}</p>
+          {(job.pickupScheduledAt || job.scheduledPickupTime) && (
+            <p className="text-indigo font-medium pt-1">Scheduled: {dateTime(job.pickupScheduledAt || job.scheduledPickupTime)}</p>
           )}
         </div>
 
@@ -538,8 +539,8 @@ function LogisticsTrackingSection({ job }) {
           {job.deliveryLocation?.contactName && (
             <p className="text-ink-mute">Contact: {job.deliveryLocation.contactName} ({job.deliveryLocation.contactPhone || 'N/A'})</p>
           )}
-          {job.deliveryRequiredBy && (
-            <p className="text-indigo font-medium pt-1">Required by: {dateTime(job.deliveryRequiredBy)}</p>
+          {(job.deliveryRequiredBy || job.requiredDeliveryTime) && (
+            <p className="text-indigo font-medium pt-1">Required by: {dateTime(job.deliveryRequiredBy || job.requiredDeliveryTime)}</p>
           )}
         </div>
       </div>
@@ -570,7 +571,7 @@ function LogisticsTrackingSection({ job }) {
       </div>
 
       {/* Return Milestones Stepper if return is required */}
-      {job.requiresReturn && (
+      {(job.requiresReturn !== undefined ? job.requiresReturn : job.returnRequired) && (
         <div className="space-y-1 pt-2 border-t border-line">
           <p className="text-xs font-semibold text-ink-soft">Return Transport Milestones</p>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 pt-1">
@@ -969,6 +970,13 @@ export default function BookingDetail() {
   const hasReturn    = Boolean(booking.return?.status);
   const rentalEnded  = booking.endDateTime && Date.now() > new Date(booking.endDateTime).getTime();
 
+  // Physical freight dispatch vs on-site space access
+  const isPhysicalTransport =
+    booking.logistics === 'provider_transport' ||
+    Boolean(logisticsJob) ||
+    ['furniture', 'av_equipment', 'vehicle', 'other'].includes(r.category) ||
+    r.requiresLogistics === true;
+
   const run = async (verb, mutation, extra = {}) => {
     setBusy(verb);
     try {
@@ -1016,27 +1024,43 @@ export default function BookingDetail() {
               <div className="mt-5 pt-4 border-t border-line">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-ink-mute uppercase tracking-wide">
-                    Fulfillment detail
+                    {isPhysicalTransport ? 'Fulfillment detail' : 'Venue access detail'}
                   </p>
-                  {isDelivered ? (
+                  {isDelivered || isCompleted ? (
                     <span className="text-xs text-success font-medium inline-flex items-center gap-1">
-                      <Check size={12} strokeWidth={2.5} /> Delivered
+                      <Check size={12} strokeWidth={2.5} /> {isPhysicalTransport ? 'Delivered' : 'Access Ready'}
                     </span>
                   ) : hasAnyFulfillment ? (
                     <span className="text-xs text-ink-mute font-medium">In Progress</span>
                   ) : (
-                    <span className="text-xs text-ink-mute">Awaiting Start</span>
+                    <span className="text-xs text-ink-mute">{isPhysicalTransport ? 'Awaiting Start' : 'Confirmed'}</span>
                   )}
                 </div>
 
-                <FulfillmentTimeline
-                  fulfillment={booking.fulfillment}
-                  isProvider={isProvider && isConfirmed}
-                  onAdvance={advanceFulfillment}
-                  busy={busy === 'fulfillment' ? busy : ''}
-                  partnerAssigned={Boolean(logisticsJob?.assignedPartner)}
-                  partnerName={logisticsJob?.assignedPartner?.businessName}
-                />
+                {isPhysicalTransport ? (
+                  <FulfillmentTimeline
+                    fulfillment={booking.fulfillment}
+                    isProvider={isProvider && isConfirmed}
+                    onAdvance={advanceFulfillment}
+                    busy={busy === 'fulfillment' ? busy : ''}
+                    partnerAssigned={Boolean(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)}
+                    partnerName={(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)?.businessName}
+                  />
+                ) : (
+                  <div className="p-3.5 rounded-lg border border-line bg-surface-alt/60 space-y-2">
+                    <div className="flex items-center gap-2 text-ink font-semibold text-xs">
+                      <MapPin size={14} className="text-accent shrink-0" />
+                      <span>On-Site Venue Reservation — Self Pickup / Direct Access</span>
+                    </div>
+                    <p className="text-xs text-ink-soft">
+                      Access is at <strong>{isProvider ? 'Your venue' : (booking.provider?.businessName || 'Provider venue')}</strong> ({r.location?.address || booking.provider?.location?.address || 'On-site facility'}). No freight transport vehicle is dispatched for stationary spaces.
+                    </p>
+                    <div className="flex items-center gap-1.5 text-[11px] text-ink-mute pt-0.5">
+                      <Clock size={12} className="text-accent" />
+                      <span>Scheduled Event Window: {dateRange(booking.startDateTime, booking.endDateTime)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1103,8 +1127,8 @@ export default function BookingDetail() {
             <LogisticsTrackingSection job={logisticsJob} />
           )}
 
-          {/* ═══ B — FULFILLMENT (standalone card, shown when confirmed) ═══ */}
-          {(isConfirmed || isCompleted) && (
+          {/* ═══ B — FULFILLMENT (standalone card, shown when confirmed for physical transport) ═══ */}
+          {(isConfirmed || isCompleted) && isPhysicalTransport && (
             <Section
               title="Fulfillment"
               defaultOpen={hasAnyFulfillment || isConfirmed}
@@ -1121,8 +1145,8 @@ export default function BookingDetail() {
                 isProvider={isProvider && isConfirmed}
                 onAdvance={advanceFulfillment}
                 busy={busy === 'fulfillment' ? busy : ''}
-                partnerAssigned={Boolean(logisticsJob?.assignedPartner)}
-                partnerName={logisticsJob?.assignedPartner?.businessName}
+                partnerAssigned={Boolean(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)}
+                partnerName={(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)?.businessName}
               />
             </Section>
           )}
@@ -1173,8 +1197,8 @@ export default function BookingDetail() {
                   isProvider={isProvider && isConfirmed}
                   onAdvance={advanceReturn}
                   busy={busy === 'returnItem' ? busy : ''}
-                  partnerAssigned={Boolean(logisticsJob?.assignedPartner)}
-                  partnerName={logisticsJob?.assignedPartner?.businessName}
+                  partnerAssigned={Boolean(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)}
+                  partnerName={(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)?.businessName}
                 />
               )}
             </Section>

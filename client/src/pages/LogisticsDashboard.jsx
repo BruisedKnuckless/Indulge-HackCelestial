@@ -1395,7 +1395,7 @@ export default function LogisticsDashboard({ view: viewProp }) {
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-6 text-sm">
+            <div className="p-6 overflow-y-auto custom-scrollbar space-y-6 text-sm">
               <div className="p-4 rounded-xl border border-line bg-surface-alt/30">
                 <p className="text-xs uppercase tracking-wider font-semibold text-ink-mute mb-2">
                   Resource Cargo
@@ -1541,7 +1541,7 @@ export default function LogisticsDashboard({ view: viewProp }) {
       {/* ── EDIT FLEET PROFILE MODAL ──────────────────────────────── */}
       {editFleetOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-surface border border-line rounded-2xl p-6 shadow-2xl">
+          <div className="w-full max-w-md bg-surface border border-line rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between mb-4 border-b border-line pb-3">
               <h3 className="text-base font-bold text-ink flex items-center gap-2">
                 <Truck size={18} className="text-indigo" />

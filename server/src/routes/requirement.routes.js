@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import Requirement from '../models/Requirement.js';
 import Proposal from '../models/Proposal.js';
-import Resource, { RESOURCE_CATEGORIES } from '../models/Resource.js';
+import Resource, { RESOURCE_CATEGORIES, doesResourceRequireLogistics } from '../models/Resource.js';
 import Booking from '../models/Booking.js';
 import Transaction from '../models/Transaction.js';
 import { requireAuth, optionalAuth, requireBusinessUser } from '../middleware/auth.middleware.js';
@@ -11,6 +11,7 @@ import { scoreSingleResource } from '../services/matching.service.js';
 import { notify } from '../services/notification.service.js';
 import { solveRequirementProcurement } from '../services/procurement-solver.service.js';
 import { executeProcurementPlan } from '../services/procurement-execution.service.js';
+import { ensureLogisticsJobForBooking } from '../services/logistics.service.js';
 import CapacityRecoveryOpportunity from '../models/CapacityRecoveryOpportunity.js';
 import { validate, createRequirementSchema, executeProcurementPlanSchema } from '../middleware/validate.middleware.js';
 
@@ -541,6 +542,7 @@ router.post(
     });
     if (!check.ok) throw new HttpError(409, check.reason);
 
+    const requiresLogistics = doesResourceRequireLogistics(resource, { logistics: 'provider_transport' });
     const booking = await Booking.create({
       resource: resource._id,
       provider: offer.provider,
@@ -552,8 +554,17 @@ router.post(
       quotedPrice: offer.price,
       agreedPrice: offer.price,
       urgency: requirement.urgency,
+      logistics: requiresLogistics ? 'provider_transport' : 'self_pickup',
       notes: `From requirement: ${requirement.title}`,
     });
+
+    if (requiresLogistics) {
+      try {
+        await ensureLogisticsJobForBooking(booking);
+      } catch (err) {
+        console.error('Failed to create logistics job for RFQ offer booking:', err);
+      }
+    }
 
     await Transaction.create({
       booking: booking._id,
@@ -787,6 +798,7 @@ router.post(
     );
 
     // 1. Create standard confirmed Booking
+    const requiresLogistics = doesResourceRequireLogistics(proposal.resource, { logistics: 'provider_transport' });
     const booking = await Booking.create({
       resource: proposal.resource._id,
       provider: proposal.provider,
@@ -798,11 +810,19 @@ router.post(
       quotedPrice: proposal.quotedPrice,
       agreedPrice: proposal.quotedPrice,
       urgency: requirement.urgency,
-      logistics: 'self_pickup',
+      logistics: requiresLogistics ? 'provider_transport' : 'self_pickup',
       notes: `Awarded from RFQ: "${requirement.title}". ${proposal.notes || ''}`.trim(),
       matchScore: scored?.matchScore,
       matchBreakdown: scored?.matchBreakdown,
     });
+
+    if (requiresLogistics) {
+      try {
+        await ensureLogisticsJobForBooking(booking);
+      } catch (err) {
+        console.error('Failed to create logistics job for RFQ booking:', err);
+      }
+    }
 
     // 2. Create simulated paid Transaction
     await Transaction.create({
