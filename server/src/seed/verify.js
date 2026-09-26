@@ -5574,6 +5574,176 @@ async function main() {
       meCheckLegacy.body.user?.location !== undefined
   );
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LOGISTICS ↔ ADMIN DATA CONSISTENCY TESTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\nLogistics ↔ Admin Data Consistency');
+  {
+    const adminToken = await login('ops@grandorchid.in');
+    const swiftfleetUser = await User.findOne({ email: 'dispatch@swiftfleet.in' });
+    const partnerToken = signToken(swiftfleetUser._id);
+
+    // 1. partner-assigned LogisticsJob appears in partner job API
+    const partnerJobsRes = await api('GET', '/api/logistics/jobs', { token: partnerToken });
+    const partnerJobs = partnerJobsRes.body?.jobs || [];
+    const activeAssignedJob = partnerJobs.find((j) => ['assigned', 'accepted'].includes(j.status));
+    check(
+      'Logistics-Admin-1. Partner-assigned LogisticsJob appears in partner job API',
+      partnerJobsRes.status === 200 &&
+        Boolean(activeAssignedJob) &&
+        String(activeAssignedJob.logisticsPartner?._id || activeAssignedJob.logisticsPartner) === String(swiftfleetUser._id)
+    );
+
+    // 2. same job appears in Admin logistics API
+    const adminLogisticsRes = await api('GET', '/api/admin/logistics', { token: adminToken });
+    const adminJobs = adminLogisticsRes.body?.jobs || [];
+    const sameJobInAdmin = adminJobs.find((j) => String(j._id) === String(activeAssignedJob?._id));
+    check(
+      'Logistics-Admin-2. Same partner-assigned job appears in Admin logistics API',
+      adminLogisticsRes.status === 200 &&
+        Boolean(sameJobInAdmin) &&
+        sameJobInAdmin.currentStatus === activeAssignedJob.status &&
+        String(sameJobInAdmin.assignedPartner?._id || sameJobInAdmin.assignedPartner) === String(swiftfleetUser._id)
+    );
+
+    // 3. completed job counted in Admin Completed KPI data
+    const completedJobsCountInDb = await LogisticsJob.countDocuments({ status: 'completed' });
+    check(
+      'Logistics-Admin-3. Completed job counted in Admin Completed KPI data',
+      adminLogisticsRes.body?.counts?.completed >= 2 &&
+        adminLogisticsRes.body?.counts?.completed === completedJobsCountInDb
+    );
+
+    // 4. assigned job counted in Admin Assigned KPI data
+    const assignedJobsCountInDb = await LogisticsJob.countDocuments({
+      status: { $in: ['assigned', 'accepted', 'pickup_scheduled', 'arrived_at_provider'] },
+    });
+    check(
+      'Logistics-Admin-4. Assigned job counted in Admin Assigned KPI data',
+      adminLogisticsRes.body?.counts?.assigned >= 1 &&
+        adminLogisticsRes.body?.counts?.assigned === assignedJobsCountInDb
+    );
+
+    // 5. sample job appears in Admin in demo/development mode
+    const sampleResource = await Resource.findOne();
+    const sampleSeeker = await User.findOne({ userType: 'business' });
+    const sampleProvider = await User.findOne({ _id: { $ne: sampleSeeker._id }, userType: 'business' });
+    const sampleBooking = await Booking.create({
+      resource: sampleResource._id,
+      provider: sampleProvider._id,
+      seeker: sampleSeeker._id,
+      quantity: 10,
+      startDateTime: new Date(Date.now() + 86400000),
+      endDateTime: new Date(Date.now() + 172800000),
+      status: 'confirmed',
+      agreedPrice: 5000,
+      paymentStatus: 'paid',
+      isSample: true,
+    });
+    const sampleJob = await LogisticsJob.create({
+      booking: sampleBooking._id,
+      seeker: sampleSeeker._id,
+      provider: sampleProvider._id,
+      resource: sampleResource._id,
+      quantity: 10,
+      pickupLocation: { address: 'Sample Pickup Pier', city: 'Mumbai' },
+      deliveryLocation: { address: 'Sample Delivery Hub', city: 'Thane' },
+      scheduledPickupTime: new Date(Date.now() + 86400000),
+      requiredDeliveryTime: new Date(Date.now() + 90000000),
+      returnRequired: true,
+      status: 'unassigned',
+      isSample: true,
+      timeline: [{ status: 'unassigned', timestamp: new Date(), notes: 'Demo sample job created' }],
+    });
+
+    const adminQueryWithSample = await api('GET', '/api/admin/logistics', { token: adminToken });
+    const foundSampleInAdmin = adminQueryWithSample.body?.jobs?.find((j) => String(j._id) === String(sampleJob._id));
+    check(
+      'Logistics-Admin-5. Sample job appears in Admin in demo/development mode with isSample flag',
+      Boolean(foundSampleInAdmin) && foundSampleInAdmin.isSample === true
+    );
+
+    // 6. Admin assignment appears for assigned partner
+    const assignRes = await api('PATCH', `/api/admin/logistics/${sampleJob._id}/assign`, {
+      token: adminToken,
+      body: { partnerId: swiftfleetUser._id, notes: 'Direct test admin assignment to SwiftFleet' },
+    });
+    const partnerJobsAfterAssign = await api('GET', '/api/logistics/jobs', { token: partnerToken });
+    const assignedJobInPartner = partnerJobsAfterAssign.body?.jobs?.find((j) => String(j._id) === String(sampleJob._id));
+    check(
+      'Logistics-Admin-6. Admin assignment appears for assigned partner in /api/logistics/jobs',
+      assignRes.status === 200 &&
+        Boolean(assignedJobInPartner) &&
+        assignedJobInPartner.status === 'assigned' &&
+        String(assignedJobInPartner.logisticsPartner?._id || assignedJobInPartner.logisticsPartner) === String(swiftfleetUser._id)
+    );
+
+    // 7. partner status update appears in next Admin query
+    const acceptRes = await api('PATCH', `/api/logistics/jobs/${sampleJob._id}/accept`, {
+      token: partnerToken,
+    });
+    const statusUpdateRes = await api('PATCH', `/api/logistics/jobs/${sampleJob._id}/status`, {
+      token: partnerToken,
+      body: { status: 'pickup_scheduled', notes: 'Driver en route for pickup' },
+    });
+    const adminJobsAfterStatus = await api('GET', '/api/admin/logistics', { token: adminToken });
+    const sampleJobUpdatedInAdmin = adminJobsAfterStatus.body?.jobs?.find((j) => String(j._id) === String(sampleJob._id));
+    check(
+      'Logistics-Admin-7. Partner status update appears in next Admin query without drift',
+      acceptRes.status === 200 &&
+        statusUpdateRes.status === 200 &&
+        Boolean(sampleJobUpdatedInAdmin) &&
+        sampleJobUpdatedInAdmin.currentStatus === 'pickup_scheduled' &&
+        sampleJobUpdatedInAdmin.timeline?.some((t) => t.status === 'pickup_scheduled')
+    );
+
+    // 8. no duplicate LogisticsJob created through assignment
+    const totalJobsBeforeReassign = await LogisticsJob.countDocuments();
+    await api('PATCH', `/api/admin/logistics/${sampleJob._id}/assign`, {
+      token: adminToken,
+      body: { partnerId: swiftfleetUser._id, notes: 'Re-confirming assignment' },
+    });
+    const totalJobsAfterReassign = await LogisticsJob.countDocuments();
+    check(
+      'Logistics-Admin-8. No duplicate LogisticsJob created through assignment',
+      totalJobsBeforeReassign === totalJobsAfterReassign
+    );
+
+    // 9. Admin metrics derive from LogisticsJob records
+    const totalInDb = await LogisticsJob.countDocuments();
+    const latestAdminMetrics = await api('GET', '/api/admin/logistics', { token: adminToken });
+    check(
+      'Logistics-Admin-9. Admin metrics derive directly from actual LogisticsJob records in database',
+      latestAdminMetrics.status === 200 &&
+        latestAdminMetrics.body?.counts?.total === totalInDb &&
+        typeof latestAdminMetrics.body?.counts?.unassigned === 'number' &&
+        typeof latestAdminMetrics.body?.counts?.assigned === 'number' &&
+        typeof latestAdminMetrics.body?.counts?.active === 'number' &&
+        typeof latestAdminMetrics.body?.counts?.completed === 'number' &&
+        typeof latestAdminMetrics.body?.counts?.issue === 'number'
+    );
+
+    // 10. frontend response contract matches AdminLogistics expectations
+    const contractJob = latestAdminMetrics.body?.jobs?.[0];
+    check(
+      'Logistics-Admin-10. Frontend response contract matches AdminLogistics expectations',
+      Boolean(contractJob) &&
+        Boolean(contractJob._id) &&
+        Boolean(contractJob.bookingId || contractJob.booking) &&
+        contractJob.resource !== undefined &&
+        typeof contractJob.quantity === 'number' &&
+        contractJob.seeker !== undefined &&
+        contractJob.provider !== undefined &&
+        contractJob.currentStatus !== undefined &&
+        typeof contractJob.requiresReturn === 'boolean' &&
+        Array.isArray(contractJob.timeline) &&
+        typeof contractJob.isSample === 'boolean' &&
+        contractJob.updatedAt !== undefined &&
+        Array.isArray(latestAdminMetrics.body?.partners) &&
+        latestAdminMetrics.body?.counts !== undefined
+    );
+  }
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
 
   server.close();

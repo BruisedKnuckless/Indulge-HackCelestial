@@ -1667,12 +1667,15 @@ router.get(
     const { status } = req.query;
     const filter = {};
     if (status) {
-      if (status === 'active') {
+      if (status === 'unassigned') {
+        filter.status = { $in: ['unassigned', 'declined'] };
+      } else if (status === 'assigned') {
+        filter.status = {
+          $in: ['assigned', 'accepted', 'pickup_scheduled', 'arrived_at_provider'],
+        };
+      } else if (status === 'active' || status === 'in_transit') {
         filter.status = {
           $in: [
-            'accepted',
-            'pickup_scheduled',
-            'arrived_at_provider',
             'picked_up',
             'in_transit',
             'delivered',
@@ -1683,7 +1686,9 @@ router.get(
             'returned_to_provider',
           ],
         };
-      } else if (status === 'issue') {
+      } else if (status === 'completed') {
+        filter.status = 'completed';
+      } else if (status === 'issue' || status === 'issues') {
         filter.status = { $in: ['declined', 'cancelled'] };
       } else {
         filter.status = status;
@@ -1695,9 +1700,9 @@ router.get(
         .populate([
           { path: 'seeker', select: 'businessName email phone location' },
           { path: 'provider', select: 'businessName email phone location' },
-          { path: 'logisticsPartner', select: 'businessName email phone logisticsProfile' },
-          { path: 'resource', select: 'title category location unit images' },
-          { path: 'booking', select: 'status startDateTime endDateTime agreedPrice quotedPrice' },
+          { path: 'logisticsPartner', select: 'businessName email phone location logisticsProfile' },
+          { path: 'resource', select: 'title category location unit images totalQuantity' },
+          { path: 'booking', select: 'status startDateTime endDateTime agreedPrice quotedPrice requestedQuantity' },
         ])
         .sort({ createdAt: -1 })
         .lean(),
@@ -1712,38 +1717,49 @@ router.get(
     const statusCounts = Object.fromEntries(stats.map((s) => [s._id, s.count]));
     const totalJobsAll = stats.reduce((sum, s) => sum + s.count, 0);
 
+    const unassignedCount = (statusCounts.unassigned || 0) + (statusCounts.declined || 0);
+    const assignedCount =
+      (statusCounts.assigned || 0) +
+      (statusCounts.accepted || 0) +
+      (statusCounts.pickup_scheduled || 0) +
+      (statusCounts.arrived_at_provider || 0);
+    const activeCount =
+      (statusCounts.picked_up || 0) +
+      (statusCounts.in_transit || 0) +
+      (statusCounts.delivered || 0) +
+      (statusCounts.return_requested || 0) +
+      (statusCounts.return_pickup_scheduled || 0) +
+      (statusCounts.return_picked_up || 0) +
+      (statusCounts.return_in_transit || 0) +
+      (statusCounts.returned_to_provider || 0);
+    const completedCount = statusCounts.completed || 0;
+    const issueCount = (statusCounts.declined || 0) + (statusCounts.cancelled || 0);
+
     const formattedJobs = jobs.map((j) => ({
       ...j,
+      jobId: j._id,
+      bookingId: j.booking?._id || j.booking,
       assignedPartner: j.logisticsPartner,
+      vehicle: j.logisticsPartner?.logisticsProfile?.vehicleInfo || null,
       currentStatus: j.status,
-      requiresReturn: j.returnRequired,
+      requiresReturn: Boolean(j.returnRequired),
+      isSample: Boolean(j.isSample),
     }));
 
     res.json({
       jobs: formattedJobs,
       partners,
       counts: {
+        ...statusCounts,
         total: totalJobsAll,
-        unassigned: statusCounts.unassigned || 0,
-        assigned: statusCounts.assigned || 0,
-        active:
-          (statusCounts.accepted || 0) +
-          (statusCounts.pickup_scheduled || 0) +
-          (statusCounts.arrived_at_provider || 0) +
-          (statusCounts.picked_up || 0) +
-          (statusCounts.in_transit || 0) +
-          (statusCounts.delivered || 0) +
-          (statusCounts.return_requested || 0) +
-          (statusCounts.return_pickup_scheduled || 0) +
-          (statusCounts.return_picked_up || 0) +
-          (statusCounts.return_in_transit || 0) +
-          (statusCounts.returned_to_provider || 0),
+        unassigned: unassignedCount,
+        assigned: assignedCount,
+        active: activeCount,
+        completed: completedCount,
+        issue: issueCount,
         delivered: statusCounts.delivered || 0,
-        completed: statusCounts.completed || 0,
-        issue: (statusCounts.declined || 0) + (statusCounts.cancelled || 0),
         declined: statusCounts.declined || 0,
         cancelled: statusCounts.cancelled || 0,
-        ...statusCounts,
       },
     });
   })

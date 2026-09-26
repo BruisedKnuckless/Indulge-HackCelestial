@@ -21,6 +21,30 @@ const STATUS_FILTERS = [
   { value: 'issue', label: 'Issues / Declined' },
 ];
 
+const STATUS_GROUPS = {
+  unassigned: ['unassigned', 'declined'],
+  assigned: ['assigned', 'accepted', 'pickup_scheduled', 'arrived_at_provider'],
+  active: [
+    'picked_up',
+    'in_transit',
+    'delivered',
+    'return_requested',
+    'return_pickup_scheduled',
+    'return_picked_up',
+    'return_in_transit',
+    'returned_to_provider',
+  ],
+  completed: ['completed'],
+  issue: ['declined', 'cancelled'],
+};
+
+function matchesFilter(job, activeFilter) {
+  if (!activeFilter || activeFilter === 'all') return true;
+  const s = job.currentStatus || job.status;
+  const allowed = STATUS_GROUPS[activeFilter];
+  return allowed ? allowed.includes(s) : s === activeFilter;
+}
+
 export default function AdminLogistics() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState('all');
@@ -30,14 +54,12 @@ export default function AdminLogistics() {
   const [assignNotes, setAssignNotes] = useState('');
   const [timelineTarget, setTimelineTarget] = useState(null);
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['admin', 'logistics', filter],
+  const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
+    queryKey: ['admin', 'logistics'],
     queryFn: async () => {
-      const params = {};
-      if (filter !== 'all') params.status = filter;
-      return (await api.get('/admin/logistics', { params })).data;
+      return (await api.get('/admin/logistics')).data;
     },
-    refetchInterval: 30000,
+    refetchInterval: 15000,
   });
 
   const assignMutation = useMutation({
@@ -61,10 +83,14 @@ export default function AdminLogistics() {
   const counts = data?.counts || { total: 0, unassigned: 0, assigned: 0, active: 0, completed: 0, issue: 0 };
 
   const filteredJobs = useMemo(() => {
-    if (!search.trim()) return jobs;
+    let result = jobs;
+    if (filter !== 'all') {
+      result = result.filter((j) => matchesFilter(j, filter));
+    }
+    if (!search.trim()) return result;
     const q = search.toLowerCase();
-    return jobs.filter((j) => {
-      const bRef = String(j.booking?._id || j.booking || '').toLowerCase();
+    return result.filter((j) => {
+      const bRef = String(j.bookingId || j.booking?._id || j.booking || '').toLowerCase();
       const pName = (j.logisticsPartner?.businessName || j.assignedPartner?.businessName || '').toLowerCase();
       const seekerName = (j.seeker?.businessName || '').toLowerCase();
       const providerName = (j.provider?.businessName || '').toLowerCase();
@@ -81,7 +107,7 @@ export default function AdminLogistics() {
         dAddr.includes(q)
       );
     });
-  }, [jobs, search]);
+  }, [jobs, filter, search]);
 
   const handleOpenAssign = (job) => {
     setAssignTarget(job);
@@ -104,6 +130,30 @@ export default function AdminLogistics() {
   };
 
   if (isLoading) return <Spinner label="Loading logistics fleet" />;
+
+  if (isError) {
+    return (
+      <div className="card p-8 text-center space-y-4 border border-rose/30 bg-rose/5">
+        <div className="mx-auto w-12 h-12 rounded-full bg-rose/15 flex items-center justify-center text-rose">
+          <AlertTriangle size={24} />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-ink">Failed to load logistics fleet</h3>
+          <p className="text-xs text-ink-mute max-w-md mx-auto">
+            {errorMessage(error, 'An error occurred while communicating with the logistics API.')}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="btn-secondary btn-sm inline-flex items-center gap-1.5"
+        >
+          <RefreshCw size={13} />
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -202,6 +252,11 @@ export default function AdminLogistics() {
                     <span className="font-mono text-xs font-semibold text-ink">
                       #{String(j._id).slice(-8).toUpperCase()}
                     </span>
+                    {j.isSample && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 font-semibold border border-purple-500/30 inline-flex items-center gap-1">
+                        Demo Sample
+                      </span>
+                    )}
                     {(j.returnRequired ?? j.requiresReturn) && (
                       <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-accent/15 text-amber-accent font-medium">
                         Return
@@ -210,6 +265,7 @@ export default function AdminLogistics() {
                   </div>
                   <p className="text-xs text-ink font-medium truncate max-w-[200px]">
                     {j.resource?.title || 'Resource'}
+                    {j.quantity ? ` · Qty: ${j.quantity}` : ''}
                   </p>
                   {j.booking && (
                     <OpenLink
@@ -237,6 +293,14 @@ export default function AdminLogistics() {
                       {j.deliveryLocation?.address || j.seeker?.businessName || 'Seeker'}
                     </span>
                   </div>
+                  {(j.scheduledPickupTime || j.requiredDeliveryTime) && (
+                    <div className="flex items-center gap-1 text-[10px] text-ink-mute pt-0.5">
+                      <Calendar size={10} className="shrink-0" />
+                      <span>
+                        {j.scheduledPickupTime ? dateTime(j.scheduledPickupTime) : 'ASAP'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ),
             },
@@ -245,6 +309,7 @@ export default function AdminLogistics() {
               label: 'Assigned Partner',
               render: (j) => {
                 const partner = j.logisticsPartner || j.assignedPartner;
+                const vehicle = j.vehicle || partner?.logisticsProfile?.vehicleInfo;
                 return (
                   <div>
                     {partner ? (
@@ -256,9 +321,10 @@ export default function AdminLogistics() {
                         <p className="text-[11px] text-ink-mute">
                           {partner.phone || partner.email}
                         </p>
-                        {partner.logisticsProfile?.vehicleInfo?.model && (
+                        {vehicle?.model && (
                           <p className="text-[10px] text-ink-soft italic">
-                            {partner.logisticsProfile.vehicleInfo.model}
+                            {vehicle.model}
+                            {vehicle.licensePlate || vehicle.plateNumber ? ` (${vehicle.licensePlate || vehicle.plateNumber})` : ''}
                           </p>
                         )}
                       </div>
