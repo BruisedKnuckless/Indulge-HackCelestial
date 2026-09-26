@@ -451,13 +451,14 @@ const LOGISTICS_RETURN_STEPS = [
 function LogisticsTrackingSection({ job }) {
   if (!job) return null;
 
-  const partner = job.assignedPartner;
-  const isUnassigned = job.currentStatus === 'unassigned';
-  const isDeclined = job.currentStatus === 'declined';
+  const partner = job.assignedPartner || job.logisticsPartner;
+  const currentStatus = job.currentStatus || job.status;
+  const isUnassigned = currentStatus === 'unassigned';
+  const isDeclined = currentStatus === 'declined';
 
-  const currentIdx = LOGISTICS_FORWARD_STEPS.findIndex(s => s.key === job.currentStatus);
-  const isReturnPhase = LOGISTICS_RETURN_STEPS.some(s => s.key === job.currentStatus);
-  const returnIdx = LOGISTICS_RETURN_STEPS.findIndex(s => s.key === job.currentStatus);
+  const currentIdx = LOGISTICS_FORWARD_STEPS.findIndex(s => s.key === currentStatus);
+  const isReturnPhase = LOGISTICS_RETURN_STEPS.some(s => s.key === currentStatus);
+  const returnIdx = LOGISTICS_RETURN_STEPS.findIndex(s => s.key === currentStatus);
 
   const getStepTime = (stepKey) => {
     const entry = (job.timeline || []).find(t => t.status === stepKey);
@@ -477,15 +478,15 @@ function LogisticsTrackingSection({ job }) {
           </div>
         </div>
         <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-          ['delivered', 'completed'].includes(job.currentStatus)
+          ['delivered', 'completed'].includes(currentStatus)
             ? 'bg-success/10 text-success border border-success/30'
-            : ['in_transit', 'return_in_transit', 'picked_up', 'return_picked_up'].includes(job.currentStatus)
+            : ['in_transit', 'return_in_transit', 'picked_up', 'return_picked_up'].includes(currentStatus)
             ? 'bg-indigo/10 text-indigo border border-indigo/30'
             : isUnassigned || isDeclined
             ? 'bg-amber-accent/10 text-amber-accent border border-amber-accent/30'
             : 'bg-surface-sunk text-ink-soft border border-line'
         }`}>
-          {job.currentStatus?.replace(/_/g, ' ').toUpperCase()}
+          {currentStatus?.replace(/_/g, ' ').toUpperCase()}
         </span>
       </div>
 
@@ -527,8 +528,8 @@ function LogisticsTrackingSection({ job }) {
           {job.pickupLocation?.contactName && (
             <p className="text-ink-mute">Contact: {job.pickupLocation.contactName} ({job.pickupLocation.contactPhone || 'N/A'})</p>
           )}
-          {job.pickupScheduledAt && (
-            <p className="text-indigo font-medium pt-1">Scheduled: {dateTime(job.pickupScheduledAt)}</p>
+          {(job.pickupScheduledAt || job.scheduledPickupTime) && (
+            <p className="text-indigo font-medium pt-1">Scheduled: {dateTime(job.pickupScheduledAt || job.scheduledPickupTime)}</p>
           )}
         </div>
 
@@ -538,8 +539,8 @@ function LogisticsTrackingSection({ job }) {
           {job.deliveryLocation?.contactName && (
             <p className="text-ink-mute">Contact: {job.deliveryLocation.contactName} ({job.deliveryLocation.contactPhone || 'N/A'})</p>
           )}
-          {job.deliveryRequiredBy && (
-            <p className="text-indigo font-medium pt-1">Required by: {dateTime(job.deliveryRequiredBy)}</p>
+          {(job.deliveryRequiredBy || job.requiredDeliveryTime) && (
+            <p className="text-indigo font-medium pt-1">Required by: {dateTime(job.deliveryRequiredBy || job.requiredDeliveryTime)}</p>
           )}
         </div>
       </div>
@@ -570,7 +571,7 @@ function LogisticsTrackingSection({ job }) {
       </div>
 
       {/* Return Milestones Stepper if return is required */}
-      {job.requiresReturn && (
+      {(job.requiresReturn !== undefined ? job.requiresReturn : job.returnRequired) && (
         <div className="space-y-1 pt-2 border-t border-line">
           <p className="text-xs font-semibold text-ink-soft">Return Transport Milestones</p>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 pt-1">
@@ -1034,8 +1035,8 @@ export default function BookingDetail() {
                   isProvider={isProvider && isConfirmed}
                   onAdvance={advanceFulfillment}
                   busy={busy === 'fulfillment' ? busy : ''}
-                  partnerAssigned={Boolean(logisticsJob?.assignedPartner)}
-                  partnerName={logisticsJob?.assignedPartner?.businessName}
+                  partnerAssigned={Boolean(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)}
+                  partnerName={(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)?.businessName}
                 />
               </div>
             )}
@@ -1121,8 +1122,8 @@ export default function BookingDetail() {
                 isProvider={isProvider && isConfirmed}
                 onAdvance={advanceFulfillment}
                 busy={busy === 'fulfillment' ? busy : ''}
-                partnerAssigned={Boolean(logisticsJob?.assignedPartner)}
-                partnerName={logisticsJob?.assignedPartner?.businessName}
+                partnerAssigned={Boolean(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)}
+                partnerName={(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)?.businessName}
               />
             </Section>
           )}
@@ -1173,8 +1174,8 @@ export default function BookingDetail() {
                   isProvider={isProvider && isConfirmed}
                   onAdvance={advanceReturn}
                   busy={busy === 'returnItem' ? busy : ''}
-                  partnerAssigned={Boolean(logisticsJob?.assignedPartner)}
-                  partnerName={logisticsJob?.assignedPartner?.businessName}
+                  partnerAssigned={Boolean(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)}
+                  partnerName={(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)?.businessName}
                 />
               )}
             </Section>

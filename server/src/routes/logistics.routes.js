@@ -23,6 +23,27 @@ const JOB_POPULATE = [
 ];
 
 /**
+ * Normalizes logistics job representation so both Mongoose fields (logisticsPartner, status, returnRequired)
+ * and frontend client aliases (assignedPartner, currentStatus, requiresReturn) are always present.
+ */
+export function formatLogisticsJob(job) {
+  if (!job) return null;
+  const j = typeof job.toObject === 'function' ? job.toObject() : job;
+  return {
+    ...j,
+    jobId: j._id,
+    bookingId: j.booking?._id || j.booking,
+    assignedPartner: j.logisticsPartner || j.assignedPartner || null,
+    vehicle: j.logisticsPartner?.logisticsProfile?.vehicleInfo || j.vehicle || null,
+    currentStatus: j.status || j.currentStatus,
+    requiresReturn: j.returnRequired !== undefined ? Boolean(j.returnRequired) : Boolean(j.requiresReturn),
+    isSample: Boolean(j.isSample),
+    pickupScheduledAt: j.scheduledPickupTime || j.pickupScheduledAt || null,
+    deliveryRequiredBy: j.requiredDeliveryTime || j.deliveryRequiredBy || null,
+  };
+}
+
+/**
  * GET /api/logistics/jobs
  * List jobs according to role and query filters.
  */
@@ -56,7 +77,7 @@ router.get(
       .sort({ createdAt: -1 })
       .lean();
 
-    res.json({ jobs });
+    res.json({ jobs: jobs.map(formatLogisticsJob) });
   })
 );
 
@@ -80,7 +101,7 @@ router.get(
       throw new HttpError(403, 'You do not have access to this logistics job.');
     }
 
-    res.json({ job });
+    res.json({ job: formatLogisticsJob(job) });
   })
 );
 
@@ -104,7 +125,7 @@ router.get(
       throw new HttpError(403, 'You do not have access to this booking logistics.');
     }
 
-    res.json({ job });
+    res.json({ job: formatLogisticsJob(job) });
   })
 );
 
@@ -184,7 +205,7 @@ router.post(
       ],
     });
 
-    res.status(201).json({ job: await job.populate(JOB_POPULATE) });
+    res.status(201).json({ job: formatLogisticsJob(await job.populate(JOB_POPULATE)) });
   })
 );
 
@@ -231,7 +252,7 @@ router.patch(
       relatedLogisticsJob: job._id,
     });
 
-    res.json({ job: await job.populate(JOB_POPULATE) });
+    res.json({ job: formatLogisticsJob(await job.populate(JOB_POPULATE)) });
   })
 );
 
@@ -270,7 +291,7 @@ router.patch(
       relatedLogisticsJob: job._id,
     });
 
-    res.json({ job: await job.populate(JOB_POPULATE) });
+    res.json({ job: formatLogisticsJob(await job.populate(JOB_POPULATE)) });
   })
 );
 
@@ -623,7 +644,7 @@ router.patch(
       }),
     ]);
 
-    res.json({ job: await job.populate(JOB_POPULATE) });
+    res.json({ job: formatLogisticsJob(await job.populate(JOB_POPULATE)) });
   })
 );
 
@@ -667,7 +688,7 @@ router.patch(
       relatedLogisticsJob: job._id,
     });
 
-    res.json({ job: await job.populate(JOB_POPULATE) });
+    res.json({ job: formatLogisticsJob(await job.populate(JOB_POPULATE)) });
   })
 );
 
@@ -794,7 +815,7 @@ router.patch(
       ]);
     }
 
-    res.json({ job: await job.populate(JOB_POPULATE) });
+    res.json({ job: formatLogisticsJob(await job.populate(JOB_POPULATE)) });
   })
 );
 

@@ -6,6 +6,8 @@ import { env } from './config/env.js';
 import { logAdminConfig } from './config/admin.js';
 import { initSockets } from './sockets/index.js';
 import { runSeed } from './seed/seed.js';
+import { BUSINESSES } from './seed/seedData.js';
+import User from './models/User.js';
 import { logger } from './utils/logger.js';
 
 let server;
@@ -51,6 +53,21 @@ async function main() {
     if (count === 0) {
       console.log('Empty database detected — seeding demo data…');
       await runSeed({ quiet: true });
+    } else {
+      // Ensure all standard demo accounts exist even if the persistent DB was seeded previously
+      try {
+        const passwordHash = await User.hashPassword('indulge123');
+        for (const b of BUSINESSES) {
+          const existing = await User.findOne({ email: b.email });
+          if (!existing) {
+            const { key, ...rest } = b;
+            await User.create({ ...rest, passwordHash });
+            console.log(`  ✓ Synced missing demo account: ${b.email}`);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync demo accounts:', err.message);
+      }
     }
   }
 
