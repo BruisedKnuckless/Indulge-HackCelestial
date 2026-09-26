@@ -113,9 +113,26 @@ export default function Register() {
       isNaN(coords[1])
     ) {
       setError(
-        'Please search and select a valid location from the search suggestions or enter coordinates.'
+        'Please search and select a valid location from the search suggestions or manual address.'
       );
       return;
+    }
+
+    if (!isPartner) {
+      const gstinVal = (form.gstin || '').trim().toUpperCase();
+      if (!gstinVal) {
+        setError('GSTIN is mandatory for business registration. Please enter your 15-character GST number.');
+        return;
+      }
+      if (gstinVal.length !== 15) {
+        setError('GSTIN must be exactly 15 characters (e.g. 27AABCU9603R1ZM).');
+        return;
+      }
+      const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+      if (!gstinRegex.test(gstinVal)) {
+        setError('Please enter a valid 15-character Indian GSTIN format (e.g. 27AABCU9603R1ZM).');
+        return;
+      }
     }
 
     if (isPartner && (!form.serviceAreas || form.serviceAreas.length === 0)) {
@@ -148,9 +165,9 @@ export default function Register() {
         customBusinessType: !isPartner && form.businessType === 'other' ? form.customBusinessType.trim() : undefined,
         userType: isPartner ? 'logistics_partner' : 'business',
         location: structuredLocation,
-        gstin: !isPartner && !form.notGstRegistered && form.gstin ? form.gstin.trim().toUpperCase() : undefined,
-        gstNumber: !isPartner && !form.notGstRegistered && form.gstin ? form.gstin.trim().toUpperCase() : undefined,
-        notGstRegistered: !isPartner ? Boolean(form.notGstRegistered) : undefined,
+        gstin: !isPartner ? form.gstin.trim().toUpperCase() : undefined,
+        gstNumber: !isPartner ? form.gstin.trim().toUpperCase() : undefined,
+        notGstRegistered: false,
         udyamNumber: !isPartner && form.udyamNumber ? form.udyamNumber.trim().toUpperCase() : undefined,
         constitution: !isPartner ? form.constitution : undefined,
       };
@@ -354,14 +371,16 @@ export default function Register() {
                   <span className="text-xs font-semibold text-ink uppercase tracking-wider">
                     Business Verification Details
                   </span>
-                  <span className="text-[11px] text-ink-mute">Optional at signup</span>
+                  <span className="text-[11px] text-amber-500 font-semibold uppercase tracking-wider">
+                    Mandatory *
+                  </span>
                 </div>
 
                 {/* GSTIN Field */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label htmlFor="gstin" className="label mb-0">
-                      GSTIN (15-character GST Number)
+                      GSTIN (15-character GST Number) <span className="text-accent">*</span>
                     </label>
                   </div>
                   <input
@@ -370,32 +389,13 @@ export default function Register() {
                     onChange={(e) => setForm((f) => ({ ...f, gstin: e.target.value.toUpperCase() }))}
                     placeholder="e.g. 27AABCU9603R1ZM"
                     className="field font-mono uppercase text-xs"
-                    disabled={form.notGstRegistered}
                     maxLength={15}
+                    required
                   />
+                  <p className="text-[11px] text-ink-mute mt-1">
+                    Required for commercial trading, tax compliance, and verified partner badge.
+                  </p>
                 </div>
-
-                {/* Checkbox: Not GST Registered */}
-                <label className="flex items-start gap-2.5 cursor-pointer text-xs text-ink-soft select-none">
-                  <input
-                    type="checkbox"
-                    checked={form.notGstRegistered}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        notGstRegistered: e.target.checked,
-                        gstin: e.target.checked ? '' : f.gstin,
-                      }))
-                    }
-                    className="mt-0.5 rounded border-line text-indigo focus:ring-indigo"
-                  />
-                  <span>
-                    <strong className="text-ink font-medium">My business is not GST registered</strong>
-                    <span className="block text-[11px] text-ink-mute">
-                      You can register and verify later using Udyam, business registration, or manual review.
-                    </span>
-                  </span>
-                </label>
 
                 {/* Udyam Registration Number (Optional) */}
                 <div>

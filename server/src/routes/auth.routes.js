@@ -8,6 +8,34 @@ import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validate, registerSchema, loginSchema } from '../middleware/validate.middleware.js';
 import { getSafePublicBadges } from '../services/verification.service.js';
 
+export function resolveDefaultCoordinates(loc) {
+  if (Array.isArray(loc?.coordinates) && loc.coordinates.length === 2 && !isNaN(loc.coordinates[0]) && !isNaN(loc.coordinates[1])) {
+    return [Number(loc.coordinates[0]), Number(loc.coordinates[1])];
+  }
+  if (loc?.longitude !== undefined && loc?.latitude !== undefined && !isNaN(loc.longitude) && !isNaN(loc.latitude)) {
+    return [Number(loc.longitude), Number(loc.latitude)];
+  }
+  const text = `${loc?.city || ''} ${loc?.address || ''} ${loc?.formattedAddress || ''} ${loc?.state || ''}`.toLowerCase();
+  if (text.includes('mumbai') || text.includes('bombay') || text.includes('andheri') || text.includes('bkc') || text.includes('bandra') || text.includes('juhu') || text.includes('powai')) {
+    return [72.8777, 19.0760];
+  }
+  if (text.includes('navi mumbai') || text.includes('vashi') || text.includes('belapur') || text.includes('mahape')) {
+    return [73.0297, 19.0330];
+  }
+  if (text.includes('kalyan')) return [73.1355, 19.2437];
+  if (text.includes('dombivli')) return [73.0970, 19.2144];
+  if (text.includes('bhiwandi')) return [73.0631, 19.2967];
+  if (text.includes('pune')) return [73.8567, 18.5204];
+  if (text.includes('bengaluru') || text.includes('bangalore')) return [77.5946, 12.9716];
+  if (text.includes('delhi') || text.includes('gurgaon') || text.includes('noida')) return [77.2090, 28.6139];
+  if (text.includes('hyderabad')) return [78.4867, 17.3850];
+  if (text.includes('chennai')) return [80.2707, 13.0827];
+  if (text.includes('kolkata')) return [88.3639, 22.5726];
+  if (text.includes('ahmedabad')) return [72.5714, 23.0225];
+  // Default to central MMR / Thane hub
+  return [72.9781, 19.2183];
+}
+
 const router = Router();
 
 router.post(
@@ -46,6 +74,10 @@ router.post(
     const isNotGst = Boolean(notGstRegistered);
     const resolvedUdyam = (udyamNumber || '').trim().toUpperCase() || undefined;
 
+    if (resolvedGstin && resolvedGstin.length !== 15) {
+      throw new HttpError(400, 'GSTIN must be a 15-character alphanumeric number.');
+    }
+
     let initialVerificationStatus = 'unverified';
     const initialMethods = [];
     let initialGstVerification = undefined;
@@ -71,10 +103,6 @@ router.post(
 
     let normalizedLocation = undefined;
     if (location && typeof location === 'object') {
-      let coords = location.coordinates;
-      if (!coords && location.longitude !== undefined && location.latitude !== undefined) {
-        coords = [Number(location.longitude), Number(location.latitude)];
-      }
       normalizedLocation = {
         type: 'Point',
         address: location.address || location.formattedAddress || '',
@@ -85,7 +113,7 @@ router.post(
         pincode: location.pincode || location.postalCode || '',
         postalCode: location.postalCode || location.pincode || '',
         placeId: location.placeId || '',
-        coordinates: Array.isArray(coords) && coords.length === 2 ? coords.map(Number) : undefined,
+        coordinates: resolveDefaultCoordinates(location),
       };
     }
 
@@ -101,10 +129,6 @@ router.post(
 
       let hubLocation = lp.hubLocation || normalizedLocation;
       if (hubLocation && typeof hubLocation === 'object') {
-        let hubCoords = hubLocation.coordinates;
-        if (!hubCoords && hubLocation.longitude !== undefined && hubLocation.latitude !== undefined) {
-          hubCoords = [Number(hubLocation.longitude), Number(hubLocation.latitude)];
-        }
         hubLocation = {
           type: 'Point',
           address: hubLocation.address || hubLocation.formattedAddress || '',
@@ -115,7 +139,7 @@ router.post(
           pincode: hubLocation.pincode || hubLocation.postalCode || '',
           postalCode: hubLocation.postalCode || hubLocation.pincode || '',
           placeId: hubLocation.placeId || '',
-          coordinates: Array.isArray(hubCoords) && hubCoords.length === 2 ? hubCoords.map(Number) : undefined,
+          coordinates: resolveDefaultCoordinates(hubLocation),
         };
       }
 
@@ -209,22 +233,36 @@ router.patch(
       'customBusinessType',
       'location',
       'gstNumber',
+      'gstin',
+      'udyamNumber',
+      'constitution',
       'preferences',
       'logisticsProfile',
     ];
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
-        if (key === 'logisticsProfile' && typeof req.body[key] === 'object' && req.body[key] !== null) {
+        if (key === 'gstin') {
+          const val = (req.body.gstin || '').trim().toUpperCase();
+          req.user.gstin = val;
+          req.user.gstNumber = val;
+          if (val && req.user.verificationStatus === 'unverified') {
+            req.user.verificationStatus = 'pending';
+            req.user.gstVerification = {
+              gstin: val,
+              status: 'pending',
+              source: 'manual',
+            };
+          }
+        } else if (key === 'udyamNumber') {
+          const val = (req.body.udyamNumber || '').trim().toUpperCase();
+          req.user.udyamNumber = val;
+        } else if (key === 'logisticsProfile' && typeof req.body[key] === 'object' && req.body[key] !== null) {
           req.user.logisticsProfile = {
             ...(req.user.logisticsProfile?.toObject?.() || req.user.logisticsProfile || {}),
             ...req.body.logisticsProfile,
           };
         } else if (key === 'location' && typeof req.body[key] === 'object' && req.body[key] !== null) {
           const loc = req.body.location;
-          let coords = loc.coordinates;
-          if (!coords && loc.longitude !== undefined && loc.latitude !== undefined) {
-            coords = [Number(loc.longitude), Number(loc.latitude)];
-          }
           req.user.location = {
             type: 'Point',
             address: loc.address || loc.formattedAddress || req.user.location?.address || '',
@@ -235,7 +273,10 @@ router.patch(
             pincode: loc.pincode || loc.postalCode || req.user.location?.pincode || '',
             postalCode: loc.postalCode || loc.pincode || req.user.location?.postalCode || '',
             placeId: loc.placeId || req.user.location?.placeId || '',
-            coordinates: Array.isArray(coords) && coords.length === 2 ? coords.map(Number) : req.user.location?.coordinates,
+            coordinates: resolveDefaultCoordinates({
+              ...loc,
+              coordinates: loc.coordinates || req.user.location?.coordinates,
+            }),
           };
         } else {
           req.user[key] = req.body[key];

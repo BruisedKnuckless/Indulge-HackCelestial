@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { ShieldCheck, Clock, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAnalytics } from '../hooks/queries';
 import { Stars } from '../components/ui';
@@ -15,6 +16,9 @@ const icons = {
   notifications: 'M18 16v-5a6 6 0 10-12 0v5l-2 2h16zM10 21h4',
   truck: 'M1 3h15v13H1zM16 8h4l3 3v5h-7V8zM5.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm13 0a2.5 2.5 0 100-5 2.5 2.5 0 000 5z',
   settings: 'M12 15a3 3 0 100-6 3 3 0 000 6zm7.4 1.3l1.8 1.4-2 3.5-2.2-.9c-.6.5-1.3.9-2 1.2l-.3 2.4h-4l-.3-2.4c-.7-.3-1.4-.7-2-1.2l-2.2.9-2-3.5 1.8-1.4c-.1-.4-.1-.8-.1-1.3s0-.9.1-1.3l-1.8-1.4 2-3.5 2.2.9c.6-.5 1.3-.9 2-1.2l.3-2.4h4l.3 2.4c.7.3 1.4.7 2 1.2l2.2-.9 2 3.5-1.8 1.4c.1.4.1.8.1 1.3s0 .9-.1 1.3z',
+  receipt: 'M9 14h6m-6-4h6m-7 8.5L3 20V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v15l-3-1.5-3 1.5-3-1.5-3 1.5z',
+  history: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
+  verification: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
 };
 
 function Tile({ to, icon, title, description }) {
@@ -96,8 +100,46 @@ export default function Account() {
             {user.email}
             {user.location?.city ? ` · Hub: ${user.location.city}` : ''}
           </p>
+
+          {/* Verification, GST & Compliance Badges */}
+          <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
+            {user.verificationStatus === 'verified' ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                <ShieldCheck size={12} />
+                {user.isDemoBusiness ? 'Demo Verified Business' : 'Verified Business'}
+              </span>
+            ) : user.verificationStatus === 'pending' ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                <Clock size={12} />
+                Verification Pending Review
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-surface-sunk text-ink-mute border border-line">
+                Unverified
+              </span>
+            )}
+
+            {(user.gstin || user.gstNumber) && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-surface-sunk text-ink font-mono text-[11px] border border-line">
+                GSTIN: <strong className="text-ink">{user.gstin || user.gstNumber}</strong>
+              </span>
+            )}
+
+            {user.udyamNumber && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-surface-sunk text-ink font-mono text-[11px] border border-line">
+                Udyam: <strong className="text-ink">{user.udyamNumber}</strong>
+              </span>
+            )}
+
+            {user.payoutVerified && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/25">
+                Payout Ready
+              </span>
+            )}
+          </div>
+
           {user.ratingCount > 0 && (
-            <Stars rating={user.ratingAvg} count={user.ratingCount} className="mt-1" />
+            <Stars rating={user.ratingAvg} count={user.ratingCount} className="mt-2" />
           )}
         </div>
 
@@ -167,6 +209,12 @@ export default function Account() {
             description="Manage your account password, email and dispatch credentials"
           />
           <Tile
+            to="/history"
+            icon="history"
+            title="Dispatch & Job History"
+            description="Audit records of delivered transport jobs, pickup handovers and transit milestones"
+          />
+          <Tile
             to="/how-it-works"
             icon="reviews"
             title="How Indulge Logistics Works"
@@ -175,6 +223,18 @@ export default function Account() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Tile
+            to="/billing"
+            icon="receipt"
+            title="Billing & Payment Receipts"
+            description="Authoritative transaction ledger, settlement records, and downloadable payment receipts"
+          />
+          <Tile
+            to="/history"
+            icon="history"
+            title="History & Activity Records"
+            description="Complete audit log of past bookings, logistics deliveries, and procurement requests"
+          />
           <Tile
             to="/listings"
             icon="listings"
