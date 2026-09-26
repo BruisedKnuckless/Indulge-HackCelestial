@@ -12,13 +12,14 @@ import { useEffect, useRef, useState, useCallback } from 'react';
  * blits an already-decoded bitmap.
  */
 
-const FRAME_COUNT = 265;
-const framePath = (i) => `/landing/Indulge_landing00216${String(i).padStart(3, '0')}.jpg`;
+const FRAME_COUNT = 1195;
+const FIRST_FRAME = 432000;
+const framePath = (i) => `/landing/PC_Landing_new${String(FIRST_FRAME + i).padStart(8, '0')}.jpg`;
 
-// How much scroll distance the whole sequence occupies. 700vh leaves ~600vh of
-// travel across 265 frames (~20px per frame at a typical viewport), which is
-// slow enough that every frame gets its moment rather than being skipped.
-const SECTION_VH = 700;
+// How much scroll distance the whole sequence occupies. 1500vh leaves ~1400vh
+// of travel across 1195 frames (~12px per frame at a typical viewport), which is
+// slow enough to follow the story without the intro dragging on.
+const SECTION_VH = 1500;
 
 // Parallel image requests. Enough to saturate a local server without opening so
 // many sockets that the first frames are delayed behind the last ones.
@@ -28,6 +29,9 @@ const CONCURRENCY = 12;
 // much so the intro is genuinely full-bleed from the first frame, rather than
 // starting below the header and only covering it once stuck.
 const HEADER_H = 64;
+
+// Duration of the "Skip intro" glide — roughly twice a browser's native smooth scroll.
+const SKIP_DURATION_MS = 2000;
 
 export default function ScrollSequence() {
   const sectionRef = useRef(null);
@@ -154,13 +158,36 @@ export default function ScrollSequence() {
     };
   }, [draw, resize]);
 
+  // Hand-rolled instead of scrollTo({ behavior: 'smooth' }) because the native
+  // animation's duration is browser-controlled and too fast to follow the frames.
   const skip = () => {
     const section = sectionRef.current;
     if (!section) return;
-    window.scrollTo({
-      top: section.offsetTop + section.offsetHeight - window.innerHeight,
-      behavior: 'smooth',
-    });
+
+    const from = window.scrollY;
+    const to = section.offsetTop + section.offsetHeight - window.innerHeight;
+    const start = performance.now();
+    let raf = 0;
+
+    const stop = () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('wheel', stop);
+      window.removeEventListener('touchstart', stop);
+      window.removeEventListener('keydown', stop);
+    };
+    // Any manual input hands control back to the viewer mid-skip.
+    window.addEventListener('wheel', stop, { passive: true });
+    window.addEventListener('touchstart', stop, { passive: true });
+    window.addEventListener('keydown', stop);
+
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / SKIP_DURATION_MS);
+      const eased = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+      window.scrollTo(0, from + (to - from) * eased);
+      if (t < 1) raf = requestAnimationFrame(step);
+      else stop();
+    };
+    raf = requestAnimationFrame(step);
   };
 
   const pctLoaded = Math.round((loaded / FRAME_COUNT) * 100);
@@ -197,20 +224,7 @@ export default function ScrollSequence() {
 
         {ready && (
           <>
-            {/* Scroll affordance, retired once the viewer starts moving. */}
-            <div
-              data-scroll-hint
-              className="absolute inset-x-0 bottom-10 flex flex-col items-center gap-2 pointer-events-none transition-opacity duration-500"
-              style={{ opacity: progress > 0.02 ? 0 : 1 }}
-            >
-              {/* Dark on the frames' mid-grey backdrop, which white washes out
-                  against — and it matches the wordmark the sequence resolves to. */}
-              <span className="text-ink/70 text-xs tracking-[0.2em] uppercase">Scroll</span>
-              <span className="w-[22px] h-[36px] rounded-full border border-ink/40 relative">
-                <span className="absolute left-1/2 top-2 -translate-x-1/2 w-[3px] h-[6px] rounded-full bg-ink/70 animate-bounce" />
-              </span>
-            </div>
-
+            {/* No scroll hint overlay: the opening frame has "SCROLL" baked in. */}
             <button
               onClick={skip}
               className="absolute top-5 right-5 text-ink/60 hover:text-ink text-xs tracking-wide border border-ink/25 hover:border-ink/60 rounded-full px-3 py-1.5 transition-colors"
