@@ -1,118 +1,134 @@
 import { env } from './env.js';
+import Admin from '../models/Admin.js';
 
 /**
  * Platform-admin identity.
  *
- * Deliberately NOT a field on User. Every account in this marketplace is both
- * provider and seeker depending on context, and several routes assume there is
- * no role column to branch on — see CLAUDE.md. Platform administration is a
- * different axis entirely: it is a property of the *deployment*, not of the
- * business record, so it lives in configuration.
+ * Admins are their own accounts in their own collection (models/Admin.js),
+ * signed in at /admin/login with their own token type. They are NOT business
+ * Users: every User in this marketplace is both provider and seeker depending
+ * on context, and an administrator is neither — it manages business data from
+ * the console without ever taking part in the marketplace.
  *
- * Set ADMIN_EMAILS to a comma-separated list of existing account emails.
+ * Accounts come from two places:
+ *   - the seed, which upserts the development admin (admin@indulge.com);
+ *   - ADMIN_EMAIL + ADMIN_PASSWORD on the API service, upserted at every boot,
+ *     which is how a production deployment gets its administrator.
  */
 
 /**
- * Fallback for local development only.
- *
- * This account's password is published in the README, so handing it the console
- * on a public deployment would make the whole platform administrable by anyone
- * who read the repo. Production therefore requires ADMIN_EMAILS to be set
- * explicitly — see adminEmails() below.
+ * Every seeded account, the development admin included, uses this password,
+ * and it is published in the README. On a public deployment it would make the
+ * console administrable by anyone who read the repo, so production refuses it
+ * at login no matter which admin account carries it.
  */
-const DEFAULT_ADMIN_EMAILS = ['ops@grandorchid.in', 'nitishgupta7009@gmail.com'];
+export const PUBLISHED_DEMO_PASSWORD = 'indulge123';
 
 /**
- * Accepted names for the allowlist variable.
- *
- * ADMIN_EMAILS is canonical, but the singular reads just as naturally when you
- * are granting access to one person, and getting it wrong produces a console
- * that is locked for everybody with no hint as to why. Both spellings are
- * honoured rather than making a plural 'S' the difference between a working
- * deployment and a dead one.
+ * Accepted names for the bootstrap email. ADMIN_EMAIL is canonical; the plural
+ * is the variable earlier versions of this app used, and a deployment that
+ * still sets it should keep working once ADMIN_PASSWORD is added. Only the
+ * first address of a comma-separated list is used.
  */
-const ENV_KEYS = ['ADMIN_EMAILS', 'ADMIN_EMAIL'];
+const EMAIL_KEYS = ['ADMIN_EMAIL', 'ADMIN_EMAILS'];
 
-const parseList = (raw) =>
+const firstEmail = (raw) =>
   (raw || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
+    .filter(Boolean)[0] || null;
 
-/** Which variable actually supplied the list, for the startup banner. */
-function readAllowlist() {
-  for (const key of ENV_KEYS) {
-    const emails = parseList(process.env[key]);
-    if (emails.length) return { key, emails };
-  }
-  return { key: null, emails: [] };
-}
-
-export const ADMIN_EMAILS = readAllowlist().emails;
-
-const isProduction = () => env.nodeEnv === 'production';
-
-/** Resolved allowlist — configured value wins, demo account is the fallback. */
-export function adminEmails() {
-  if (ADMIN_EMAILS.length) return ADMIN_EMAILS;
-  return isProduction() ? [] : DEFAULT_ADMIN_EMAILS;
-}
-
-export function isPlatformAdmin(user) {
-  if (!user?.email) return false;
-  return adminEmails().includes(String(user.email).toLowerCase());
+/** Is this password acceptable for an admin sign-in in the given environment? */
+export function adminPasswordAllowed(password, nodeEnv = env.nodeEnv) {
+  return !(nodeEnv === 'production' && password === PUBLISHED_DEMO_PASSWORD);
 }
 
 /**
- * Session payload for the client. `isPlatformAdmin` is computed, never stored,
- * so revoking access is a config change and a re-login rather than a migration.
+ * The admin account the environment asks for, or null. Pure, so the rules can
+ * be checked without booting a server.
  */
-export function sessionUser(user) {
-  return { ...user.toJSON(), isPlatformAdmin: isPlatformAdmin(user) };
+export function readBootstrapAdmin(vars = process.env, nodeEnv = env.nodeEnv) {
+  let email = null;
+  let source = null;
+  for (const key of EMAIL_KEYS) {
+    email = firstEmail(vars[key]);
+    if (email) {
+      source = key;
+      break;
+    }
+  }
+  const password = vars.ADMIN_PASSWORD || '';
+
+  if (!email) return null;
+  if (!password) {
+    return { email, source, error: `${source} is set but ADMIN_PASSWORD is not.` };
+  }
+  if (!adminPasswordAllowed(password, nodeEnv)) {
+    return { email, source, error: 'ADMIN_PASSWORD is the published demo password, which production refuses.' };
+  }
+  return { email, source, password, name: (vars.ADMIN_NAME || '').trim() || 'Platform Admin' };
+}
+
+/**
+ * Create or update the environment's admin account. Idempotent: one account
+ * per email however many times the service restarts, and the password follows
+ * ADMIN_PASSWORD so rotating it is a redeploy rather than a database edit.
+ */
+export async function ensureBootstrapAdmin(vars = process.env) {
+  const wanted = readBootstrapAdmin(vars);
+  if (!wanted || wanted.error) return wanted;
+
+  const existing = await Admin.findOne({ email: wanted.email });
+  if (!existing) {
+    await Admin.create({
+      name: wanted.name,
+      email: wanted.email,
+      passwordHash: await Admin.hashPassword(wanted.password),
+      role: 'super_admin',
+    });
+    return { ...wanted, action: 'created' };
+  }
+
+  if (!(await existing.checkPassword(wanted.password)) || !existing.isActive) {
+    existing.passwordHash = await Admin.hashPassword(wanted.password);
+    existing.isActive = true;
+    await existing.save();
+    return { ...wanted, action: 'updated' };
+  }
+  return { ...wanted, action: 'unchanged' };
 }
 
 /**
  * Why the console is or is not reachable, for the boot banner.
  *
- * A locked console answers 404 to every request so it is not advertised, which
- * is correct but indistinguishable from a bug when you are staring at a
- * deployment. Saying it out loud once at startup is the difference between a
- * two-minute fix and an afternoon.
+ * A request without an admin token gets 401/404 from /api/admin by design,
+ * which is indistinguishable from a bug when you are staring at a deployment.
+ * Saying it out loud once at startup is the difference between a two-minute
+ * fix and an afternoon.
  */
-export function adminConfigStatus() {
-  const { key, emails } = readAllowlist();
+export async function adminConfigStatus(bootstrap = readBootstrapAdmin()) {
+  const active = await Admin.countDocuments({ isActive: true });
+  const notes = [];
 
-  if (emails.length) {
-    return {
-      state: 'configured',
-      emails,
-      source: key,
-      message: `Admin console enabled for: ${emails.join(', ')} (from ${key})`,
-    };
+  if (bootstrap?.error) notes.push(`Admin bootstrap skipped — ${bootstrap.error}`);
+  else if (bootstrap) notes.push(`Admin account ${bootstrap.email} ensured (from ${bootstrap.source}).`);
+
+  if (!active) {
+    notes.push(
+      'Admin console is LOCKED — there are no admin accounts. Set ADMIN_EMAIL and ' +
+        'ADMIN_PASSWORD on this service and redeploy, then sign in at /admin/login.'
+    );
+    return { state: 'locked', active, message: notes.join(' ') };
   }
-  if (isProduction()) {
-    return {
-      state: 'locked',
-      emails: [],
-      source: null,
-      message:
-        `Admin console is LOCKED — no allowlist set (checked ${ENV_KEYS.join(' and ')}) ` +
-        'and NODE_ENV=production. /api/admin answers 404 and /admin shows the unavailable ' +
-        'screen for every account. Set ADMIN_EMAILS=you@yourbusiness.com on this service ' +
-        'and redeploy to enable it.',
-    };
-  }
-  return {
-    state: 'development-fallback',
-    emails: DEFAULT_ADMIN_EMAILS,
-    source: null,
-    message: `Admin console enabled for the demo account (${DEFAULT_ADMIN_EMAILS.join(', ')}) because ADMIN_EMAILS is unset and this is not production. Set ADMIN_EMAILS before deploying.`,
-  };
+
+  notes.push(`Admin console enabled — ${active} admin account(s); sign in at /admin/login.`);
+  if (env.isProduction) notes.push('The published demo password is refused in production.');
+  return { state: 'enabled', active, message: notes.join(' ') };
 }
 
 /** Prints the banner. Called once from server.js after the port is bound. */
-export function logAdminConfig(log = console.log) {
-  const { state, message } = adminConfigStatus();
+export async function logAdminConfig(bootstrap, log = console.log) {
+  const { state, message } = await adminConfigStatus(bootstrap);
   const mark = state === 'locked' ? '!' : '✓';
   log(`  ${mark} ${message}`);
 }

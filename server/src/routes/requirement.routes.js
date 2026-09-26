@@ -9,7 +9,6 @@ import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validateBookingRequest, getAvailableQuantity } from '../services/availability.service.js';
 import { scoreSingleResource } from '../services/matching.service.js';
 import { notify } from '../services/notification.service.js';
-import { isPlatformAdmin } from '../config/admin.js';
 import { solveRequirementProcurement } from '../services/procurement-solver.service.js';
 import { executeProcurementPlan } from '../services/procurement-execution.service.js';
 import CapacityRecoveryOpportunity from '../models/CapacityRecoveryOpportunity.js';
@@ -373,10 +372,7 @@ router.get(
       throw new HttpError(404, 'Requirement not found.');
     }
 
-    const isSeeker = String(requirement.seeker) === String(req.user._id);
-    const isAdmin = isPlatformAdmin(req.user);
-
-    if (!isSeeker && !isAdmin) {
+    if (String(requirement.seeker) !== String(req.user._id)) {
       throw new HttpError(403, 'Access denied. Only the requirement owner can view procurement options.');
     }
 
@@ -407,7 +403,7 @@ router.post(
       throw new HttpError(404, 'Requirement not found.');
     }
 
-    if (String(requirement.seeker) !== String(req.user._id) && !isPlatformAdmin(req.user)) {
+    if (String(requirement.seeker) !== String(req.user._id)) {
       throw new HttpError(403, 'Only the requirement owner can select a procurement strategy.');
     }
 

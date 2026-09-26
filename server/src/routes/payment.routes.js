@@ -129,7 +129,7 @@ router.get(
       String(transaction.payer?._id || transaction.payer) === String(req.user._id) ||
       String(transaction.payee?._id || transaction.payee) === String(req.user._id);
 
-    if (!isParty && !req.user.isPlatformAdmin) {
+    if (!isParty) {
       throw new HttpError(403, 'Access denied.');
     }
 

@@ -27,7 +27,7 @@ cd client && npm install && npm run dev
 **Port 5050, not 5000** — macOS AirPlay Receiver occupies 5000.
 
 ```bash
-cd server && npm run verify   # 53-check end-to-end suite — the only test suite
+cd server && npm run verify   # ~370-check end-to-end suite — the only test suite
 cd server && npm run seed     # re-seed the database
 cd client && npm run build    # production build (also the fastest syntax check)
 ```
@@ -48,7 +48,7 @@ cd server && MONGO_URI= npm run verify
 ```
 
 **Any change to booking, availability, ranking, cart, or requirement logic must keep
-all 53 passing.** Add checks for new rules rather than only testing by hand.
+all of them passing.** Add checks for new rules rather than only testing by hand.
 
 ### Database
 
@@ -59,6 +59,20 @@ Atlas, then `npm run seed` once.
 
 All seeded accounts use password **`indulge123`**. `ops@grandorchid.in` is the richest
 demo login (owns listings, has incoming requests).
+
+### Admin accounts are not businesses
+
+Platform admins live in their own `Admin` collection (`server/src/models/Admin.js`),
+sign in at `/admin/login` → `POST /api/admin/auth/login`, and carry a JWT typed
+`{ type: 'admin' }` (business tokens are `{ type: 'business' }`; untyped legacy
+tokens count as business). `requireAuth` refuses admin tokens with 403;
+`requireAdmin` accepts *only* admin tokens and answers 404 to a business token.
+The client keeps the two sessions apart: `AuthContext` + `api` (`indulge.token`)
+vs `AdminAuthContext` + `adminApi` (`indulge.adminToken`). Admin query hooks must
+use `adminApi`. Never re-introduce a "business that is also an admin" override on
+a business route — the console reads across tenants through `/api/admin/*`.
+
+Seeded dev admin: `admin@indulge.com` / `indulge123` (upserted, never duplicated).
 
 ## Architecture
 
@@ -167,7 +181,7 @@ Environment:
 
 | Service | Variables |
 |---|---|
-| server | `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES`, `CLIENT_URL`, `ADMIN_EMAILS` |
+| server | `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES`, `CLIENT_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` |
 | client | `VITE_API_URL`, `VITE_SOCKET_URL` |
 
 Traps that have each cost real debugging time:
@@ -187,18 +201,16 @@ Traps that have each cost real debugging time:
   Network Access.
 - `vite preview` rejects unknown `Host` headers; deployment domains must be in
   `preview.allowedHosts` in `client/vite.config.js`.
-- **`ADMIN_EMAILS` must be set on the server service or the admin console is
-  locked.** Railpack sets `NODE_ENV=production`, and in production an unset
-  allowlist resolves to *empty* rather than falling back to the seeded demo
-  account — whose password is in this file, so the fallback would hand the whole
-  platform to anyone who read the repo. Locked means `/api/admin` answers `404`
-  (deliberately, so the console is not advertised) and `/admin` shows the
-  "unavailable" screen for every account. The API prints which state it is in at
-  startup — including which variable it read — so check the deploy log first.
-  `ADMIN_EMAIL` (singular) is accepted as an alias because that typo locked a
-  real deployment; the plural wins if both are set. `isPlatformAdmin` is
-  recomputed by `/auth/me` on every page load and the JWT carries only the user
-  id, so changing the variable needs a redeploy and a refresh — not a re-login.
+- **Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` on the server service or there is no
+  usable admin.** On every boot the API upserts that `Admin` account (idempotent;
+  changing `ADMIN_PASSWORD` rotates it on the next deploy). Railpack sets
+  `NODE_ENV=production`, and production refuses the published demo password
+  `indulge123` at admin login — so a seeded `admin@indulge.com` cannot open the
+  console on a public deployment. The API prints at startup whether the console
+  is enabled and whether the bootstrap ran, so check the deploy log first. The
+  old `ADMIN_EMAILS` name is still read (first address only) as an alias; the
+  singular wins if both are set. It no longer grants any *business* account
+  admin rights — that allowlist model is gone.
 
 ## Prototype boundaries
 

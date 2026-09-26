@@ -6,7 +6,6 @@ import {
   getProviderRecoveryOverview,
   respondToRecoveryOpportunity,
 } from '../services/capacity-recovery.service.js';
-import { isPlatformAdmin } from '../config/admin.js';
 
 const router = Router();
 
@@ -28,7 +27,8 @@ router.get(
 /**
  * GET /api/capacity-recovery/:id
  * Retrieve details for a specific capacity recovery opportunity.
- * Restricted to the opportunity owner (provider) and platform admins.
+ * Restricted to the opportunity owner (provider); the admin console reads
+ * marketplace-wide metrics through /api/admin/capacity-recovery.
  */
 router.get(
   '/:id',
@@ -48,10 +48,7 @@ router.get(
       throw new HttpError(404, 'Capacity recovery opportunity not found.');
     }
 
-    const isOwner = String(opportunity.provider) === String(req.user._id);
-    const isAdmin = isPlatformAdmin(req.user);
-
-    if (!isOwner && !isAdmin) {
+    if (String(opportunity.provider) !== String(req.user._id)) {
       throw new HttpError(
         403,
         'Access denied. You do not have permission to view this capacity recovery opportunity.'

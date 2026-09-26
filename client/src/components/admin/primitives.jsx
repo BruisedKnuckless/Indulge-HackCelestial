@@ -86,12 +86,26 @@ export function Severity({ level, children }) {
 }
 
 /** Reuses the platform's own status pills so a status reads the same everywhere. */
+// Spelled out in full rather than built as `status-${status}`: Tailwind only
+// emits component classes whose names appear literally in the source, so an
+// interpolated name (status-completed, used nowhere else) was being purged and
+// rendered as unstyled text.
+const STATUS_CLASS = {
+  open: 'status-open',
+  pending: 'status-pending',
+  negotiating: 'status-negotiating',
+  accepted: 'status-accepted',
+  confirmed: 'status-confirmed',
+  completed: 'status-completed',
+  expired: 'status-expired',
+  fulfilled: 'status-fulfilled',
+  closed: 'status-closed',
+  rejected: 'status-rejected',
+  cancelled: 'status-cancelled',
+};
+
 export function Pill({ status, children }) {
-  const known = [
-    'open', 'pending', 'negotiating', 'accepted', 'confirmed', 'completed',
-    'expired', 'fulfilled', 'closed', 'rejected', 'cancelled',
-  ];
-  const cls = known.includes(status) ? `status-${status}` : 'badge-muted';
+  const cls = STATUS_CLASS[status] || 'badge-muted';
   return <span className={cls}>{children || String(status || '—').replace(/_/g, ' ')}</span>;
 }
 

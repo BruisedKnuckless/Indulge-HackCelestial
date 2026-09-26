@@ -187,7 +187,7 @@ export async function uploadResourceMedia({ resourceId, file, user, isPrimary = 
   if (!resource) throw new HttpError(404, 'Resource not found.');
 
   // Ownership verification
-  if (String(resource.owner) !== String(user._id) && !user.isPlatformAdmin) {
+  if (String(resource.owner) !== String(user._id)) {
     throw new HttpError(403, 'You can only upload images for your own listings.', 'UNAUTHORIZED_MEDIA_UPLOAD');
   }
 
@@ -225,7 +225,7 @@ export async function replaceResourceMedia({ resourceId, mediaId, file, user }) 
   const resource = await Resource.findById(resourceId);
   if (!resource) throw new HttpError(404, 'Resource not found.');
 
-  if (String(resource.owner) !== String(user._id) && !user.isPlatformAdmin) {
+  if (String(resource.owner) !== String(user._id)) {
     throw new HttpError(403, 'You can only edit media on your own listings.', 'UNAUTHORIZED_MEDIA_EDIT');
   }
 
@@ -270,7 +270,7 @@ export async function deleteResourceMedia({ resourceId, mediaId, user }) {
   const resource = await Resource.findById(resourceId);
   if (!resource) throw new HttpError(404, 'Resource not found.');
 
-  if (String(resource.owner) !== String(user._id) && !user.isPlatformAdmin) {
+  if (String(resource.owner) !== String(user._id)) {
     throw new HttpError(403, 'You can only delete media on your own listings.', 'UNAUTHORIZED_MEDIA_DELETE');
   }
 

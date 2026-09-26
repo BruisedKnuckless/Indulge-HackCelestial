@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { createApp } from './app.js';
 import { connectDB, disconnectDB } from './config/db.js';
 import { env } from './config/env.js';
-import { logAdminConfig } from './config/admin.js';
+import { ensureBootstrapAdmin, logAdminConfig } from './config/admin.js';
 import { initSockets } from './sockets/index.js';
 import { runSeed } from './seed/seed.js';
 import { logger } from './utils/logger.js';
@@ -54,6 +54,10 @@ async function main() {
     }
   }
 
+  // ADMIN_EMAIL + ADMIN_PASSWORD give a deployment its administrator; upserted
+  // on every boot, so it is idempotent and follows password rotation.
+  const bootstrap = await ensureBootstrapAdmin();
+
   const app = createApp();
   server = http.createServer(app);
   initSockets(server);
@@ -64,8 +68,9 @@ async function main() {
     // A locked admin console 404s every request by design, which looks exactly
     // like a bug from the outside. Say which it is, once, where a deployment
     // log will show it.
-    logAdminConfig();
-    console.log('');
+    logAdminConfig(bootstrap)
+      .catch((err) => console.error('  ! Could not report admin status:', err.message))
+      .finally(() => console.log(''));
   });
 }
 

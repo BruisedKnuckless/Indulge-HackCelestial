@@ -17,6 +17,8 @@ export function initSockets(httpServer) {
 
     try {
       const payload = jwt.verify(token, env.jwtSecret);
+      // Admin accounts are not businesses and receive no business notifications.
+      if (payload.type === 'admin') return;
       socket.join(`user:${payload.sub}`);
     } catch {
       /* unauthenticated sockets simply receive nothing */

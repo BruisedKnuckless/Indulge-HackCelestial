@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { requireAuth, requireBusinessUser, optionalAuth } from '../middleware/auth.middleware.js';
-import { isPlatformAdmin } from '../config/admin.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import {
   calculateContributionProfile,
@@ -51,17 +50,14 @@ router.get(
 
 /**
  * GET /api/contribution/business/:id/detailed
- * Private detailed breakdown: ONLY the business owner themselves or a platform admin
- * can access private detailed signals. Unrelated businesses are forbidden (403).
+ * Private detailed breakdown: ONLY the business owner themselves can access
+ * private detailed signals (the admin console reads them via /api/admin/contribution). Unrelated businesses are forbidden (403).
  */
 router.get(
   '/business/:id/detailed',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const isOwner = String(req.user._id) === String(req.params.id);
-    const isAdmin = isPlatformAdmin(req.user);
-
-    if (!isOwner && !isAdmin) {
+    if (String(req.user._id) !== String(req.params.id)) {
       throw new HttpError(
         403,
         'You are not authorized to view private detailed contribution signals for this business.'

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  Pause, Play, Archive, Scale, Receipt, Trash2, AlertTriangle, ShieldCheck, Ban, Star,
+  Pause, Play, Archive, Scale, Receipt, Trash2, AlertTriangle, Ban, Star,
 } from 'lucide-react';
 import { useAdminList, useAdminMeta, useAdminActions } from '../../hooks/queries';
 import { errorMessage } from '../../api/client';
@@ -916,7 +916,6 @@ export function AdminBusinesses({ onOpen }) {
                   <span className="block max-w-[28ch]">
                     <span className="flex items-center gap-1.5">
                       <span className="font-medium truncate">{r.businessName}</span>
-                      {r.isPlatformAdmin && <ShieldCheck size={12} className="text-indigo shrink-0" title="Platform admin" />}
                       {r.suspended && <Ban size={12} className="text-red-accent shrink-0" title={r.suspensionReason || 'Suspended'} />}
                     </span>
                     <span className="block text-[11px] text-ink-mute truncate">{r.email}</span>

@@ -6,8 +6,6 @@ import User from '../models/User.js';
 import Resource, { doesResourceRequireLogistics } from '../models/Resource.js';
 import { requireAuth, requireAdmin, requireLogisticsPartner } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
-import { isPlatformAdmin } from '../config/admin.js';
-import { sessionUser } from '../config/admin.js';
 import { notify } from '../services/notification.service.js';
 import { validate, updateLogisticsStatusSchema } from '../middleware/validate.middleware.js';
 
@@ -33,9 +31,7 @@ router.get(
     const { status, view } = req.query;
     const filter = {};
 
-    if (isPlatformAdmin(req.user)) {
-      if (status) filter.status = status;
-    } else if (req.user.userType === 'logistics_partner') {
+    if (req.user.userType === 'logistics_partner') {
       if (view === 'available') {
         filter.status = 'unassigned';
       } else if (view === 'completed') {
@@ -74,9 +70,8 @@ router.get(
     const isSeeker = String(job.seeker?._id || job.seeker) === String(req.user._id);
     const isProvider = String(job.provider?._id || job.provider) === String(req.user._id);
     const isAssigned = job.logisticsPartner && String(job.logisticsPartner?._id || job.logisticsPartner) === String(req.user._id);
-    const isAdmin = isPlatformAdmin(req.user);
 
-    if (!isSeeker && !isProvider && !isAssigned && !isAdmin) {
+    if (!isSeeker && !isProvider && !isAssigned) {
       throw new HttpError(403, 'You do not have access to this logistics job.');
     }
 
@@ -98,9 +93,8 @@ router.get(
     const isSeeker = String(job.seeker?._id || job.seeker) === String(req.user._id);
     const isProvider = String(job.provider?._id || job.provider) === String(req.user._id);
     const isAssigned = job.logisticsPartner && String(job.logisticsPartner?._id || job.logisticsPartner) === String(req.user._id);
-    const isAdmin = isPlatformAdmin(req.user);
 
-    if (!isSeeker && !isProvider && !isAssigned && !isAdmin) {
+    if (!isSeeker && !isProvider && !isAssigned) {
       throw new HttpError(403, 'You do not have access to this booking logistics.');
     }
 
@@ -124,10 +118,9 @@ router.post(
 
     const isSeeker = String(booking.seeker) === String(req.user._id);
     const isProvider = String(booking.provider) === String(req.user._id);
-    const isAdmin = isPlatformAdmin(req.user);
 
-    if (!isSeeker && !isProvider && !isAdmin) {
-      throw new HttpError(403, 'Only parties to this booking or an admin may create a logistics job.');
+    if (!isSeeker && !isProvider) {
+      throw new HttpError(403, 'Only parties to this booking may create a logistics job.');
     }
 
     if (!doesResourceRequireLogistics(booking.resource, booking)) {
@@ -194,7 +187,6 @@ router.post(
  */
 router.patch(
   '/jobs/:id/assign',
-  requireAuth,
   requireAdmin,
   asyncHandler(async (req, res) => {
     const { partnerId, notes } = req.body;
@@ -217,7 +209,7 @@ router.patch(
     job.timeline.push({
       status: 'assigned',
       timestamp: new Date(),
-      updatedBy: req.user._id,
+      updatedBy: req.admin._id,
       notes: notes || `Assigned to ${partner.businessName}`,
     });
     await job.save();
@@ -673,7 +665,7 @@ router.patch(
 
 /**
  * PATCH /api/logistics/jobs/:id/status
- * Partner or Admin advances the state machine.
+ * The assigned partner advances the state machine.
  */
 router.patch(
   '/jobs/:id/status',
@@ -687,10 +679,9 @@ router.patch(
     if (!job) throw new HttpError(404, 'Logistics job not found.');
 
     const isAssigned = String(job.logisticsPartner) === String(req.user._id);
-    const isAdmin = isPlatformAdmin(req.user);
 
-    if (!isAssigned && !isAdmin) {
-      throw new HttpError(403, 'Only the assigned logistics partner or an admin can update job status.');
+    if (!isAssigned) {
+      throw new HttpError(403, 'Only the assigned logistics partner can update job status.');
     }
 
     const allowedNext = LOGISTICS_STATUS_TRANSITIONS[job.status] || [];
@@ -804,7 +795,6 @@ router.patch(
  */
 router.get(
   '/partners',
-  requireAuth,
   requireAdmin,
   asyncHandler(async (_req, res) => {
     const partners = await User.find({ userType: 'logistics_partner', suspended: false })
@@ -859,7 +849,7 @@ router.patch(
     }
 
     const user = await User.findByIdAndUpdate(req.user._id, { $set: update }, { new: true });
-    res.json({ user: sessionUser(user) });
+    res.json({ user });
   })
 );
 

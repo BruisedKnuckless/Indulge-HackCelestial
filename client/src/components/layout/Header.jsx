@@ -10,7 +10,7 @@ import Logo from "./Logo";
 /* ── Icons ──────────────────────────────────────────────────────────────── */
 
 /** Single-stroke line icon at a consistent weight — keeps the bar calm. */
-const Icon = ({ d, size = 18 }) => (
+export const Icon = ({ d, size = 18 }) => (
   <svg
     viewBox="0 0 24 24"
     width={size}
@@ -27,7 +27,7 @@ const Icon = ({ d, size = 18 }) => (
 );
 
 /** Sun icon (two-path: circle + rays). */
-const SunIcon = ({ size = 17 }) => (
+export const SunIcon = ({ size = 17 }) => (
   <svg
     viewBox="0 0 24 24"
     width={size}
@@ -45,7 +45,7 @@ const SunIcon = ({ size = 17 }) => (
 );
 
 /** Moon icon. */
-const MoonIcon = ({ size = 17 }) => (
+export const MoonIcon = ({ size = 17 }) => (
   <svg
     viewBox="0 0 24 24"
     width={size}
@@ -61,7 +61,7 @@ const MoonIcon = ({ size = 17 }) => (
   </svg>
 );
 
-const PATHS = {
+export const PATHS = {
   search:
     "M11 19a8 8 0 100-16 8 8 0 000 16zm10 2l-4.35-4.35",
   cart:
@@ -195,7 +195,7 @@ function NavLink({ to, label }) {
 
 /* ── Shared icon-button class ────────────────────────────────────────────── */
 
-const ICON_BTN =
+export const ICON_BTN =
   "grid place-items-center w-9 h-9 rounded-full " +
   "text-zinc-900/85 dark:text-zinc-200 " +
   "hover:text-indigo dark:hover:text-indigo " +
@@ -689,25 +689,6 @@ export default function Header() {
                         </button>
                       </div>
                     </div>
-
-                    {/* Only shown to accounts on the API's ADMIN_EMAILS
-                        allowlist — the flag is computed server-side per
-                        session, never stored on the account. */}
-                    {user.isPlatformAdmin && (
-                      <>
-                        <Link
-                          to="/admin"
-                          className="flex items-center justify-between gap-2 px-4 py-2 text-sm
-                                     font-medium text-ink
-                                     hover:bg-surface-sunk
-                                     transition-colors duration-150"
-                        >
-                          Platform console
-                          <span className="badge-indigo">Admin</span>
-                        </Link>
-                        <hr className="rule my-1" />
-                      </>
-                    )}
 
                     {(user.userType === 'logistics_partner' ? LOGISTICS_ACCOUNT_LINKS : ACCOUNT_LINKS).map((l) => (
                       <Link

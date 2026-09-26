@@ -46,7 +46,7 @@ router.get(
 /**
  * GET /api/procurement-orders/:id
  * Retrieve a grouped procurement order with its child bookings.
- * Strictly restricted to the seeker (order owner) and platform admins.
+ * Strictly restricted to the seeker (order owner).
  * Providers must not see other providers' commercial terms or grouped allocations.
  */
 router.get(
@@ -58,10 +58,7 @@ router.get(
       throw new HttpError(404, 'Procurement order not found.');
     }
 
-    const isSeeker = String(order.seeker) === String(req.user._id);
-    const isAdmin = Boolean(req.user.isPlatformAdmin);
-
-    if (!isSeeker && !isAdmin) {
+    if (String(order.seeker) !== String(req.user._id)) {
       throw new HttpError(
         403,
         'Access denied. Only the procurement order owner can view grouped procurement details.'
