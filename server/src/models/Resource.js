@@ -95,6 +95,17 @@ const resourceSchema = new mongoose.Schema(
     conditions: String,
     tags: [String],
     images: [String],
+    media: [
+      {
+        url: { type: String, required: true },
+        publicId: { type: String },
+        width: { type: Number },
+        height: { type: Number },
+        format: { type: String },
+        isPrimary: { type: Boolean, default: false },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
     status: { type: String, enum: ['active', 'paused', 'archived'], default: 'active', index: true },
 
     ratingAvg: { type: Number, default: 0 },
@@ -102,6 +113,23 @@ const resourceSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+resourceSchema.pre('save', function (next) {
+  if (this.media && this.media.length > 0) {
+    const urls = this.media.map((m) => m.url).filter(Boolean);
+    if (urls.length > 0) {
+      this.images = urls;
+    }
+  } else if (this.images && this.images.length > 0 && (!this.media || this.media.length === 0)) {
+    this.media = this.images.map((url, idx) => ({
+      url,
+      publicId: `legacy_${idx}_${Math.random().toString(36).slice(2, 7)}`,
+      format: (url.split('.').pop() || 'jpg').split('?')[0].slice(0, 5),
+      isPrimary: idx === 0,
+    }));
+  }
+  next();
+});
 
 resourceSchema.index({ 'location.coordinates': '2dsphere' });
 resourceSchema.index({ category: 1, status: 1 });

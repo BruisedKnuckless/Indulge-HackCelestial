@@ -71,6 +71,16 @@ export function validateEnv(customEnv = process.env, { requireDb = false, requir
     throw new Error('FATAL: Permissive CORS origin "*" is strictly prohibited in production.');
   }
 
+  const cloudinaryCloudName = (customEnv.CLOUDINARY_CLOUD_NAME || '').trim();
+  const cloudinaryApiKey = (customEnv.CLOUDINARY_API_KEY || '').trim();
+  const cloudinaryApiSecret = (customEnv.CLOUDINARY_API_SECRET || '').trim();
+  const isCloudinaryConfigured = Boolean(cloudinaryCloudName && cloudinaryApiKey && cloudinaryApiSecret);
+
+  const paymentGatewayProvider = (customEnv.PAYMENT_GATEWAY_PROVIDER || 'simulated').trim().toLowerCase();
+  const paymentGatewayKeyId = (customEnv.PAYMENT_GATEWAY_KEY_ID || '').trim();
+  const paymentGatewaySecret = (customEnv.PAYMENT_GATEWAY_SECRET || '').trim();
+  const paymentWebhookSecret = (customEnv.PAYMENT_WEBHOOK_SECRET || 'indulge_dev_webhook_secret_32_bytes').trim();
+
   return {
     nodeEnv,
     isProduction,
@@ -82,6 +92,14 @@ export function validateEnv(customEnv = process.env, { requireDb = false, requir
     jwtExpires: customEnv.JWT_EXPIRES || '7d',
     clientUrl,
     allowedOrigins,
+    cloudinaryCloudName,
+    cloudinaryApiKey,
+    cloudinaryApiSecret,
+    isCloudinaryConfigured,
+    paymentGatewayProvider,
+    paymentGatewayKeyId,
+    paymentGatewaySecret,
+    paymentWebhookSecret,
   };
 }
 

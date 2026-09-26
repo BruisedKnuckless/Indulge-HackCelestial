@@ -38,6 +38,15 @@ export function errorHandler(err, req, res, _next) {
     });
   }
 
+  // Handle Multer upload errors (e.g. file size limit)
+  if (err.name === 'MulterError' || err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({
+      error: 'File too large. Maximum allowed image size is 5MB.',
+      code: 'LIMIT_FILE_SIZE',
+      requestId,
+    });
+  }
+
   // Handle Mongo duplicate key error
   if (err.code === 11000) {
     return res.status(409).json({

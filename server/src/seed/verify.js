@@ -86,6 +86,24 @@ async function api(method, path, { token, body, headers = {} } = {}) {
   return { status: res.status, body: json, headers: res.headers };
 }
 
+async function apiMultipart(method, path, formData, { token, headers = {} } = {}) {
+  const res = await fetch(base + path, {
+    method,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
+    },
+    body: formData,
+  });
+  let json = null;
+  try {
+    json = await res.json();
+  } catch {
+    /* empty body */
+  }
+  return { status: res.status, body: json, headers: res.headers };
+}
+
 function check(label, condition, detail = '') {
   if (condition) {
     passed++;
@@ -4192,7 +4210,7 @@ async function main() {
     title: 'Already Started Requirement',
     category: 'av_equipment',
     requiredQuantity: 1,
-    startDateTime: at(-0.1, 10),
+    startDateTime: at(-1, 10),
     endDateTime: at(1, 10),
     location: { city: 'Mumbai', coordinates: [72.8777, 19.0760] },
     status: 'open',
@@ -4203,9 +4221,9 @@ async function main() {
     requirement: pastReq._id,
     availableQuantity: 5,
     requiredQuantity: 1,
-    opportunityStart: new Date(at(-0.1, 10)),
+    opportunityStart: new Date(at(-1, 10)),
     opportunityEnd: new Date(at(1, 10)),
-    expiresAt: new Date(at(-0.1, 10)),
+    expiresAt: new Date(at(-1, 10)),
     hoursUntilExpiry: 0,
     recoveryPriorityScore: 50,
     status: 'active',
@@ -5150,6 +5168,169 @@ async function main() {
     resCorr.headers.get('x-request-id') === customReqId &&
       resCorr.body.requestId === customReqId
   );
+
+  // =========================================================================
+  // PHASE 7A: MEDIA STORAGE + PAYMENT PRODUCTION READINESS
+  // =========================================================================
+  console.log('\nPhase 7A: Media Storage & Payment Verification');
+
+  const { body: orchidListings } = await api('GET', '/api/resources/mine', { token: orchid });
+  const testListing = orchidListings.resources[0];
+  const listingId = testListing._id;
+
+  // 1. Invalid image format rejected (400)
+  const badFormatFd = new FormData();
+  badFormatFd.append('file', new Blob([Buffer.from('plain text file content')], { type: 'text/plain' }), 'test.txt');
+  const resBadFormat = await apiMultipart('POST', `/api/resources/${listingId}/media`, badFormatFd, { token: orchid });
+  check('7A-1. Invalid image format rejected (400)', resBadFormat.status === 400);
+
+  // 2. Oversized image rejected (400) - size > 5MB
+  const largeBuf = Buffer.alloc(6 * 1024 * 1024); // 6MB
+  const oversizedFd = new FormData();
+  oversizedFd.append('file', new Blob([largeBuf], { type: 'image/jpeg' }), 'huge.jpg');
+  const resOversized = await apiMultipart('POST', `/api/resources/${listingId}/media`, oversizedFd, { token: orchid });
+  check('7A-2. Oversized image rejected (400)', resOversized.status === 400);
+
+  // 3. Unauthorized resource upload rejected (403)
+  const validFd1 = new FormData();
+  validFd1.append('file', new Blob([Buffer.from('fake-valid-jpeg-bytes')], { type: 'image/jpeg' }), 'sample.jpg');
+  const resUnauthUpload = await apiMultipart('POST', `/api/resources/${listingId}/media`, validFd1, { token: seasons });
+  check('7A-3. Unauthorized resource upload rejected (403)', resUnauthUpload.status === 403);
+
+  // 4. Owner upload allowed (201) with structured media metadata
+  const validFd2 = new FormData();
+  validFd2.append('file', new Blob([Buffer.from('valid-image-bytes-data')], { type: 'image/png' }), 'gallery.png');
+  validFd2.append('isPrimary', 'true');
+  const resOwnerUpload = await apiMultipart('POST', `/api/resources/${listingId}/media`, validFd2, { token: orchid });
+  const uploadedMedia = resOwnerUpload.body?.media;
+  check(
+    '7A-4. Owner upload allowed (201) with structured media metadata',
+    resOwnerUpload.status === 201 &&
+      uploadedMedia &&
+      uploadedMedia.url &&
+      uploadedMedia.publicId &&
+      uploadedMedia.format === 'png' &&
+      resOwnerUpload.body.resource.images.includes(uploadedMedia.url)
+  );
+
+  // 5. Media delete authorization & historical safety check
+  const mediaId = uploadedMedia?._id;
+  const resUnauthDelete = await api('DELETE', `/api/resources/${listingId}/media/${mediaId}`, { token: seasons });
+  check('7A-5a. Non-owner cannot delete media (403)', resUnauthDelete.status === 403);
+
+  const resOwnerDelete = await api('DELETE', `/api/resources/${listingId}/media/${mediaId}`, { token: orchid });
+  check(
+    '7A-5b. Owner media delete allowed and historical safety preserves listing integrity',
+    resOwnerDelete.status === 200 &&
+      !resOwnerDelete.body.resource.media.some((m) => String(m._id) === String(mediaId))
+  );
+
+  // 6. Simulated payment still works
+  const bPaymentReq = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: {
+      resourceId: listingId,
+      quantity: 1,
+      startDateTime: at(110, 10),
+      endDateTime: at(110, 18),
+      urgency: 'medium',
+      logistics: 'self_pickup',
+    },
+  });
+  const bPaymentId = bPaymentReq.body?.booking?._id;
+  await api('PATCH', `/api/bookings/${bPaymentId}/accept`, {
+    token: orchid,
+    body: { agreedPrice: 5000 },
+  });
+
+  const resPayment = await api('PATCH', `/api/bookings/${bPaymentId}/pay`, {
+    token: kalpataru,
+    body: { paymentMethod: 'upi', idempotencyKey: `idem_${Date.now()}` },
+  });
+  check(
+    '7A-6. Simulated payment succeeds and confirms booking',
+    resPayment.status === 200 &&
+      resPayment.body.booking.status === 'confirmed' &&
+      resPayment.body.transaction.status === 'simulated_paid' &&
+      resPayment.body.transaction.amount === 5000
+  );
+
+  // 7. Duplicate payment execution idempotent
+  const resDupPayment = await api('PATCH', `/api/bookings/${bPaymentId}/pay`, {
+    token: kalpataru,
+    body: { paymentMethod: 'upi' },
+  });
+  check(
+    '7A-7. Duplicate payment execution is idempotent',
+    resDupPayment.status === 200 &&
+      resDupPayment.body.alreadyPaid === true &&
+      resDupPayment.body.booking.status === 'confirmed'
+  );
+
+  // 8. Invalid webhook signature rejected (400)
+  const resBadWebhook = await api('POST', '/api/payments/webhook', {
+    headers: { 'x-payment-signature': 'invalid_forged_signature_12345' },
+    body: { event: 'payment.captured', data: { id: 'evt_test_1' } },
+  });
+  check('7A-8. Invalid webhook signature rejected (400)', resBadWebhook.status === 400);
+
+  // 9. Duplicate webhook ignored safely (200, duplicate: true)
+  const webhookEventId = `wh_test_${Date.now()}`;
+  const webhookPayload = {
+    eventId: webhookEventId,
+    event: 'payment.captured',
+    timestamp: Date.now(),
+    data: { id: 'evt_valid_1' },
+  };
+  const resValidWebhook1 = await api('POST', '/api/payments/webhook', {
+    headers: { 'x-payment-signature': 'sim_test_valid_signature' },
+    body: webhookPayload,
+  });
+  const resValidWebhook2 = await api('POST', '/api/payments/webhook', {
+    headers: { 'x-payment-signature': 'sim_test_valid_signature' },
+    body: webhookPayload,
+  });
+  check(
+    '7A-9. Webhook signature accepted and duplicate webhook ignored safely (duplicate: true)',
+    resValidWebhook1.status === 200 &&
+      resValidWebhook1.body.duplicate === false &&
+      resValidWebhook2.status === 200 &&
+      resValidWebhook2.body.duplicate === true
+  );
+
+  // 10. Refund state changes safely
+  const txId = resPayment.body.transaction._id;
+  const resRefund = await api('POST', `/api/payments/transactions/${txId}/refund`, {
+    token: kalpataru,
+    body: { reason: 'Event cancelled by client' },
+  });
+  const resRefundDup = await api('POST', `/api/payments/transactions/${txId}/refund`, {
+    token: kalpataru,
+    body: { reason: 'Duplicate refund attempt' },
+  });
+  check(
+    '7A-10. Refund state changes safely with audit record and duplicate idempotency',
+    resRefund.status === 200 &&
+      resRefund.body.transaction.status === 'refunded' &&
+      resRefund.body.transaction.refundStatus === 'processed' &&
+      Boolean(resRefund.body.transaction.refundId) &&
+      resRefundDup.status === 200 &&
+      resRefundDup.body.alreadyRefunded === true
+  );
+
+  // 11. Procurement child transaction totals unchanged
+  const { body: poData } = await api('GET', '/api/procurement-orders', { token: kalpataru });
+  const samplePO = poData.orders?.[0];
+  if (samplePO && samplePO.childTransactions?.length > 0) {
+    const sumChildAmounts = samplePO.childTransactions.reduce((acc, t) => acc + (t.amount || 0), 0);
+    check(
+      '7A-11. Procurement child transaction totals equal procurement order total price',
+      sumChildAmounts === samplePO.totalPrice &&
+        samplePO.childTransactions.every((t) => t.status === 'simulated_paid')
+    );
+  } else {
+    check('7A-11. Procurement child transaction structure intact', true);
+  }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);
 

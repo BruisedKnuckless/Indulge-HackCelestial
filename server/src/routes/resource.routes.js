@@ -6,6 +6,12 @@ import { requireAuth, optionalAuth, requireBusinessUser } from '../middleware/au
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { getAvailabilityCalendar, getAvailableQuantity } from '../services/availability.service.js';
 import { validate, createResourceSchema, updateResourceSchema } from '../middleware/validate.middleware.js';
+import {
+  uploadMiddleware,
+  uploadResourceMedia,
+  replaceResourceMedia,
+  deleteResourceMedia,
+} from '../services/media.service.js';
 
 const router = Router();
 
@@ -342,6 +348,64 @@ router.get(
     if (!start || !end) throw new HttpError(400, 'start and end are required.');
 
     const result = await getAvailableQuantity(req.params.id, new Date(start), new Date(end));
+    res.json(result);
+  })
+);
+
+/**
+ * POST /api/resources/:id/media
+ * Uploads media for an owned resource with MIME type and size validation.
+ */
+router.post(
+  '/:id/media',
+  requireAuth,
+  requireBusinessUser,
+  uploadMiddleware.single('file'),
+  asyncHandler(async (req, res) => {
+    const result = await uploadResourceMedia({
+      resourceId: req.params.id,
+      file: req.file,
+      user: req.user,
+      isPrimary: req.body?.isPrimary === 'true',
+    });
+    res.status(201).json(result);
+  })
+);
+
+/**
+ * PUT /api/resources/:id/media/:mediaId
+ * Replaces an existing media asset on an owned resource.
+ */
+router.put(
+  '/:id/media/:mediaId',
+  requireAuth,
+  requireBusinessUser,
+  uploadMiddleware.single('file'),
+  asyncHandler(async (req, res) => {
+    const result = await replaceResourceMedia({
+      resourceId: req.params.id,
+      mediaId: req.params.mediaId,
+      file: req.file,
+      user: req.user,
+    });
+    res.json(result);
+  })
+);
+
+/**
+ * DELETE /api/resources/:id/media/:mediaId
+ * Deletes media from an owned resource with historical booking safety check.
+ */
+router.delete(
+  '/:id/media/:mediaId',
+  requireAuth,
+  requireBusinessUser,
+  asyncHandler(async (req, res) => {
+    const result = await deleteResourceMedia({
+      resourceId: req.params.id,
+      mediaId: req.params.mediaId,
+      user: req.user,
+    });
     res.json(result);
   })
 );

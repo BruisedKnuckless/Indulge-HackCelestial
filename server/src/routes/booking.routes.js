@@ -10,6 +10,7 @@ import { scoreSingleResource } from '../services/matching.service.js';
 import { notify } from '../services/notification.service.js';
 import { estimatePrice } from '../utils/pricing.js';
 import { ensureLogisticsJobForBooking } from '../services/logistics.service.js';
+import { PaymentService } from '../services/payment.service.js';
 
 const router = Router();
 
@@ -289,62 +290,28 @@ router.patch(
   '/:id/pay',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const booking = await Booking.findById(req.params.id).populate('resource');
-    if (!booking) throw new HttpError(404, 'Request not found.');
+    const {
+      paymentMethod = 'upi',
+      idempotencyKey,
+      gatewayPaymentId,
+      gatewaySignature,
+    } = req.body;
 
-    // Only the seeker (the paying party) may initiate payment.
-    if (String(booking.seeker) !== String(req.user._id)) {
-      throw new HttpError(403, 'Only the requesting business can pay.');
-    }
-
-    // Idempotency guard — if already paid, return current state idempotently
-    const existing = await Transaction.findOne({ booking: booking._id });
-    if (existing && existing.status === 'simulated_paid') {
-      return res.json({ booking: await booking.populate(POPULATE), transaction: existing });
-    }
-
-    // Booking must be accepted (provider has agreed & set the price).
-    if (booking.status !== 'accepted') {
-      throw new HttpError(400, `Payment is only possible for accepted requests (current: ${booking.status}).`);
-    }
-
-    const { paymentMethod = 'upi' } = req.body;
-    const ALLOWED_METHODS = ['upi', 'card', 'netbanking', 'wallet'];
-    if (!ALLOWED_METHODS.includes(paymentMethod)) {
-      throw new HttpError(400, 'Invalid payment method.');
-    }
-
-    // Advance booking to confirmed.
-    booking.status = 'confirmed';
-    await booking.save();
-
-    // Settle the transaction.
-    const transaction = await Transaction.findOneAndUpdate(
-      { booking: booking._id },
-      {
-        status: 'simulated_paid',
-        paidAt: new Date(),
-        paymentMethod,
-      },
-      { new: true, upsert: true }
-    );
-
-    // Initialize logistics job if physical transport is required
-    try {
-      await ensureLogisticsJobForBooking(booking);
-    } catch (err) {
-      console.error('Failed to initialize logistics job:', err);
-    }
-
-    await notify({
-      user: booking.provider,
-      type: 'booking_status_change',
-      title: 'Payment received — booking confirmed',
-      message: `${req.user.businessName} paid and confirmed the booking for ${booking.resource.title}`,
-      relatedBooking: booking._id,
+    const result = await PaymentService.confirmPayment({
+      bookingId: req.params.id,
+      paymentMethod,
+      idempotencyKey: idempotencyKey || req.headers['idempotency-key'],
+      gatewayPaymentId,
+      gatewaySignature,
+      user: req.user,
     });
 
-    res.json({ booking: await booking.populate(POPULATE), transaction });
+    const populatedBooking = await Booking.findById(result.booking._id).populate(POPULATE);
+    res.json({
+      booking: populatedBooking,
+      transaction: result.transaction,
+      alreadyPaid: result.alreadyPaid,
+    });
   })
 );
 
