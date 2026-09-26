@@ -2,6 +2,25 @@ import { useState, useEffect, useRef } from 'react';
 import { MapPin, Search, Check, X, Loader2, Navigation, AlertCircle } from 'lucide-react';
 import { useGoogleMapsLoader } from './GoogleMap';
 
+// Curated high-volume Indian logistics & commercial hubs for instant, reliable fallback search
+const POPULAR_INDIAN_HUBS = [
+  { name: 'Bhiwandi Logistics Hub', address: 'Bhiwandi Logistics Park, Mankoli, Bhiwandi, Maharashtra 421302', city: 'Bhiwandi', state: 'Maharashtra', pincode: '421302', coordinates: [73.0631, 19.2813] },
+  { name: 'Thane Majiwada Hub', address: 'Eastern Express Highway, Majiwada, Thane, Maharashtra 400601', city: 'Thane', state: 'Maharashtra', pincode: '400601', coordinates: [72.9750, 19.2080] },
+  { name: 'Wagle Industrial Estate', address: 'Road No 16, Wagle Estate, Thane, Maharashtra 400604', city: 'Thane', state: 'Maharashtra', pincode: '400604', coordinates: [72.9515, 19.1970] },
+  { name: 'Vashi APMC Market', address: 'APMC Market, Sector 19, Vashi, Navi Mumbai, Maharashtra 400703', city: 'Navi Mumbai', state: 'Maharashtra', pincode: '400703', coordinates: [73.0071, 19.0760] },
+  { name: 'Bandra Kurla Complex (BKC)', address: 'G Block, Bandra Kurla Complex, Bandra East, Mumbai, Maharashtra 400051', city: 'Mumbai', state: 'Maharashtra', pincode: '400051', coordinates: [72.8656, 19.0657] },
+  { name: 'Andheri MIDC Cargo Area', address: 'Central Road, MIDC, Andheri East, Mumbai, Maharashtra 400093', city: 'Mumbai', state: 'Maharashtra', pincode: '400093', coordinates: [72.8697, 19.1136] },
+  { name: 'Powai Hiranandani Hub', address: 'Central Avenue, Hiranandani Gardens, Powai, Mumbai, Maharashtra 400076', city: 'Mumbai', state: 'Maharashtra', pincode: '400076', coordinates: [72.9051, 19.1176] },
+  { name: 'Kurla LBS Marg Hub', address: 'LBS Marg, Kurla West, Mumbai, Maharashtra 400070', city: 'Mumbai', state: 'Maharashtra', pincode: '400070', coordinates: [72.8890, 19.0863] },
+  { name: 'Kalyan Logistics Terminal', address: 'Kalyan-Bhiwandi Road, Kalyan, Maharashtra 421301', city: 'Kalyan', state: 'Maharashtra', pincode: '421301', coordinates: [73.1355, 19.2437] },
+  { name: 'Panvel JNPT Cargo Hub', address: 'JNPT Highway, Panvel, Navi Mumbai, Maharashtra 410206', city: 'Navi Mumbai', state: 'Maharashtra', pincode: '410206', coordinates: [73.1100, 18.9894] },
+  { name: 'Pune Hinjawadi Tech & Logistics', address: 'Phase 1, Hinjawadi, Pune, Maharashtra 411057', city: 'Pune', state: 'Maharashtra', pincode: '411057', coordinates: [73.7280, 18.5913] },
+  { name: 'Mulund West Hub', address: 'LBS Marg, Mulund West, Mumbai, Maharashtra 400080', city: 'Mumbai', state: 'Maharashtra', pincode: '400080', coordinates: [72.9563, 19.1726] },
+  { name: 'Dadar Commercial Hub', address: 'Dadar TT Circle, Dadar East, Mumbai, Maharashtra 400014', city: 'Mumbai', state: 'Maharashtra', pincode: '400014', coordinates: [72.8437, 19.0178] },
+  { name: 'Worli Hospitality Zone', address: 'Dr Annie Besant Rd, Worli, Mumbai, Maharashtra 400018', city: 'Mumbai', state: 'Maharashtra', pincode: '400018', coordinates: [72.8181, 19.0003] },
+  { name: 'Nariman Point Financial District', address: 'Marine Drive, Nariman Point, Mumbai, Maharashtra 400021', city: 'Mumbai', state: 'Maharashtra', pincode: '400021', coordinates: [72.8223, 18.9256] }
+];
+
 /**
  * Compact Google Map preview component for a single geocoded point.
  */
@@ -9,10 +28,10 @@ function CompactMapPreview({ lat, lng, address }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
-  const { isLoaded } = useGoogleMapsLoader();
+  const { isLoaded, authError, loadError } = useGoogleMapsLoader();
 
   useEffect(() => {
-    if (!isLoaded || !mapRef.current || typeof window.google?.maps?.Map !== 'function') {
+    if (!isLoaded || authError || loadError || !mapRef.current || typeof window.google?.maps?.Map !== 'function') {
       return;
     }
 
@@ -43,9 +62,9 @@ function CompactMapPreview({ lat, lng, address }) {
         markerRef.current.setPosition(center);
       }
     }
-  }, [isLoaded, lat, lng, address]);
+  }, [isLoaded, authError, loadError, lat, lng, address]);
 
-  if (!isLoaded) {
+  if (!isLoaded || authError || loadError) {
     return (
       <div className="w-full h-32 rounded-lg bg-surface-sunk border border-line flex flex-col items-center justify-center p-3 text-center">
         <div className="w-8 h-8 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center text-accent mb-1.5">
@@ -87,7 +106,7 @@ export default function LocationAutocomplete({
   showAddressLine2 = true,
   disabled = false,
 }) {
-  const { isLoaded, loadError } = useGoogleMapsLoader();
+  const { isLoaded, loadError, authError } = useGoogleMapsLoader();
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -141,17 +160,39 @@ export default function LocationAutocomplete({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Fetch predictions with debounce
+  // Fetch predictions with debounce and Indian commercial hubs fallback
   useEffect(() => {
-    if (!query.trim() || !isLoaded || hasSelectedCoords || manualMode) {
+    if (!query.trim() || hasSelectedCoords || manualMode) {
       setSuggestions([]);
       setLoading(false);
       return;
     }
 
-    const timer = setTimeout(() => {
-      if (!autocompleteServiceRef.current) return;
+    const q = query.trim().toLowerCase();
+    const matchingHubs = POPULAR_INDIAN_HUBS.filter(
+      (h) =>
+        h.name.toLowerCase().includes(q) ||
+        h.address.toLowerCase().includes(q) ||
+        h.city.toLowerCase().includes(q)
+    ).map((h) => ({
+      place_id: `hub_${h.name.replace(/\s+/g, '_').toLowerCase()}`,
+      isCustomHub: true,
+      description: h.address,
+      structured_formatting: {
+        main_text: h.name,
+        secondary_text: `${h.city}, ${h.state} (${h.pincode})`,
+      },
+      ...h,
+    }));
 
+    if (!isLoaded || authError || loadError || !autocompleteServiceRef.current) {
+      setSuggestions(matchingHubs);
+      setIsOpen(matchingHubs.length > 0 || query.trim().length >= 3);
+      setLoading(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
       setLoading(true);
       autocompleteServiceRef.current.getPlacePredictions(
         {
@@ -160,25 +201,45 @@ export default function LocationAutocomplete({
         },
         (predictions, status) => {
           setLoading(false);
-          if (
-            status === window.google?.maps?.places?.PlacesServiceStatus?.OK &&
-            Array.isArray(predictions)
-          ) {
-            setSuggestions(predictions);
-            setIsOpen(true);
-            setActiveIdx(-1);
-          } else {
-            setSuggestions([]);
-          }
+          const ok = status === window.google?.maps?.places?.PlacesServiceStatus?.OK && Array.isArray(predictions);
+          const googleResults = ok ? predictions : [];
+          // Merge Google results with curated hubs, avoiding duplicates
+          const seen = new Set(googleResults.map((p) => (p.description || '').toLowerCase()));
+          const extraHubs = matchingHubs.filter((h) => !seen.has(h.description.toLowerCase()));
+          const combined = [...googleResults, ...extraHubs];
+          setSuggestions(combined);
+          setIsOpen(combined.length > 0 || query.trim().length >= 3);
+          setActiveIdx(-1);
         }
       );
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [query, isLoaded, hasSelectedCoords, manualMode]);
+  }, [query, isLoaded, authError, loadError, hasSelectedCoords, manualMode]);
 
-  // Handle suggestion selection via PlacesService.getDetails
+  // Handle suggestion selection via PlacesService.getDetails or curated hub
   const handleSelectPrediction = (prediction) => {
+    if (prediction.isCustomHub) {
+      const locationData = {
+        type: 'Point',
+        coordinates: prediction.coordinates,
+        address: prediction.address,
+        formattedAddress: prediction.address,
+        addressLine2: value?.addressLine2 || '',
+        city: prediction.city,
+        state: prediction.state,
+        pincode: prediction.pincode,
+        postalCode: prediction.pincode,
+        placeId: prediction.place_id,
+      };
+
+      setQuery('');
+      setIsOpen(false);
+      setSuggestions([]);
+      onChange?.(locationData);
+      return;
+    }
+
     if (!placesServiceRef.current || !prediction.place_id) return;
 
     setLoading(true);
