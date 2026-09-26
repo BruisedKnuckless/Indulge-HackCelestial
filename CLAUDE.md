@@ -273,6 +273,40 @@ Traps that have each cost real debugging time:
   singular wins if both are set. It no longer grants any *business* account
   admin rights — that allowlist model is gone.
 
+## Listing inspections (technician verification)
+
+Physical listings (`furniture`, `av_equipment`, `vehicle`, `other` —
+`INSPECTABLE_CATEGORIES` in `services/verification/verification.service.js`) get an
+Indulge inspection. **AI generates the checklist, a technician physically verifies,
+evidence is the proof, the backend decides.** Nothing a client sends can set a score,
+decision or listing `verificationStatus` — those fields are in
+`PROTECTED_RESOURCE_FIELDS` and are stripped from provider create/edit.
+
+- **Protocol**: `ml/inspection` (category baseline + optional Claude additions,
+  re-validated; mandatory checks can't be removed) → stored as `InspectionProtocol`.
+  If the generator throws, the category template is used (`generator:
+  'category_template'`). With an LLM configured, listing creation doesn't wait for it.
+- **Inspection** = `VerificationRequest` (`kind` initial | return). Statuses map to
+  VERIFIED (`verified`), VERIFIED_WITH_ISSUES (`conditionally_verified`), FAILED
+  (`rejected`). Scoring and submit rules live in `services/verification/scoring.js`
+  (pass 1, minor .5, fail 0, N/A excluded; critical required fail or < 60 → FAILED).
+- **Technicians** are `User`s with `userType: 'inspector'` — created only by admins
+  (`POST /api/admin/technicians`) or the seed, never by sign-up. `requireAuth` limits
+  them to `/api/auth`, `/api/verifications`, `/api/notifications`; every technician
+  endpoint scopes by `assignedTechnician.id === req.user._id` and answers 404
+  otherwise. Client workspace is `/technician/*`.
+- **Field writes are atomic** (`updateOne` with positional `$set` / `$push`). Don't
+  turn them back into load-modify-save: concurrent taps race on Mongoose array
+  versioning and results are silently lost (verify check INS-63).
+- **Return inspection** opens when goods reach `returned_to_provider` /
+  `return_completed` (or an admin opens one), re-runs the baseline's protocol, and
+  `compareInspections` classifies new damage / pre-existing / no change plus unit loss.
+  Damage opens a dispute an admin resolves (`PATCH /api/admin/inspections/:id/resolution`).
+- **Chain of custody**: `CustodyEvent`, append-only, written only via
+  `recordCustody()` — inspection steps and booking condition checks.
+- Seed data never pre-verifies anything. Demo technician `inspector@indulge.com`
+  (Rahul Sharma) is assigned the Dell Latitude 5420 inspection.
+
 ## Prototype boundaries
 
 Deliberately out of scope — do not treat these as bugs:

@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { Price, Stars, Panel, Spinner, Alert, DealBadge } from '../components/ui';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import DeliveryConditions from '../components/DeliveryConditions';
+import VerificationBadge from '../components/inspection/VerificationBadge';
 import { CATEGORY_LABELS, PRICE_UNIT_LABELS, resourceImage } from '../lib/constants';
 import { toLocalInput, defaultWindow, durationHours, relative, inr } from '../lib/format';
 
@@ -151,6 +152,8 @@ export default function ResourceDetail() {
 
           {/* ------------------------------------------------- details */}
           <div className="min-w-0">
+            <VerificationBadge verification={data?.verification} isOwner={isOwn} />
+
             <h1 className="text-3xl font-normal leading-tight mb-1">{resource.title}</h1>
 
             <Link to={`/provider/${owner._id}`} className="link text-base">

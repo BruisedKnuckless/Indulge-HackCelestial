@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BarChart2, Pencil, Eye, Trash2, Pause, Play, Zap, ArrowRight, X } from 'lucide-react';
+import { BarChart2, Pencil, Eye, Trash2, Pause, Play, Zap, ArrowRight, X, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import api, { errorMessage } from '../api/client';
 import { useMyListings, useAnalytics } from '../hooks/queries';
 import { Price, Stars, Spinner, EmptyState } from '../components/ui';
@@ -254,6 +254,63 @@ export default function Listings() {
                         {r.availabilityMode && (
                           <span className="text-xs text-ink-mute capitalize">
                             • {r.availabilityMode.replace('_', ' ')}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Verification Badge */}
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        {r.verificationStatus === 'verified' && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                            <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400" />
+                            <span>✓ Indulge Verified</span>
+                            {r.conditionScore != null && (
+                              <span className="ml-1 px-1.5 py-0.2 rounded bg-emerald-200/60 dark:bg-emerald-900/60 text-[10px]">
+                                {r.conditionScore}/100
+                              </span>
+                            )}
+                          </span>
+                        )}
+
+                        {r.verificationStatus === 'conditionally_verified' && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                            <ShieldCheck size={13} className="text-amber-600 dark:text-amber-400" />
+                            <span>Conditionally Verified</span>
+                            {r.conditionScore != null && (
+                              <span className="ml-1 px-1.5 py-0.2 rounded bg-amber-200/60 dark:bg-amber-900/60 text-[10px]">
+                                {r.conditionScore}/100
+                              </span>
+                            )}
+                          </span>
+                        )}
+
+                        {r.verificationStatus === 'pending' && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-surface-sunk text-ink-soft border border-line">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            <span>Inspection Pending</span>
+                          </span>
+                        )}
+
+                        {r.verificationStatus === 'in_progress' && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                            <span>Inspection In Progress</span>
+                          </span>
+                        )}
+
+                        {r.verificationStatus === 'rejected' && (
+                          <span className="badge badge-red">Failed inspection</span>
+                        )}
+
+                        {r.verificationId && ['verified', 'conditionally_verified', 'rejected'].includes(r.verificationStatus) && (
+                          <Link to={`/inspections/${r.verificationId}`} className="link text-xs">
+                            Inspection report
+                          </Link>
+                        )}
+
+                        {r.recommendedPrice?.basePrice && (
+                          <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                            Recommended: {inr(r.recommendedPrice.basePrice)}
                           </span>
                         )}
                       </div>

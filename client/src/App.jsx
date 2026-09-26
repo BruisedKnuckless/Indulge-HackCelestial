@@ -43,6 +43,15 @@ const ListingForm = lazy(() => import('./pages/ListingForm'));
 const PostRequirement = lazy(() => import('./pages/PostRequirement'));
 const RequirementDetail = lazy(() => import('./pages/RequirementDetail'));
 const ProcurementOrderDetail = lazy(() => import('./pages/ProcurementOrderDetail'));
+const HistoryRecords = lazy(() => import('./pages/HistoryRecords'));
+const BillingTransactions = lazy(() => import('./pages/BillingTransactions'));
+const TechnicianDashboard = lazy(() => import('./pages/technician/TechnicianDashboard'));
+const InspectionDetails = lazy(() => import('./pages/technician/InspectionDetails'));
+const InspectionExecution = lazy(() => import('./pages/technician/InspectionExecution'));
+const InspectionReport = lazy(() => import('./pages/technician/InspectionReport'));
+import TechnicianLogin from './pages/technician/TechnicianLogin';
+import TechnicianShell from './components/technician/TechnicianShell';
+import VerificationBanner from './components/layout/VerificationBanner';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -63,6 +72,7 @@ function RequireBusiness({ children }) {
   if (user?.userType === 'logistics_partner') {
     return <Navigate to="/logistics" replace />;
   }
+  if (user?.userType === 'inspector') return <Navigate to="/technician" replace />;
   return children;
 }
 
@@ -78,6 +88,19 @@ function RequireBusinessAuth({ children }) {
   if (user.userType === 'logistics_partner') {
     return <Navigate to="/logistics" replace />;
   }
+  if (user.userType === 'inspector') return <Navigate to="/technician" replace />;
+  return children;
+}
+
+/**
+ * Technician workspace. Technicians are User accounts with userType
+ * 'inspector'; the server also refuses them every non-inspection API.
+ */
+function RequireTechnician({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Spinner label="Loading your account" />;
+  if (!user) return <Navigate to="/technician/login" replace />;
+  if (user.userType !== 'inspector') return <Navigate to="/" replace />;
   return children;
 }
 
@@ -142,6 +165,7 @@ function Shell({ children }) {
   return (
     <div className="min-h-screen flex flex-col bg-surface">
       <Header />
+      <VerificationBanner />
       <main className="flex-1">
         <ErrorBoundary>
           <Suspense
@@ -202,6 +226,29 @@ export default function App() {
             </RequireAdminAuth>
           }
         />
+
+        {/* Technician workspace — field inspections only. */}
+        <Route path="/technician/login" element={<TechnicianLogin />} />
+        <Route
+          path="/technician/*"
+          element={
+            <RequireTechnician>
+              <TechnicianShell>
+                <Suspense fallback={<Spinner label="Loading" />}>
+                  <Routes>
+                    <Route index element={<TechnicianDashboard />} />
+                    <Route path="inspections" element={<TechnicianDashboard all />} />
+                    <Route path="inspections/:id" element={<InspectionDetails />} />
+                    <Route path="inspections/:id/start" element={<InspectionExecution />} />
+                    <Route path="inspections/:id/report" element={<InspectionReport />} />
+                    <Route path="*" element={<Navigate to="/technician" replace />} />
+                  </Routes>
+                </Suspense>
+              </TechnicianShell>
+            </RequireTechnician>
+          }
+        />
+        <Route path="/inspector/*" element={<Navigate to="/technician" replace />} />
 
         <Route
           path="*"
@@ -273,6 +320,14 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/inspections/:id"
+                  element={
+                    <RequireBusinessAuth>
+                      <InspectionReport />
+                    </RequireBusinessAuth>
+                  }
+                />
+                <Route
                   path="/listings"
                   element={
                     <RequireBusinessAuth>
@@ -333,6 +388,22 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <Account />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/history"
+                  element={
+                    <RequireAuth>
+                      <HistoryRecords />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/billing"
+                  element={
+                    <RequireAuth>
+                      <BillingTransactions />
                     </RequireAuth>
                   }
                 />

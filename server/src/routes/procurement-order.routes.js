@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import ProcurementOrder from '../models/ProcurementOrder.js';
-import { requireAuth, requireBusinessUser } from '../middleware/auth.middleware.js';
+import { requireAuth, requireBusinessUser, requireAuthOrAdmin } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 
 const router = Router();
@@ -69,4 +69,59 @@ router.get(
   })
 );
 
+/**
+ * GET /api/procurement-orders/:id/receipt
+ * Retrieves grouped procurement order receipt data.
+ * Authorizes seeker, participating providers (scoped to own allocation), or admin.
+ */
+router.get(
+  '/:id/receipt',
+  requireAuthOrAdmin,
+  asyncHandler(async (req, res) => {
+    const { getProcurementReceiptData } = await import('../services/receipt.service.js');
+    const { generateReceiptPdfBuffer } = await import('../services/receipt-pdf.service.js');
+    const isAdmin = Boolean(req.admin || req.isAdmin || req.user?.isAdmin);
+    const receipt = await getProcurementReceiptData(req.params.id, req.user, { isAdmin });
+
+    if (req.query.format === 'pdf') {
+      const pdfBuffer = generateReceiptPdfBuffer(receipt);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="procurement-receipt-${receipt.orderNumber || req.params.id}.pdf"`
+      );
+      return res.send(pdfBuffer);
+    }
+
+    res.json({
+      receipt,
+      ...receipt,
+    });
+  })
+);
+
+/**
+ * GET /api/procurement-orders/:id/receipt.pdf
+ * Directly streams the grouped procurement receipt PDF.
+ */
+router.get(
+  '/:id/receipt.pdf',
+  requireAuthOrAdmin,
+  asyncHandler(async (req, res) => {
+    const { getProcurementReceiptData } = await import('../services/receipt.service.js');
+    const { generateReceiptPdfBuffer } = await import('../services/receipt-pdf.service.js');
+    const isAdmin = Boolean(req.admin || req.isAdmin || req.user?.isAdmin);
+    const receipt = await getProcurementReceiptData(req.params.id, req.user, { isAdmin });
+    const pdfBuffer = generateReceiptPdfBuffer(receipt);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="procurement-receipt-${receipt.orderNumber || req.params.id}.pdf"`
+    );
+    res.send(pdfBuffer);
+  })
+);
+
 export default router;
+

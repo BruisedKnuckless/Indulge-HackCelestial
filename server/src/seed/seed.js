@@ -12,6 +12,10 @@ import Proposal from '../models/Proposal.js';
 import LogisticsJob from '../models/LogisticsJob.js';
 import Admin from '../models/Admin.js';
 import RequestEvent from '../models/RequestEvent.js';
+import VerificationRequest from '../models/VerificationRequest.js';
+import InspectionProtocol from '../models/InspectionProtocol.js';
+import CustodyEvent from '../models/CustodyEvent.js';
+import { seedInspections, TECHNICIANS } from './seedVerification.js';
 import { ADMINS, BUSINESSES, RESOURCES } from './seedData.js';
 import { estimatePrice } from '../utils/pricing.js';
 
@@ -62,6 +66,9 @@ export async function runSeed({ quiet = false } = {}) {
     Proposal.deleteMany({}),
     LogisticsJob.deleteMany({}),
     RequestEvent.deleteMany({}),
+    VerificationRequest.deleteMany({}),
+    InspectionProtocol.deleteMany({}),
+    CustodyEvent.deleteMany({}),
   ]);
 
   const passwordHash = await User.hashPassword(DEMO_PASSWORD);
@@ -69,7 +76,16 @@ export async function runSeed({ quiet = false } = {}) {
   const users = {};
   for (const b of BUSINESSES) {
     const { key, ...rest } = b;
-    users[key] = await User.create({ ...rest, passwordHash });
+    users[key] = await User.create({
+      ...rest,
+      passwordHash,
+      isDemoBusiness: true,
+      verificationStatus: 'verified',
+      verificationSource: 'demo',
+      contactVerified: true,
+      businessVerified: true,
+      payoutVerified: true,
+    });
   }
   log(`  ✓ ${Object.keys(users).length} businesses`);
 
@@ -502,6 +518,9 @@ export async function runSeed({ quiet = false } = {}) {
     relatedRequirement: withOffer._id,
   });
 
+  const { inspections } = await seedInspections(users);
+  log(`  ✓ ${Object.values(inspections).filter(Boolean).length} listing inspections generated (all pending — none pre-verified)`);
+
   const requirementCount = await Requirement.countDocuments();
 
   const bookingCount = await Booking.countDocuments();
@@ -510,7 +529,8 @@ export async function runSeed({ quiet = false } = {}) {
   log(`\n  Demo login — any of these emails, password: ${DEMO_PASSWORD}`);
   log(`    ${users.grandOrchid.email}   (hotel, has listings + incoming requests)`);
   log(`    ${users.seasons.email}  (banquet venue)`);
-  log(`  Platform admin — ${ADMINS[0].email} at /admin/login, same password\n`);
+  log(`  Platform admin — ${ADMINS[0].email} at /admin/login, same password`);
+  log(`  Technician — ${TECHNICIANS[0].email} at /technician/login, same password\n`);
 
   return { users, resources };
 }

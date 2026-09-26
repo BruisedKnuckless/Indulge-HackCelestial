@@ -26,6 +26,16 @@ function normaliseBase(value) {
 const baseURL = normaliseBase(import.meta.env.VITE_API_URL);
 
 /**
+ * Files the API stores itself (inspection evidence, local uploads) come back
+ * as server-relative paths like /uploads/x.jpg. They live on the API's origin,
+ * which is not this page's origin once the two are deployed separately.
+ */
+export function mediaUrl(url) {
+  if (!url || !url.startsWith('/uploads/')) return url;
+  return /^https?:\/\//i.test(baseURL) ? new URL(baseURL).origin + url : url;
+}
+
+/**
  * Admin and business sessions are separate accounts with separate tokens,
  * held under separate keys and sent by separate clients — so signing in or out
  * of one never touches the other, and an admin token is never attached to a

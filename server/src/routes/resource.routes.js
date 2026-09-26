@@ -6,13 +6,25 @@ import Review from '../models/Review.js';
 import { requireAuth, optionalAuth, requireBusinessUser } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { getAvailabilityCalendar, getAvailableQuantity } from '../services/availability.service.js';
-import { validate, createResourceSchema, updateResourceSchema } from '../middleware/validate.middleware.js';
+import {
+  validate,
+  createResourceSchema,
+  updateResourceSchema,
+  PROTECTED_RESOURCE_FIELDS,
+} from '../middleware/validate.middleware.js';
 import {
   uploadMiddleware,
   uploadResourceMedia,
   replaceResourceMedia,
   deleteResourceMedia,
 } from '../services/media.service.js';
+import {
+  createVerificationForResource,
+  isInspectable,
+  protocolGenerationIsSlow,
+  publicVerificationSummary,
+} from '../services/verification/verification.service.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 
@@ -81,6 +93,7 @@ router.post(
   validate(createResourceSchema),
   asyncHandler(async (req, res) => {
     const body = { ...req.body, owner: req.user._id };
+    for (const key of PROTECTED_RESOURCE_FIELDS) if (key !== 'owner') delete body[key];
 
     // Fall back to the business's own address so a listing is always mappable.
     if (!body.location?.coordinates?.length) {
@@ -91,6 +104,28 @@ router.post(
     }
 
     const resource = await Resource.create(body);
+
+    // Physical listings get an inspection protocol and a pending inspection.
+    // With an LLM configured, generation can take a while, so it runs after
+    // the response; the deterministic baseline alone is fast enough to await.
+    // Either way a failure never fails the listing.
+    if (isInspectable(resource)) {
+      if (protocolGenerationIsSlow()) {
+        resource.verificationStatus = 'pending';
+        setImmediate(() =>
+          createVerificationForResource(resource, req.user).catch((err) =>
+            logger.warn('Inspection generation failed after listing create', { resourceId: String(resource._id), error: err.message })
+          )
+        );
+      } else {
+        const vr = await createVerificationForResource(resource, req.user);
+        if (vr) {
+          resource.verificationStatus = 'pending';
+          resource.verificationId = vr._id;
+        }
+      }
+    }
+
     res.status(201).json({ resource });
   })
 );
@@ -110,7 +145,8 @@ router.get(
       .limit(20)
       .lean();
 
-    res.json({ resource, reviews });
+    const verification = await publicVerificationSummary(resource);
+    res.json({ resource, reviews, verification });
   })
 );
 
@@ -140,7 +176,7 @@ router.patch(
       }
     }
 
-    const blocked = ['owner', '_id', 'ratingAvg', 'ratingCount'];
+    const blocked = ['_id', ...PROTECTED_RESOURCE_FIELDS];
     for (const [key, value] of Object.entries(req.body)) {
       if (!blocked.includes(key)) resource[key] = value;
     }

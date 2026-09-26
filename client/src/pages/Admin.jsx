@@ -8,7 +8,7 @@ import {
 import {
   Gauge, Radio, ShieldCheck, Users, Boxes, ShoppingBag, Receipt, FileText,
   MessageSquare, Star, Megaphone, Truck, Building2, IndianRupee, AlertTriangle,
-  RefreshCw, Package, Award,
+  RefreshCw, Package, Award, ClipboardCheck,
 } from 'lucide-react';
 import { useAdminOverview, useAdminMeta, useAdminActions } from '../hooks/queries';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -27,6 +27,7 @@ import {
 } from '../components/admin/AdminTables';
 import AdminLogistics from '../components/admin/AdminLogistics';
 import AdminContribution from '../components/admin/AdminContribution';
+import AdminInspections from '../components/admin/AdminInspections';
 
 /**
  * The admin console — one screen over the whole marketplace.
@@ -74,6 +75,7 @@ const TABS = [
   { key: 'listings', label: 'Listings', icon: Boxes },
   { key: 'bookings', label: 'Bookings', icon: ShoppingBag },
   { key: 'logistics', label: 'Logistics', icon: Truck },
+  { key: 'inspections', label: 'Inspections', icon: ClipboardCheck },
   { key: 'rfqs', label: 'RFQs', icon: FileText },
   { key: 'ledger', label: 'Ledger', icon: Receipt },
   { key: 'negotiations', label: 'Negotiations', icon: MessageSquare },
@@ -139,6 +141,7 @@ export default function Admin() {
       {tab === 'listings' && <AdminListings />}
       {tab === 'bookings' && <AdminBookings />}
       {tab === 'logistics' && <AdminLogistics />}
+      {tab === 'inspections' && <AdminInspections />}
       {tab === 'rfqs' && <AdminRequirements />}
       {tab === 'ledger' && <AdminLedger />}
       {tab === 'negotiations' && <AdminNegotiations />}

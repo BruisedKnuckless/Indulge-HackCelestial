@@ -94,6 +94,14 @@ const resourceSchema = new mongoose.Schema(
 
     conditions: String,
     tags: [String],
+
+    // Optional product details. They are what the inspection generator
+    // (ml/inspection) turns into claim-vs-actual checks, e.g. "RAM: 16GB".
+    brand: { type: String, trim: true },
+    model: { type: String, trim: true },
+    declaredCondition: { type: String, trim: true },
+    specifications: { type: Map, of: String, default: undefined },
+    accessories: [String],
     images: [String],
     media: [
       {
@@ -110,6 +118,24 @@ const resourceSchema = new mongoose.Schema(
 
     ratingAvg: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
+
+    // Resource Verification & Field Inspection System
+    verificationStatus: {
+      type: String,
+      enum: ['unverified', 'pending', 'in_progress', 'verified', 'conditionally_verified', 'rejected'],
+      default: 'unverified',
+      index: true,
+    },
+    verificationId: { type: mongoose.Schema.Types.ObjectId, ref: 'VerificationRequest', default: null },
+    verifiedAt: { type: Date, default: null },
+    conditionScore: { type: Number, min: 0, max: 100, default: null },
+    recommendedPrice: {
+      basePrice: { type: Number, default: null },
+      lowerBound: { type: Number, default: null },
+      upperBound: { type: Number, default: null },
+      score: { type: Number, default: null },
+      explanation: { type: String, default: '' },
+    },
   },
   { timestamps: true }
 );

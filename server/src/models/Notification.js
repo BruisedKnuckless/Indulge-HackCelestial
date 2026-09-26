@@ -23,6 +23,8 @@ const notificationSchema = new mongoose.Schema(
         // Sent by the admin console — broadcasts and moderation outcomes.
         // Carries no related booking or requirement of its own.
         'platform_announcement',
+        // Listing inspections: assigned to a technician, completed, damage found.
+        'inspection_update',
       ],
       required: true,
     },

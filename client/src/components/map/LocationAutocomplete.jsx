@@ -550,8 +550,8 @@ function CompactMapPreview({ lat, lng, address }) {
           <MapPin size={16} />
         </div>
         <p className="text-xs font-medium text-ink">Geospatial Point Confirmed</p>
-        <p className="text-[11px] text-ink-mute font-mono mt-0.5">
-          [{Number(lng).toFixed(4)}, {Number(lat).toFixed(4)}]
+        <p className="text-[11px] text-ink-mute mt-0.5">
+          Verified coordinates attached
         </p>
       </div>
     );
@@ -1013,9 +1013,9 @@ export default function LocationAutocomplete({
             />
 
             <div className="flex items-center justify-between text-[11px] text-ink-mute pt-1 border-t border-line/60">
-              <span className="flex items-center gap-1 font-mono text-[10px] text-ink-soft">
+              <span className="flex items-center gap-1 text-[11px] text-ink-soft">
                 <MapPin size={11} className="text-accent" />
-                [{selectedLng?.toFixed(4)}, {selectedLat?.toFixed(4)}]
+                <span>Geospatial Hub Confirmed</span>
               </span>
               <span className="text-emerald-600 font-medium">✓ Ready for Geospatial Matching</span>
             </div>
@@ -1026,7 +1026,7 @@ export default function LocationAutocomplete({
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-ink flex items-center gap-1.5">
                 <Navigation size={13} className="text-accent" />
-                Manual Location & Coordinates
+                Manual Location Entry
               </span>
               <button
                 type="button"
@@ -1038,7 +1038,7 @@ export default function LocationAutocomplete({
             </div>
 
             <p className="text-[11px] text-ink-mute">
-              Enter address and exact coordinates to enable distance-based ranking and nearby discovery.
+              Enter your address and city. Geospatial coordinates are derived automatically in the backend for distance-based ranking.
             </p>
 
             <div className="space-y-2">
@@ -1083,37 +1083,6 @@ export default function LocationAutocomplete({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <div>
-                  <label className="text-[11px] font-medium text-ink-soft">
-                    Latitude (-90 to 90) *
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={manualForm.lat}
-                    onChange={(e) => setManualForm({ ...manualForm, lat: e.target.value })}
-                    placeholder="Latitude (e.g. 19.2183)"
-                    className="field text-xs py-1.5"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-ink-soft">
-                    Longitude (-180 to 180) *
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={manualForm.lng}
-                    onChange={(e) => setManualForm({ ...manualForm, lng: e.target.value })}
-                    placeholder="Longitude (e.g. 72.9781)"
-                    className="field text-xs py-1.5"
-                    required
-                  />
-                </div>
-              </div>
-
               {manualMsg && (
                 <p className="text-[11px] text-accent font-medium flex items-center gap-1">
                   <AlertCircle size={12} />
@@ -1125,10 +1094,10 @@ export default function LocationAutocomplete({
                 <button
                   type="button"
                   onClick={handleUseBrowserLocation}
-                  className="btn-secondary btn-sm text-[11px] py-1 px-2 flex items-center gap-1"
+                  className="btn-secondary btn-sm text-[11px] py-1 px-2.5 flex items-center gap-1.5"
                 >
                   <Navigation size={12} />
-                  Use Current Device GPS
+                  Detect Device Location
                 </button>
                 <button
                   type="button"
@@ -1264,7 +1233,7 @@ export default function LocationAutocomplete({
                       className="w-full text-left px-2.5 py-1 text-[11px] text-ink-mute hover:text-ink hover:underline flex items-center gap-1"
                     >
                       <Navigation size={11} />
-                      Specify custom street & coordinates manually
+                      Enter manual address & city details
                     </button>
                   </div>
                 )}

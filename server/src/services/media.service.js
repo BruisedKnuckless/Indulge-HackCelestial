@@ -300,3 +300,37 @@ export async function deleteResourceMedia({ resourceId, mediaId, user }) {
 
   return { success: true, resource };
 }
+
+/* ------------------------------------------------------------------ */
+/* Inspection evidence                                                  */
+/* ------------------------------------------------------------------ */
+
+const EVIDENCE_VIDEO_TYPES = { 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov' };
+export const MAX_EVIDENCE_SIZE = 25 * 1024 * 1024; // 25 MB — short clips only
+
+/** Photos (JPEG/PNG/WebP) and short videos captured by technicians. */
+export const evidenceUploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_EVIDENCE_SIZE },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype) || EVIDENCE_VIDEO_TYPES[file.mimetype]) return cb(null, true);
+    cb(new HttpError(400, `Unsupported evidence format "${file.mimetype}". Use JPEG, PNG, WebP, MP4, WebM or MOV.`, 'INVALID_EVIDENCE_FORMAT'), false);
+  },
+});
+
+/**
+ * Store one evidence file and return { url, type }. Photos go through the
+ * active media provider; videos are kept on local disk (the Cloudinary
+ * provider here is image-only).
+ */
+export async function storeEvidenceFile(file) {
+  const videoExt = EVIDENCE_VIDEO_TYPES[file.mimetype];
+  if (!videoExt) {
+    if (file.size > MAX_FILE_SIZE) throw new HttpError(400, 'Photos must be 5 MB or smaller.', 'FILE_TOO_LARGE');
+    const uploaded = await getMediaProvider().upload(file);
+    return { url: uploaded.url, type: 'photo' };
+  }
+  const filename = `evidence-${Date.now()}-${crypto.randomBytes(8).toString('hex')}${videoExt}`;
+  await fs.promises.writeFile(path.join(UPLOADS_DIR, filename), file.buffer);
+  return { url: `/uploads/${filename}`, type: 'video' };
+}

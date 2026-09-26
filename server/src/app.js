@@ -26,6 +26,11 @@ import procurementOrderRoutes from './routes/procurement-order.routes.js';
 import capacityRecoveryRoutes from './routes/capacity-recovery.routes.js';
 import contributionRoutes from './routes/contribution.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
+import transactionRoutes from './routes/transaction.routes.js';
+import historyRoutes from './routes/history.routes.js';
+import billingRoutes from './routes/billing.routes.js';
+import verificationRoutes from './routes/verification.routes.js';
+import adminInspectionRoutes from './routes/admin-inspection.routes.js';
 
 export function createApp() {
   const app = express();
@@ -149,9 +154,14 @@ export function createApp() {
   // Admin sign-in must be mounted before the console, whose router requires an
   // admin token on every path beneath /api/admin.
   app.use('/api/admin/auth', adminAuthRoutes);
+  app.use('/api/admin', adminInspectionRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/logistics', logisticsRoutes);
   app.use('/api/payments', paymentRoutes);
+  app.use('/api/transactions', transactionRoutes);
+  app.use('/api/history', historyRoutes);
+  app.use('/api/billing', billingRoutes);
+  app.use('/api/verifications', verificationRoutes);
 
   // 9. Error Handling
   app.use(notFound);

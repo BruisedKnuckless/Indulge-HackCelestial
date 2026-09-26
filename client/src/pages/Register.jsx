@@ -32,6 +32,11 @@ export default function Register() {
     businessType: 'hotel',
     customBusinessType: '',
     location: null,
+    // Business Verification Foundation
+    gstin: '',
+    notGstRegistered: false,
+    udyamNumber: '',
+    constitution: 'private_limited',
     // Logistics Partner specific
     serviceAreas: ['Mumbai', 'Thane', 'Navi Mumbai'],
     vehicleType: VEHICLE_TYPE_PRESETS[0],
@@ -108,9 +113,26 @@ export default function Register() {
       isNaN(coords[1])
     ) {
       setError(
-        'Please search and select a valid location from the search suggestions or enter coordinates.'
+        'Please search and select a valid location from the search suggestions or manual address.'
       );
       return;
+    }
+
+    if (!isPartner) {
+      const gstinVal = (form.gstin || '').trim().toUpperCase();
+      if (!gstinVal) {
+        setError('GSTIN is mandatory for business registration. Please enter your 15-character GST number.');
+        return;
+      }
+      if (gstinVal.length !== 15) {
+        setError('GSTIN must be exactly 15 characters (e.g. 27AABCU9603R1ZM).');
+        return;
+      }
+      const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+      if (!gstinRegex.test(gstinVal)) {
+        setError('Please enter a valid 15-character Indian GSTIN format (e.g. 27AABCU9603R1ZM).');
+        return;
+      }
     }
 
     if (isPartner && (!form.serviceAreas || form.serviceAreas.length === 0)) {
@@ -143,6 +165,11 @@ export default function Register() {
         customBusinessType: !isPartner && form.businessType === 'other' ? form.customBusinessType.trim() : undefined,
         userType: isPartner ? 'logistics_partner' : 'business',
         location: structuredLocation,
+        gstin: !isPartner ? form.gstin.trim().toUpperCase() : undefined,
+        gstNumber: !isPartner ? form.gstin.trim().toUpperCase() : undefined,
+        notGstRegistered: false,
+        udyamNumber: !isPartner && form.udyamNumber ? form.udyamNumber.trim().toUpperCase() : undefined,
+        constitution: !isPartner ? form.constitution : undefined,
       };
 
       if (isPartner) {
@@ -336,6 +363,75 @@ export default function Register() {
                 required={isPartner}
               />
             </div>
+
+            {/* ── Business Verification Foundation (Business only) ───────── */}
+            {!isPartner && (
+              <div className="p-3.5 rounded-xl border border-line bg-surface-sunk/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-ink uppercase tracking-wider">
+                    Business Verification Details
+                  </span>
+                  <span className="text-[11px] text-amber-500 font-semibold uppercase tracking-wider">
+                    Mandatory *
+                  </span>
+                </div>
+
+                {/* GSTIN Field */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="gstin" className="label mb-0">
+                      GSTIN (15-character GST Number) <span className="text-accent">*</span>
+                    </label>
+                  </div>
+                  <input
+                    id="gstin"
+                    value={form.gstin}
+                    onChange={(e) => setForm((f) => ({ ...f, gstin: e.target.value.toUpperCase() }))}
+                    placeholder="e.g. 27AABCU9603R1ZM"
+                    className="field font-mono uppercase text-xs"
+                    maxLength={15}
+                    required
+                  />
+                  <p className="text-[11px] text-ink-mute mt-1">
+                    Required for commercial trading, tax compliance, and verified partner badge.
+                  </p>
+                </div>
+
+                {/* Udyam Registration Number (Optional) */}
+                <div>
+                  <label htmlFor="udyamNumber" className="label">
+                    Udyam Registration Number <span className="text-ink-mute font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    id="udyamNumber"
+                    value={form.udyamNumber}
+                    onChange={(e) => setForm((f) => ({ ...f, udyamNumber: e.target.value.toUpperCase() }))}
+                    placeholder="e.g. UDYAM-MH-01-0012345"
+                    className="field font-mono uppercase text-xs"
+                  />
+                </div>
+
+                {/* Constitution */}
+                <div>
+                  <label htmlFor="constitution" className="label">
+                    Business Constitution
+                  </label>
+                  <select
+                    id="constitution"
+                    value={form.constitution}
+                    onChange={set('constitution')}
+                    className="field-select w-full text-xs"
+                  >
+                    <option value="proprietorship">Sole Proprietorship</option>
+                    <option value="partnership">Partnership Firm</option>
+                    <option value="llp">Limited Liability Partnership (LLP)</option>
+                    <option value="private_limited">Private Limited Company (Pvt Ltd)</option>
+                    <option value="public_limited">Public Limited Company (Ltd)</option>
+                    <option value="other">Other Registered Entity</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             {/* ── Searchable Location Autocomplete ──────────────────────── */}
             <div className="pt-1">

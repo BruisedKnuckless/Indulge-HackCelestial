@@ -20,6 +20,20 @@ const DAYS_OF_WEEK = [
   { label: 'Sat', value: 6 },
 ];
 
+/** Physical items get an Indulge inspection; mirrors INSPECTABLE_CATEGORIES on the server. */
+const INSPECTED_CATEGORIES = ['furniture', 'av_equipment', 'vehicle', 'other'];
+const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair', 'Worn'];
+
+/** "RAM: 16GB" per line → { RAM: '16GB' }. Lines without a colon are ignored. */
+function parseSpecs(text) {
+  const out = {};
+  for (const line of text.split('\n')) {
+    const i = line.indexOf(':');
+    if (i > 0 && line.slice(i + 1).trim()) out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return out;
+}
+
 const BLANK = {
   title: '',
   category: 'banquet_space',
@@ -34,6 +48,12 @@ const BLANK = {
   conditions: '',
   tags: '',
   images: '',
+  // Product details — turned into claim-vs-actual inspection checks
+  brand: '',
+  model: '',
+  declaredCondition: '',
+  specifications: '',
+  accessories: '',
   // Availability policy
   availabilityMode: 'indefinite',
   availableUntil: '',
@@ -116,6 +136,11 @@ export default function ListingForm() {
       conditions: r.conditions || '',
       tags: (r.tags || []).join(', '),
       images: (r.images || []).join('\n'),
+      brand: r.brand || '',
+      model: r.model || '',
+      declaredCondition: r.declaredCondition || '',
+      specifications: Object.entries(r.specifications || {}).map(([k, v]) => `${k}: ${v}`).join('\n'),
+      accessories: (r.accessories || []).join(', '),
       availabilityMode: r.availabilityMode || 'indefinite',
       availableUntil: r.availableUntil ? toLocalInput(r.availableUntil) : '',
       recurringDays: r.recurringSchedule?.daysOfWeek?.length
@@ -224,6 +249,13 @@ export default function ListingForm() {
       conditions: form.conditions,
       tags: form.tags.split(',').map((s) => s.trim()).filter(Boolean),
       images: form.images.split('\n').map((s) => s.trim()).filter(Boolean),
+      ...(INSPECTED_CATEGORIES.includes(form.category) && {
+        brand: form.brand.trim(),
+        model: form.model.trim(),
+        declaredCondition: form.declaredCondition,
+        specifications: parseSpecs(form.specifications),
+        accessories: form.accessories.split(',').map((s) => s.trim()).filter(Boolean),
+      }),
 
       // Availability policy
       availabilityMode: form.availabilityMode,
@@ -603,6 +635,39 @@ export default function ListingForm() {
               placeholder="wedding, stage, AC, banquet, chairs"
             />
           </Field>
+
+          {INSPECTED_CATEGORIES.includes(form.category) && (
+            <div className="border border-line rounded p-4 mb-4">
+              <p className="h-card">Product details</p>
+              <p className="text-xs text-ink-soft mt-0.5 mb-4">
+                Optional. An Indulge technician inspects physical items before they are marked verified; every detail you give here becomes something they check.
+              </p>
+              <div className="grid sm:grid-cols-3 gap-x-3">
+                <Field label="Brand">
+                  <input value={form.brand} onChange={set('brand')} className="field" placeholder="Dell" />
+                </Field>
+                <Field label="Model">
+                  <input value={form.model} onChange={set('model')} className="field" placeholder="Latitude 5420" />
+                </Field>
+                <Field label="Condition">
+                  <select value={form.declaredCondition} onChange={set('declaredCondition')} className="field-select w-full">
+                    <option value="">Not stated</option>
+                    {CONDITIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <Field label="Specifications" hint="One per line, as “Name: value”.">
+                <textarea rows={3} value={form.specifications} onChange={set('specifications')} className="field-area" placeholder={'RAM: 16GB\nStorage: 512GB SSD'} />
+              </Field>
+              <Field label="Accessories included" hint="Comma-separated.">
+                <input value={form.accessories} onChange={set('accessories')} className="field" placeholder="Charger, carry case" />
+              </Field>
+            </div>
+          )}
 
           <Field label="Image URLs" hint="One per line. First image is the card cover.">
             <textarea

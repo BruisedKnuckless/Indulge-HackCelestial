@@ -7,6 +7,7 @@ import Resource, { doesResourceRequireLogistics } from '../models/Resource.js';
 import { requireAuth, requireAdmin, requireLogisticsPartner } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { notify } from '../services/notification.service.js';
+import { openReturnInspectionIfInspected } from '../services/verification/verification.service.js';
 import { validate, updateLogisticsStatusSchema } from '../middleware/validate.middleware.js';
 
 const router = Router();
@@ -762,6 +763,14 @@ router.patch(
       booking.markModified('fulfillment');
       booking.markModified('return');
       await booking.save();
+    }
+
+    if (booking && (status === 'returned_to_provider' || status === 'completed')) {
+      await openReturnInspectionIfInspected(booking._id, {
+        actorType: 'logistics_partner',
+        actor: req.user?._id,
+        actorName: req.user?.businessName,
+      });
     }
 
     // Recalculate completed jobs accurately on final completion

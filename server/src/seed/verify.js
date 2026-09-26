@@ -35,6 +35,11 @@ import ProcurementOrder from '../models/ProcurementOrder.js';
 import Proposal from '../models/Proposal.js';
 import CapacityRecoveryOpportunity from '../models/CapacityRecoveryOpportunity.js';
 import { signToken } from '../middleware/auth.middleware.js';
+import VerificationRequest from '../models/VerificationRequest.js';
+import InspectionProtocol from '../models/InspectionProtocol.js';
+import CustodyEvent from '../models/CustodyEvent.js';
+import { scoreInspection } from '../services/verification/scoring.js';
+import { generateProtocolForResource } from '../services/verification/verification.service.js';
 import {
   generateProcurementPlans,
   filterNonDominatedPlans,
@@ -54,6 +59,18 @@ import {
   BADGE_DEFINITIONS,
   invalidateContributionCache,
 } from '../services/contribution.service.js';
+import AuditLog from '../models/AuditLog.js';
+import {
+  isValidGstinFormat,
+  isValidUdyamFormat,
+  compareBusinessNames,
+  normalizeBusinessName,
+  getSafePublicBadges,
+} from '../services/verification.service.js';
+import {
+  getTransactionReceiptData,
+  getProcurementReceiptData,
+} from '../services/receipt.service.js';
 
 let base = '';
 let passed = 0;
@@ -6342,6 +6359,888 @@ async function main() {
     'an Indulge listing is inspected through the adapter (LED wall → module uniformity check)',
     inspLedWall.productCategory === 'television' && inspLedWall.parameters.some((p) => p.id === 'led_module_uniformity')
   );
+
+  // =========================================================================
+  // Phase 8: Business Verification & Financial Records (Part A, B, C & D)
+  // =========================================================================
+  {
+    console.log('\n--- Phase 8: Business Verification & Financial Records ---');
+
+    // 1. GSTIN format validation
+    const validGstin1 = isValidGstinFormat('27AABCB1518M1ZM');
+    const validGstin2 = isValidGstinFormat('29ABCDE1234F1Z5');
+    const invalidGstinShort = isValidGstinFormat('27AABCB1518M');
+    const invalidGstinBadChar = isValidGstinFormat('27AABCB1518M!ZM');
+    const invalidGstinNumber = isValidGstinFormat('123456789012345');
+    check(
+      'BV-1. GSTIN format validation verifies Indian GSTIN standard format correctly',
+      validGstin1 && validGstin2 && !invalidGstinShort && !invalidGstinBadChar && !invalidGstinNumber
+    );
+
+    // 2. GSTIN mismatch can trigger review
+    const matchSame = compareBusinessNames('The Grand Orchid Hotel Pvt Ltd', 'Grand Orchid Hotel Private Limited');
+    const mismatchDiff = compareBusinessNames('The Grand Orchid Hotel', 'Apex Global Industries Limited');
+    check(
+      'BV-2. Business name comparison normalizes equivalents and detects mismatches',
+      matchSame.match === true && mismatchDiff.match === false && mismatchDiff.score < 0.4
+    );
+
+    // 3. GST-unregistered business registration remains possible when explicitly selected
+    const uniqueEmailUnregistered = `unreg-${Date.now()}@biz.example.com`;
+    const regUnregRes = await api('POST', '/api/auth/register', {
+      body: {
+        businessName: 'Unregistered Small Enterprise',
+        email: uniqueEmailUnregistered,
+        password: 'indulgePassword123!',
+        phone: '+91 98200 99887',
+        businessType: 'caterer',
+        notGstRegistered: true,
+        location: {
+          address: 'Station Road',
+          city: 'Thane',
+          pincode: '400601',
+          coordinates: [72.9781, 19.2183],
+        },
+      },
+    });
+    check(
+      'BV-3. Business without GST registration registers successfully when explicitly selected',
+      regUnregRes.status === 201 &&
+        regUnregRes.body?.user?.notGstRegistered === true &&
+        regUnregRes.body?.user?.verificationStatus === 'unverified'
+    );
+
+    // 4. Verification status defaults safely
+    const unregUser = await User.findOne({ email: uniqueEmailUnregistered }).lean();
+    check(
+      'BV-4. Verification status and payout readiness default safely on new registration',
+      unregUser &&
+        unregUser.verificationStatus === 'unverified' &&
+        unregUser.contactVerified === false &&
+        unregUser.businessVerified === false &&
+        unregUser.payoutVerified === false &&
+        Array.isArray(unregUser.verificationMethods) &&
+        unregUser.verificationMethods.length === 0
+    );
+
+    // 5. Admin can update verification status
+    const adminToken = await adminLogin();
+    const updateVerRes = await api('PATCH', `/api/admin/users/${unregUser._id}/verification`, {
+      token: adminToken,
+      body: {
+        status: 'verified',
+        businessVerified: true,
+        payoutVerified: true,
+        contactVerified: true,
+        notes: 'Manual verification approved after document review',
+      },
+    });
+    const verUpdatedInDb = await User.findById(unregUser._id).lean();
+    check(
+      'BV-5. Admin can update verification status and readiness flags',
+      updateVerRes.status === 200 &&
+        verUpdatedInDb.verificationStatus === 'verified' &&
+        verUpdatedInDb.businessVerified === true &&
+        verUpdatedInDb.payoutVerified === true &&
+        verUpdatedInDb.contactVerified === true
+    );
+
+    // 6. Admin verification action audited
+    const auditRecord = await AuditLog.findOne({
+      targetId: unregUser._id,
+      action: 'admin_verify_business',
+    }).lean();
+    check(
+      'BV-6. Admin verification actions are persistently recorded in AuditLog',
+      Boolean(auditRecord) &&
+        auditRecord.actorType === 'admin' &&
+        auditRecord.newState?.verificationStatus === 'verified'
+    );
+
+    // 7. Public profile exposes only safe verification badges
+    const publicProfileRes = await api('GET', `/api/auth/users/${unregUser._id}/public`);
+    check(
+      'BV-7. Public provider profile exposes safe verification badges',
+      publicProfileRes.status === 200 &&
+        Array.isArray(publicProfileRes.body?.safeBadges) &&
+        publicProfileRes.body?.safeBadges.includes('Verified Business') &&
+        publicProfileRes.body?.safeBadges.includes('Payout Verified')
+    );
+
+    // 8. Private GST verification metadata not leaked
+    check(
+      'BV-8. Private GST verification metadata, raw responses and notes are not leaked on public profile',
+      publicProfileRes.body?.gstVerification === undefined &&
+        publicProfileRes.body?.verificationNotes === undefined &&
+        publicProfileRes.body?.cin === undefined
+    );
+
+    // 9. Transaction participant can download receipt
+    const orchidUser = await User.findOne({ email: 'ops@grandorchid.in' }).lean();
+    const seasonsUser = await User.findOne({ email: 'events@seasonsbanquet.in' }).lean();
+    const orchidToken = await login('ops@grandorchid.in');
+    const seasonsToken = await login('events@seasonsbanquet.in');
+
+    let testTxn = await Transaction.findOne({
+      $or: [
+        { payer: orchidUser._id, payee: seasonsUser._id },
+        { payer: seasonsUser._id, payee: orchidUser._id },
+      ],
+    }).lean();
+
+    if (!testTxn) {
+      testTxn = await Transaction.create({
+        payer: seasonsUser._id,
+        payee: orchidUser._id,
+        amount: 25000,
+        currency: 'INR',
+        paymentMethod: 'simulated_upi',
+        status: 'simulated_paid',
+        reconciliationRef: `TXN-TEST-${Date.now()}`,
+        paidAt: new Date(),
+      });
+    }
+
+    const payerRes = await api('GET', `/api/transactions/${testTxn._id}/receipt`, { token: seasonsToken });
+    const payeeRes = await api('GET', `/api/transactions/${testTxn._id}/receipt`, { token: orchidToken });
+    const pdfRes = await api('GET', `/api/transactions/${testTxn._id}/receipt.pdf`, { token: seasonsToken });
+    check(
+      'BV-9. Transaction participant can download receipt JSON and PDF',
+      payerRes.status === 200 &&
+        payeeRes.status === 200 &&
+        pdfRes.status === 200 &&
+        pdfRes.headers.get('content-type')?.includes('application/pdf')
+    );
+
+    // 10. Unrelated business cannot download receipt
+    const unrelatedToken = await login('hello@spiceroute.co.in');
+    const unrelatedRes = await api('GET', `/api/transactions/${testTxn._id}/receipt`, { token: unrelatedToken });
+    const unrelatedPdfRes = await api('GET', `/api/transactions/${testTxn._id}/receipt.pdf`, { token: unrelatedToken });
+    check(
+      'BV-10. Unrelated business is forbidden from accessing participant receipts',
+      unrelatedRes.status === 403 && unrelatedPdfRes.status === 403
+    );
+
+    // 11. Admin can access receipt
+    const adminTxnRes = await api('GET', `/api/transactions/${testTxn._id}/receipt`, { token: adminToken });
+    check(
+      'BV-11. Platform admin can access transaction receipt for audit and dispute resolution',
+      adminTxnRes.status === 200 && adminTxnRes.body?.transactionId === String(testTxn._id)
+    );
+
+    // 12. Receipt values come from stored transaction
+    check(
+      'BV-12. Receipt values match authoritative stored transaction values',
+      payerRes.body?.amount === testTxn.amount &&
+        payerRes.body?.transactionId === String(testTxn._id) &&
+        Boolean(payerRes.body?.payerBusiness?.name || payerRes.body?.payer?.businessName) &&
+        Boolean(payerRes.body?.providerBusiness?.name || payerRes.body?.provider?.businessName)
+    );
+
+    // 13. Simulated receipt contains Demo/Simulated label
+    check(
+      'BV-13. Simulated receipt visibly labels Demo / Simulated status in payload and document',
+      payerRes.body?.isDemo === true &&
+        payerRes.body?.receiptType?.includes('Simulated') &&
+        pdfRes.status === 200
+    );
+
+    // 14. Grouped procurement receipt total correct
+    let sampleProcurement = await ProcurementOrder.findOne({ seeker: seasonsUser._id })
+      .populate('childBookings')
+      .lean();
+    if (!sampleProcurement) {
+      const sampleReq = await Requirement.findOne().lean();
+      const existingResource = await Resource.findOne().lean();
+      const sampleBooking =
+        (await Booking.findOne({ seeker: seasonsUser._id }).lean()) ||
+        (await Booking.create({
+          bookingNumber: `BK-PO-${Date.now()}`,
+          seeker: seasonsUser._id,
+          provider: orchidUser._id,
+          resource: existingResource?._id,
+          requestedQuantity: 1,
+          agreedPrice: 30000,
+          startDateTime: at(1),
+          endDateTime: at(2),
+          status: 'confirmed',
+        }));
+
+      sampleProcurement = await ProcurementOrder.create({
+        orderNumber: `PO-TEST-${Date.now()}`,
+        requirement: sampleReq?._id || existingResource?._id,
+        seeker: seasonsUser._id,
+        planId: 'plan-test-1',
+        planType: 'SINGLE_SUPPLIER',
+        requestedQuantity: 1,
+        fulfilledQuantity: 1,
+        fulfillmentPercentage: 100,
+        fullyFulfilled: true,
+        totalPrice: 30000,
+        supplierCount: 1,
+        childBookings: [sampleBooking._id],
+        status: 'confirmed',
+        idempotencyKey: `idemp-test-${Date.now()}`,
+      });
+    }
+    const procReceiptRes = await api('GET', `/api/procurement-orders/${sampleProcurement._id}/receipt`, {
+      token: seasonsToken,
+    });
+    const expectedTotal = sampleProcurement.totalPrice || sampleProcurement.totalAmount || 0;
+    check(
+      'BV-14. Grouped procurement receipt total accurately aggregates items and settlement',
+      procReceiptRes.status === 200 &&
+        procReceiptRes.body?.totalAmount === expectedTotal &&
+        (procReceiptRes.body?.items?.length > 0 || procReceiptRes.body?.providers?.length > 0)
+    );
+
+    // 15. Child transaction receipts remain private
+    const childReceiptPrivateRes = await api('GET', `/api/procurement-orders/${sampleProcurement._id}/receipt`, {
+      token: unrelatedToken,
+    });
+    check(
+      'BV-15. Unrelated business cannot access procurement order receipts',
+      childReceiptPrivateRes.status === 403
+    );
+
+    // 16. History only returns current business records
+    const historyRes = await api('GET', '/api/history', { token: seasonsToken });
+    const otherHistoryRes = await api('GET', '/api/history', { token: unrelatedToken });
+    const seasonsHasOnlyOwn = historyRes.body?.items?.every(
+      (item) => item.counterparty !== undefined
+    );
+    check(
+      'BV-16. Business history strictly scopes activity records to calling business',
+      historyRes.status === 200 &&
+        Array.isArray(historyRes.body?.items) &&
+        seasonsHasOnlyOwn &&
+        otherHistoryRes.status === 200
+    );
+
+    // 17. Billing totals calculated correctly
+    const billingRes = await api('GET', '/api/billing', { token: seasonsToken });
+    check(
+      'BV-17. Billing summary computes totalSpend, totalEarned and transaction count accurately',
+      billingRes.status === 200 &&
+        typeof billingRes.body?.summary?.totalSpend === 'number' &&
+        typeof billingRes.body?.summary?.totalEarned === 'number' &&
+        typeof billingRes.body?.summary?.transactionCount === 'number' &&
+        Array.isArray(billingRes.body?.transactions)
+    );
+
+    // 18. Refund included correctly
+    const sampleBookingForTxn = (await Booking.findOne().lean())?._id;
+    await Transaction.create({
+      booking: testTxn.booking || sampleBookingForTxn,
+      payer: seasonsUser._id,
+      payee: orchidUser._id,
+      amount: 5000,
+      currency: 'INR',
+      paymentMethod: 'simulated_upi',
+      status: 'refunded',
+      refundStatus: 'processed',
+      refundedAmount: 5000,
+      reconciliationRef: `TXN-REF-${Date.now()}`,
+      paidAt: new Date(),
+    });
+    const billingAfterRefund = await api('GET', '/api/billing', { token: seasonsToken });
+    check(
+      'BV-18. Refund is tracked and reflected in billing summary',
+      billingAfterRefund.status === 200 &&
+        billingAfterRefund.body?.summary?.refunds?.count >= 1 &&
+        billingAfterRefund.body?.summary?.refunds?.amount >= 5000
+    );
+
+    // 19. Logistics account cannot access unrelated marketplace billing
+    const swiftfleetToken = await login('dispatch@swiftfleet.in');
+    const logisticsBilling = await api('GET', '/api/billing', { token: swiftfleetToken });
+    check(
+      'BV-19. Logistics partner cannot view unrelated commercial marketplace financial history',
+      logisticsBilling.status === 200 &&
+        logisticsBilling.body?.summary?.totalSpend === 0 &&
+        logisticsBilling.body?.summary?.totalEarned === 0
+    );
+
+    // 20. Legacy businesses without verification fields remain compatible
+    const legacyEmail = `legacy-${Date.now()}@oldbiz.in`;
+    const legacyPasswordHash = await User.hashPassword('indulge123');
+    const legacyUser = await User.create({
+      businessName: 'Legacy Heritage Trading',
+      email: legacyEmail,
+      passwordHash: legacyPasswordHash,
+      phone: '+91 98200 77112',
+      businessType: 'caterer',
+      location: { address: 'Old Fort', city: 'Mumbai', pincode: '400001', coordinates: [72.83, 18.93] },
+    });
+    const legacyToken = await login(legacyEmail);
+    const legacyHistory = await api('GET', '/api/history', { token: legacyToken });
+    const legacyPublicProfile = await api('GET', `/api/auth/users/${legacyUser._id}/public`);
+    check(
+      'BV-20. Legacy businesses without verification fields log in, query history and public profile safely',
+      Boolean(legacyToken) &&
+        legacyHistory.status === 200 &&
+        legacyPublicProfile.status === 200 &&
+        legacyPublicProfile.body?.isVerifiedBusiness === false
+    );
+
+    // 21. Legacy listings still load
+    const legacyListing = await Resource.create({
+      owner: legacyUser._id,
+      title: 'Legacy Kitchen Station',
+      category: 'kitchen_capacity',
+      description: 'Established kitchen station without verification migration required',
+      pricing: { basePrice: 1500, unit: 'per_day' },
+      status: 'active',
+      totalQuantity: 5,
+      location: legacyUser.location,
+    });
+    const legacyListingRes = await api('GET', `/api/resources/${legacyListing._id}`);
+    check(
+      'BV-21. Legacy listings load and serve without requiring retroactive verification',
+      legacyListingRes.status === 200 && legacyListingRes.body?.resource?.title === 'Legacy Kitchen Station'
+    );
+
+    // 22. Legacy bookings/history still load
+    await Booking.create({
+      bookingNumber: `BK-LEGACY-${Date.now()}`,
+      seeker: legacyUser._id,
+      provider: orchidUser._id,
+      resource: legacyListing._id,
+      requestedQuantity: 1,
+      startDateTime: at(1),
+      endDateTime: at(2),
+      status: 'pending',
+    });
+    const legacyBookingsRes = await api('GET', '/api/bookings/sent', { token: legacyToken });
+    check(
+      'BV-22. Legacy bookings load cleanly without schema errors',
+      legacyBookingsRes.status === 200 && Array.isArray(legacyBookingsRes.body?.bookings)
+    );
+
+    // 23. Missing verification fields do not crash public profile
+    check(
+      'BV-23. Missing verification fields default gracefully in public profile response',
+      legacyPublicProfile.body?.verificationStatus === 'unverified' &&
+        Array.isArray(legacyPublicProfile.body?.safeBadges)
+    );
+
+    // 24. Legacy account receives unverified state safely
+    const adminLegacyDossier = await api('GET', `/api/admin/users/${legacyUser._id}`, { token: adminToken });
+    check(
+      'BV-24. Legacy account shows unverified state safely in Admin dossier',
+      adminLegacyDossier.status === 200 &&
+        adminLegacyDossier.body?.business?.verificationStatus === 'unverified' &&
+        adminLegacyDossier.body?.business?.businessVerified === false
+    );
+
+    // 25. Seeded demo account receives demo verification only
+    const orchidPublic = await api('GET', `/api/auth/users/${orchidUser._id}/public`);
+    check(
+      'BV-25. Seeded demo account receives Demo Verified Business badge',
+      orchidPublic.status === 200 &&
+        (orchidPublic.body?.safeBadges?.includes('Demo Verified Business') ||
+          orchidPublic.body?.isDemoBusiness === true)
+    );
+
+    // 26. Demo account is not falsely shown as GST verified
+    check(
+      'BV-26. Demo account is not falsely advertised as GST Verified without genuine verification data',
+      !orchidPublic.body?.safeBadges?.includes('GST Verified')
+    );
+
+    // 27. No existing relationships/User ObjectIds change
+    const reloadedOrchid = await User.findById(orchidUser._id).lean();
+    check(
+      'BV-27. Existing relationships and ObjectIds remain unaltered across verification migrations',
+      String(reloadedOrchid._id) === String(orchidUser._id) &&
+        String(legacyListing.owner) === String(legacyUser._id)
+    );
+  }
+
+
+  /* ─────────────────────────── Listing inspections (technician flow) ─────────────────────────── */
+  {
+    console.log('\nListing inspections: protocol, technician execution, scoring, return comparison');
+
+    const ownerToken = await login('desk@kalpataruevents.in'); // Kalpataru — owns the Dell
+    const seekerToken = await login('ops@grandorchid.in');
+    const rahulToken = await login('inspector@indulge.com');
+    const priyaToken = await login('priya.tech@indulge.com');
+    const insAdmin = await adminLogin();
+    const rahul = await User.findOne({ email: 'inspector@indulge.com' }).lean();
+    const priya = await User.findOne({ email: 'priya.tech@indulge.com' }).lean();
+    const kalpataru = await User.findOne({ email: 'desk@kalpataruevents.in' }).lean();
+    const orchid = await User.findOne({ email: 'ops@grandorchid.in' }).lean();
+
+    const dell = await Resource.findOne({ title: 'Dell Latitude 5420 Laptop' }).lean();
+    const dellVr = await VerificationRequest.findOne({ resource: dell._id, kind: 'initial' }).lean();
+    const dellProtocol = await InspectionProtocol.findById(dellVr?.protocol).lean();
+
+    // Seed state is honest: nothing arrives pre-verified.
+    const seededFinal = await VerificationRequest.countDocuments({ status: { $in: ['verified', 'conditionally_verified', 'rejected'] } });
+    check('INS-1. Seeded inspections are all unperformed (none pre-verified)', seededFinal === 0);
+    check(
+      'INS-2. Only physical listings get inspections (no hall/parking/staff/kitchen)',
+      (await VerificationRequest.countDocuments({ category: { $in: ['banquet_space', 'parking', 'staff', 'kitchen_capacity'] } })) === 0
+    );
+
+    // Protocol generation
+    check(
+      'INS-3. Dell protocol stored from the ml/inspection generator, one active version',
+      dellProtocol?.generator === 'ml_inspection' && dellProtocol.status === 'active' && dellProtocol.productCategory === 'laptop'
+    );
+    const ram = dellVr.parameters.find((p) => p.id === 'spec_ram');
+    check('INS-4. Declared spec becomes a claim-vs-actual check (RAM 16GB)', ram?.claimedValue === '16GB' && ram.required);
+    check(
+      'INS-5. Mandatory safety checks present and required (battery, power supply)',
+      ['battery_safety', 'power_supply_safety'].every((id) => dellVr.parameters.some((p) => p.id === id && p.required))
+    );
+    check('INS-6. Inspection checklist mirrors its protocol', dellVr.parameters.length === dellProtocol.parameters.length);
+    check(
+      'INS-7. Seeded Dell inspection assigned to Rahul (a real account, not a hardcoded default)',
+      String(dellVr.assignedTechnician?.id) === String(rahul._id) && dellVr.status === 'assigned' && /^INS-\d{4,}$/.test(dellVr.inspectionId)
+    );
+
+    const fallback = await generateProtocolForResource(
+      { _id: new mongoose.Types.ObjectId(), owner: kalpataru._id, title: '', category: 'furniture' },
+      { ai: false }
+    );
+    check(
+      'INS-8. Generator failure falls back to the category template, still stored',
+      fallback.generator === 'category_template' && fallback.parameters.length > 0 && fallback.generation?.mode === 'category_template_fallback'
+    );
+    await InspectionProtocol.deleteOne({ _id: fallback._id });
+
+    // Provider creates a listing
+    const created = await api('POST', '/api/resources', {
+      token: ownerToken,
+      body: {
+        title: 'Canon EOS R6 Camera Kit',
+        category: 'av_equipment',
+        description: 'Full-frame mirrorless camera with 24-105mm lens.',
+        totalQuantity: 1,
+        unit: 'unit',
+        pricing: { basePrice: 3500, priceUnit: 'per_day' },
+        brand: 'Canon',
+        model: 'EOS R6',
+        declaredCondition: 'Good',
+        specifications: { Sensor: 'Full frame', 'Shutter count': 12000 },
+        accessories: ['Battery', 'Charger'],
+        verificationStatus: 'verified',
+        conditionScore: 100,
+      },
+    });
+    const camId = created.body?.resource?._id;
+    const camVr = camId ? await VerificationRequest.findOne({ resource: camId }).lean() : null;
+    check(
+      'INS-9. New physical listing → protocol + pending, unassigned inspection',
+      created.status === 201 && camVr?.status === 'pending' && !camVr.assignedTechnician?.id && camVr.inspectionCategory === 'camera',
+      JSON.stringify({ status: created.status, err: created.body?.error, vr: camVr?.status, cat: camVr?.inspectionCategory })
+    );
+    const camDb = camId ? await Resource.findById(camId).lean() : null;
+    check(
+      'INS-10. Provider cannot self-verify on create (verificationStatus/conditionScore ignored)',
+      camDb?.verificationStatus === 'pending' && camDb.conditionScore == null && camDb.brand === 'Canon'
+    );
+    const selfVerify = await api('PATCH', `/api/resources/${dell._id}`, {
+      token: ownerToken,
+      body: { verificationStatus: 'verified', conditionScore: 99 },
+    });
+    const dellAfterPatch = await Resource.findById(dell._id).lean();
+    check(
+      'INS-11. Provider cannot self-verify on edit',
+      selfVerify.status === 200 && dellAfterPatch.verificationStatus === 'pending' && dellAfterPatch.conditionScore == null
+    );
+    const hall = await api('POST', '/api/resources', {
+      token: ownerToken,
+      body: { title: 'Rooftop Terrace', category: 'banquet_space', totalQuantity: 1, unit: 'unit', capacity: 80, pricing: { basePrice: 20000, priceUnit: 'per_day' } },
+    });
+    check(
+      'INS-12. Non-physical listing gets no inspection',
+      hall.status === 201 && !(await VerificationRequest.exists({ resource: hall.body.resource._id }))
+    );
+
+    // Access control
+    check('INS-13. Technician API requires sign-in', (await api('GET', '/api/verifications')).status === 401);
+    check('INS-14. Business accounts cannot use the technician API', (await api('GET', '/api/verifications', { token: ownerToken })).status === 403);
+    const rahulList = await api('GET', '/api/verifications', { token: rahulToken });
+    check(
+      'INS-15. Technician sees only inspections assigned to them',
+      rahulList.status === 200 && rahulList.body.inspections.length === 1 && rahulList.body.inspections[0].inspectionId === dellVr.inspectionId
+    );
+    check(
+      'INS-16. Another technician cannot read it (404, not 403)',
+      (await api('GET', `/api/verifications/${dellVr._id}`, { token: priyaToken })).status === 404
+    );
+    check(
+      'INS-17. …or write results to it',
+      (await api('PATCH', `/api/verifications/${dellVr._id}/parameters/spec_ram`, { token: priyaToken, body: { result: 'pass' } })).status === 404
+    );
+    check(
+      'INS-18. Technician accounts are locked out of marketplace and financial APIs',
+      (await api('GET', '/api/bookings/sent', { token: rahulToken })).status === 403 &&
+        (await api('GET', '/api/cart', { token: rahulToken })).status === 403 &&
+        (await api('POST', '/api/resources', { token: rahulToken, body: { title: 'x', category: 'other', pricing: { basePrice: 1 } } })).status === 403
+    );
+    check(
+      'INS-19. Technician token cannot reach the admin console',
+      [401, 404].includes((await api('GET', '/api/admin/inspections', { token: rahulToken })).status)
+    );
+
+    // Execution
+    const byCode = await api('GET', `/api/verifications/${dellVr.inspectionId}`, { token: rahulToken });
+    check(
+      'INS-20. Technician opens the inspection by INS code with resource, protocol and progress',
+      byCode.status === 200 &&
+        byCode.body.resource?.title === dell.title &&
+        byCode.body.protocol?.protocolId === dellProtocol.protocolId &&
+        byCode.body.progress.total === dellVr.parameters.length
+    );
+    const early = await api('POST', `/api/verifications/${dellVr._id}/submit`, { token: rahulToken });
+    const requiredCount = dellVr.parameters.filter((p) => p.required).length;
+    check(
+      'INS-21. Cannot submit an incomplete inspection',
+      early.status === 422 && early.body.error === `Cannot submit inspection. ${requiredCount} required checks remain.`,
+      early.body?.error
+    );
+    check(
+      'INS-22. Unknown result value is rejected',
+      (await api('PATCH', `/api/verifications/${dellVr._id}/parameters/spec_ram`, { token: rahulToken, body: { result: 'great' } })).status === 400
+    );
+
+    // Rahul works the list: everything passes except two minor issues and one non-critical failure.
+    const OUTCOME = { cosmetic_condition: 'minor_issue', hinge_condition: 'minor_issue', speakers_output: 'fail' };
+    for (const p of dellVr.parameters) {
+      const result = OUTCOME[p.id] || 'pass';
+      await api('PATCH', `/api/verifications/${dellVr._id}/parameters/${p.id}`, {
+        token: rahulToken,
+        body: { result, observedValue: p.id === 'spec_ram' ? '16GB' : undefined, note: result === 'pass' ? '' : 'Observed during field check' },
+      });
+    }
+    const afterStart = await VerificationRequest.findById(dellVr._id).lean();
+    check(
+      'INS-23. Recording a result starts the inspection and stamps the technician server-side',
+      afterStart.status === 'in_progress' && afterStart.parameters.every((p) => String(p.resultBy) === String(rahul._id))
+    );
+
+    const noPhoto = await api('POST', `/api/verifications/${dellVr._id}/submit`, { token: rahulToken });
+    check('INS-24. A failed required check needs photo/video evidence', noPhoto.status === 422 && noPhoto.body.code === 'FAIL_NEEDS_EVIDENCE', noPhoto.body?.code);
+    check(
+      'INS-25. Photo evidence without a file is refused',
+      (await api('POST', `/api/verifications/${dellVr._id}/evidence`, { token: rahulToken, body: { parameterId: 'speakers_output', type: 'photo' } })).status === 400
+    );
+    check(
+      'INS-26. Evidence must belong to a check on the inspection',
+      (await api('POST', `/api/verifications/${dellVr._id}/evidence`, { token: rahulToken, body: { parameterId: 'nope', type: 'note', text: 'x' } })).status === 400
+    );
+
+    const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    const photo = (parameterId, extra = {}) => {
+      const fd = new FormData();
+      fd.append('parameterId', parameterId);
+      fd.append('type', 'photo');
+      for (const [k, v] of Object.entries(extra)) fd.append(k, v);
+      fd.append('file', new Blob([PNG], { type: 'image/png' }), 'evidence.png');
+      return fd;
+    };
+    const up = await apiMultipart('POST', `/api/verifications/${dellVr._id}/evidence`, photo('speakers_output', { technician: String(priya._id) }), { token: rahulToken });
+    check(
+      'INS-27. Photo evidence is linked to inspection, parameter and the signed-in technician (body id ignored)',
+      up.status === 201 &&
+        up.body.evidence.parameterId === 'speakers_output' &&
+        String(up.body.evidence.technician) === String(rahul._id) &&
+        /^EV-/.test(up.body.evidence.evidenceId) &&
+        up.body.evidence.url?.startsWith('/uploads/') &&
+        Boolean(up.body.evidence.capturedAt),
+      JSON.stringify(up.body)
+    );
+    await api('POST', `/api/verifications/${dellVr._id}/evidence`, {
+      token: rahulToken,
+      body: { parameterId: 'battery_health', type: 'measurement', value: '91', unit: '%' },
+    });
+
+    await api('PATCH', `/api/verifications/${dellVr._id}/parameters/bluetooth`, { token: rahulToken, body: { result: 'not_applicable', note: '' } });
+    await api('PATCH', `/api/verifications/${dellVr._id}/parameters/spec_cpu`, { token: rahulToken, body: { result: 'not_applicable', note: '' } });
+    const naNoReason = await api('POST', `/api/verifications/${dellVr._id}/submit`, { token: rahulToken });
+    check('INS-28. A required check marked N/A needs a reason', naNoReason.status === 422 && naNoReason.body.code === 'NA_NEEDS_REASON', naNoReason.body?.code);
+    await api('PATCH', `/api/verifications/${dellVr._id}/parameters/spec_cpu`, { token: rahulToken, body: { result: 'pass' } });
+
+    const submitted = await api('POST', `/api/verifications/${dellVr._id}/submit`, {
+      token: rahulToken,
+      body: { inspectorNotes: 'Unit in good order.', finalScore: 100, status: 'verified' },
+    });
+    const final = await VerificationRequest.findById(dellVr._id).lean();
+    const expected = scoreInspection(final.parameters);
+    // Recompute by hand: pass 1, minor .5, fail 0, N/A excluded.
+    let w = 0;
+    let e = 0;
+    for (const p of final.parameters) {
+      if (p.result === 'not_applicable' || !p.result) continue;
+      w += p.weight;
+      e += p.weight * { pass: 1, minor_issue: 0.5, fail: 0 }[p.result];
+    }
+    check(
+      'INS-29. Submit scores transparently (client score/status ignored)',
+      submitted.status === 200 && final.finalScore === Math.round((e / w) * 100) && final.finalScore === expected.score && final.finalScore < 100,
+      `${submitted.status} ${submitted.body?.error || ''} score=${final.finalScore}`
+    );
+    check(
+      'INS-30. Minor issues + non-critical failure → VERIFIED_WITH_ISSUES',
+      final.status === 'conditionally_verified' && final.scoreBreakdown.failedParameters.includes('speakers_output') && final.scoreBreakdown.counts.not_applicable === 1
+    );
+    const dellNow = await Resource.findById(dell._id).lean();
+    check(
+      'INS-31. Listing verification status, score and date come from the inspection',
+      dellNow.verificationStatus === 'conditionally_verified' &&
+        dellNow.conditionScore === final.finalScore &&
+        Boolean(dellNow.verifiedAt) &&
+        String(dellNow.verificationId) === String(final._id)
+    );
+    check(
+      'INS-32. A submitted inspection is locked',
+      (await api('PATCH', `/api/verifications/${dellVr._id}/parameters/webcam`, { token: rahulToken, body: { result: 'pass' } })).status === 409
+    );
+
+    const pub = await api('GET', `/api/resources/${dell._id}`);
+    const summary = pub.body?.verification;
+    check(
+      'INS-33. Listing page carries the badge summary, point-in-time disclaimer, and no technician identity',
+      summary?.decision === 'VERIFIED_WITH_ISSUES' &&
+        summary.score === final.finalScore &&
+        summary.verifiedBy === 'Indulge Inspection Team' &&
+        /time of inspection/.test(summary.disclaimer) &&
+        !JSON.stringify(summary).includes('Rahul') &&
+        summary.issues.some((i) => i.result === 'fail')
+    );
+    const rep = await api('GET', `/api/verifications/${dellVr.inspectionId}/report`, { token: ownerToken });
+    check('INS-34. Owner reads the full report with evidence and custody', rep.status === 200 && rep.body.inspection.evidence.length === 2 && rep.body.custody.length > 0);
+    check(
+      'INS-35. An unrelated business cannot read the report',
+      (await api('GET', `/api/verifications/${dellVr.inspectionId}/report`, { token: seekerToken })).status === 404
+    );
+    const chain = (await CustodyEvent.find({ resource: dell._id }).sort({ at: 1 }).lean()).map((c) => c.event);
+    check(
+      'INS-36. Chain of custody records listing → protocol → assignment → start → evidence → submission',
+      ['listing_created', 'protocol_generated', 'inspection_created', 'technician_assigned', 'inspection_started', 'evidence_captured', 'inspection_submitted'].every((ev) =>
+        chain.includes(ev)
+      ),
+      chain.join(',')
+    );
+
+    // Pure scoring rules
+    const s1 = scoreInspection([
+      { id: 'a', name: 'A', weight: 5, result: 'pass', required: true, priority: 'high' },
+      { id: 'b', name: 'B', weight: 3, result: 'minor_issue', required: true, priority: 'medium' },
+      { id: 'c', name: 'C', weight: 2, result: 'fail', required: false, priority: 'low' },
+      { id: 'd', name: 'D', weight: 4, result: 'not_applicable', required: false, priority: 'low' },
+    ]);
+    check('INS-37. Score = Σ(w×points)/Σw with N/A excluded: (5+1.5+0)/10 = 65', s1.score === 65 && s1.status === 'conditionally_verified');
+    const s2 = scoreInspection([
+      { id: 'a', name: 'A', weight: 1, result: 'pass', required: true, priority: 'high' },
+      { id: 'b', name: 'B', weight: 1, result: 'fail', required: true, priority: 'critical' },
+    ]);
+    check('INS-38. A failed critical required check → FAILED regardless of score', s2.status === 'rejected' && s2.decision === 'FAILED');
+    const s3 = scoreInspection([{ id: 'a', name: 'A', weight: 1, result: 'pass', required: true }]);
+    check('INS-39. All applicable checks pass → VERIFIED', s3.status === 'verified' && s3.score === 100);
+
+    // Admin console
+    const adminList = await api('GET', '/api/admin/inspections', { token: insAdmin });
+    const dellRow = adminList.body?.inspections?.find((r) => r.inspectionId === dellVr.inspectionId);
+    check(
+      'INS-40. Admin sees status, technician, score and failed count',
+      dellRow?.finalScore === final.finalScore && dellRow.technician?.name === 'Rahul Sharma' && dellRow.failed === 1
+    );
+    const techs = await api('GET', '/api/admin/technicians', { token: insAdmin });
+    check('INS-41. Admin lists technicians with workload', techs.status === 200 && techs.body.technicians.length === 2);
+    check('INS-42. Business accounts cannot use the admin inspection API', (await api('GET', '/api/admin/inspections', { token: ownerToken })).status === 404);
+    const chairsR = await Resource.findOne({ title: '50 Banquet Chairs' }).lean();
+    const chairsVr = await VerificationRequest.findOne({ resource: chairsR._id, kind: 'initial' }).lean();
+    check(
+      'INS-43. Only technician accounts can be assigned',
+      (await api('PATCH', `/api/admin/inspections/${chairsVr._id}/assign`, { token: insAdmin, body: { technicianId: String(orchid._id) } })).status === 400
+    );
+    const assigned = await api('PATCH', `/api/admin/inspections/${chairsVr._id}/assign`, { token: insAdmin, body: { technicianId: String(priya._id) } });
+    check(
+      'INS-44. Admin assigns a technician',
+      assigned.status === 200 && assigned.body.inspection.status === 'assigned' && assigned.body.inspection.technician.name === 'Priya Nair'
+    );
+    check(
+      'INS-45. Newly assigned technician now sees it',
+      (await api('GET', '/api/verifications', { token: priyaToken })).body.inspections.some((i) => i.inspectionId === chairsVr.inspectionId)
+    );
+
+    // Return inspection: booking → return → auto-created, same protocol, compared with baseline.
+    const dellBooking = await Booking.create({
+      resource: dell._id,
+      provider: kalpataru._id,
+      seeker: orchid._id,
+      requestedQuantity: 1,
+      startDateTime: new Date(Date.now() - 3 * DAY),
+      endDateTime: new Date(Date.now() - DAY),
+      status: 'confirmed',
+      quotedPrice: 12000,
+      agreedPrice: 12000,
+    });
+    await api('PATCH', `/api/bookings/${dellBooking._id}/return`, { token: seekerToken, body: { status: 'return_requested' } });
+    const back = await api('PATCH', `/api/bookings/${dellBooking._id}/return`, { token: ownerToken, body: { status: 'returned_to_provider' } });
+    const retVr = await VerificationRequest.findOne({ booking: dellBooking._id, kind: 'return' }).lean();
+    check(
+      'INS-46. Goods returned → return inspection on the same protocol, baseline linked, baseline technician assigned',
+      back.status === 200 &&
+        Boolean(retVr) &&
+        String(retVr.protocol) === String(final.protocol) &&
+        String(retVr.baselineInspection) === String(final._id) &&
+        String(retVr.assignedTechnician?.id) === String(rahul._id),
+      `${back.status} ${back.body?.error || ''}`
+    );
+
+    const retOpen = await api('GET', `/api/verifications/${retVr._id}`, { token: rahulToken });
+    check('INS-47. Return checklist shows the baseline result for each check', retOpen.body?.baseline?.results?.speakers_output?.result === 'fail');
+    // Display now cracked (was pass) → new damage; hinge still minor and speakers still failing → pre-existing.
+    const RET = { cosmetic_condition: 'minor_issue', hinge_condition: 'minor_issue', speakers_output: 'fail', display_condition: 'fail' };
+    for (const p of retVr.parameters) {
+      await api('PATCH', `/api/verifications/${retVr._id}/parameters/${p.id}`, {
+        token: rahulToken,
+        body: { result: RET[p.id] || (p.id === 'bluetooth' ? 'not_applicable' : 'pass'), note: RET[p.id] ? 'Seen at return' : '' },
+      });
+    }
+    await apiMultipart('POST', `/api/verifications/${retVr._id}/evidence`, photo('speakers_output'), { token: rahulToken });
+    await apiMultipart('POST', `/api/verifications/${retVr._id}/evidence`, photo('display_condition', { text: 'Crack, top-left corner' }), { token: rahulToken });
+    const retSubmit = await api('POST', `/api/verifications/${retVr._id}/submit`, { token: rahulToken });
+    const retFinal = await VerificationRequest.findById(retVr._id).lean();
+    const cmp = (id) => retFinal.comparison.find((c) => c.parameterId === id)?.outcome;
+    check(
+      'INS-48. Before/after comparison: new damage vs pre-existing vs no change',
+      retSubmit.status === 200 &&
+        cmp('display_condition') === 'new_damage' &&
+        cmp('hinge_condition') === 'pre_existing' &&
+        cmp('speakers_output') === 'pre_existing' &&
+        cmp('keyboard') === 'no_change',
+      `${retSubmit.status} ${retSubmit.body?.error || ''}`
+    );
+    check(
+      'INS-49. Damage opens a dispute for admin review',
+      retFinal.damageSummary.damageDetected && retFinal.damageSummary.newDamage === 1 && retFinal.disputeStatus === 'open'
+    );
+    check(
+      'INS-50. Seeker is notified of the damage report',
+      Boolean(await Notification.exists({ user: orchid._id, type: 'inspection_update', relatedBooking: dellBooking._id }))
+    );
+    const retChain = (await CustodyEvent.find({ booking: dellBooking._id }).lean()).map((c) => c.event);
+    check(
+      'INS-51. Custody for the booking: return inspection created → submitted → damage detected',
+      ['return_inspection_created', 'return_inspection_submitted', 'damage_detected'].every((ev) => retChain.includes(ev))
+    );
+    check(
+      'INS-52. The seeker (a booking party) can read the return report',
+      (await api('GET', `/api/verifications/${retVr.inspectionId}/report`, { token: seekerToken })).status === 200
+    );
+
+    const live = await api('GET', `/api/admin/live/booking/${dellBooking._id}/timeline`, { token: insAdmin });
+    const insStage = live.body?.stages?.find((s) => s.key === 'inspection');
+    const retStage = live.body?.stages?.find((s) => s.phase === 'return_inspection');
+    check(
+      'INS-53. Live timeline shows the Inspection stage with technician, INS id and score',
+      insStage?.state === 'completed' &&
+        insStage.inspection.inspectionId === dellVr.inspectionId &&
+        insStage.inspection.technician === 'Rahul Sharma' &&
+        insStage.inspection.score === final.finalScore,
+      JSON.stringify(insStage)
+    );
+    check(
+      'INS-54. …and the Return Inspection stage as current while the dispute is open',
+      retStage?.sub === 'Damage found' &&
+        live.body.current?.stage === retStage.key &&
+        live.body.events.some((ev) => ev.role === 'inspector' && ev.phase === 'return_inspection'),
+      JSON.stringify({ retStage, current: live.body?.current })
+    );
+
+    check(
+      'INS-55. Resolving a dispute needs a reason',
+      (await api('PATCH', `/api/admin/inspections/${retVr._id}/resolution`, { token: insAdmin, body: { decision: 'seeker_liable', amount: 4500 } })).status === 400
+    );
+    const resolved = await api('PATCH', `/api/admin/inspections/${retVr._id}/resolution`, {
+      token: insAdmin,
+      body: { decision: 'seeker_liable', amount: 4500, note: 'Crack not present at baseline; photo evidence attached.' },
+    });
+    check(
+      'INS-56. Admin resolves the dispute',
+      resolved.status === 200 && resolved.body.inspection.disputeStatus === 'resolved' && resolved.body.inspection.resolution.amount === 4500
+    );
+    check(
+      'INS-57. A resolved dispute cannot be resolved again',
+      (await api('PATCH', `/api/admin/inspections/${retVr._id}/resolution`, { token: insAdmin, body: { decision: 'waived', note: 'x' } })).status === 409
+    );
+    check('INS-58. Resolution is audit-logged', Boolean(await AuditLog.exists({ action: 'inspection_dispute_resolved', targetId: retVr._id })));
+
+    // Loss: chairs counted at 50, returned 47.
+    for (const p of chairsVr.parameters) {
+      await api('PATCH', `/api/verifications/${chairsVr._id}/parameters/${p.id}`, {
+        token: priyaToken,
+        body: { result: 'pass', observedValue: p.id === 'unit_count' ? '50' : undefined },
+      });
+    }
+    const chairsDone = await api('POST', `/api/verifications/${chairsVr._id}/submit`, { token: priyaToken });
+    check(
+      'INS-59. A fully passing inspection → VERIFIED 100/100',
+      chairsDone.status === 200 && chairsDone.body.inspection.status === 'verified' && chairsDone.body.inspection.finalScore === 100,
+      `${chairsDone.status} ${chairsDone.body?.error || ''}`
+    );
+    const chairBooking = await Booking.create({
+      resource: chairsR._id,
+      provider: chairsR.owner,
+      seeker: orchid._id,
+      requestedQuantity: 50,
+      startDateTime: new Date(Date.now() - 3 * DAY),
+      endDateTime: new Date(Date.now() - DAY),
+      status: 'completed',
+      quotedPrice: 3000,
+      agreedPrice: 3000,
+    });
+    const manual = await api('POST', '/api/admin/inspections/return', { token: insAdmin, body: { bookingId: String(chairBooking._id) } });
+    const again = await api('POST', '/api/admin/inspections/return', { token: insAdmin, body: { bookingId: String(chairBooking._id) } });
+    check(
+      'INS-60. Admin can open a return inspection; it is idempotent per booking',
+      manual.status === 201 && again.status === 200 && again.body.inspection.inspectionId === manual.body.inspection.inspectionId
+    );
+    const chairRet = await VerificationRequest.findById(manual.body.inspection._id).lean();
+    for (const p of chairRet.parameters) {
+      const counted = p.id === 'unit_count';
+      await api('PATCH', `/api/verifications/${chairRet._id}/parameters/${p.id}`, {
+        token: priyaToken,
+        body: { result: counted ? 'fail' : 'pass', observedValue: counted ? '47' : undefined, note: counted ? '3 chairs missing' : '' },
+      });
+    }
+    await apiMultipart('POST', `/api/verifications/${chairRet._id}/evidence`, photo('unit_count'), { token: priyaToken });
+    await api('POST', `/api/verifications/${chairRet._id}/submit`, { token: priyaToken });
+    const chairRetFinal = await VerificationRequest.findById(chairRet._id).lean();
+    check(
+      'INS-61. Missing units are detected as loss',
+      chairRetFinal.damageSummary?.unitsLost === 3 &&
+        chairRetFinal.disputeStatus === 'open' &&
+        chairRetFinal.comparison.find((c) => c.parameterId === 'unit_count')?.outcome === 'new_damage',
+      JSON.stringify(chairRetFinal.damageSummary)
+    );
+    const partyView = await api('GET', `/api/verifications/booking/${dellBooking._id}`, { token: seekerToken });
+    check(
+      'INS-62. Booking parties see the return inspection on the booking; outsiders do not',
+      partyView.status === 200 &&
+        partyView.body.inspections.length === 1 &&
+        (await api('GET', `/api/verifications/booking/${dellBooking._id}`, { token: priyaToken })).status === 404
+    );
+
+    // Field taps arrive concurrently; none may be lost.
+    await api('PATCH', `/api/admin/inspections/${camVr._id}/assign`, { token: insAdmin, body: { technicianId: String(priya._id) } });
+    const burst = await Promise.all(
+      camVr.parameters.map((p) => api('PATCH', `/api/verifications/${camVr._id}/parameters/${p.id}`, { token: priyaToken, body: { result: 'pass', note: 'ok' } }))
+    );
+    const camAfter = await VerificationRequest.findById(camVr._id).lean();
+    check(
+      'INS-63. Concurrent autosaves are all kept (atomic per-check writes)',
+      burst.every((r) => r.status === 200) && camAfter.parameters.every((p) => p.result === 'pass' && p.note === 'ok') && camAfter.status === 'in_progress',
+      burst.map((r) => r.status).join(',')
+    );
+  }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);
 

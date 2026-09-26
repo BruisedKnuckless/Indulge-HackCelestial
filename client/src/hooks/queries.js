@@ -519,6 +519,20 @@ export function useAdminActions() {
         (await adminApi.patch(`/admin/logistics/${id}/assign`, { partnerId, notes })).data
       )
     ),
+    updateVerification: useMutation(
+      mutate(async ({ id, status, notes, businessVerified, payoutVerified, contactVerified, methods }) =>
+        (
+          await adminApi.patch(`/admin/users/${id}/verification`, {
+            status,
+            notes,
+            businessVerified,
+            payoutVerified,
+            contactVerified,
+            methods,
+          })
+        ).data
+      )
+    ),
   };
 }
 
@@ -548,3 +562,165 @@ export function useAdminContribution(params) {
   });
 }
 
+/* ----------------------------------------------------- Business History & Billing */
+
+export function useBusinessHistory(tab = 'all', page = 1) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['business-history', tab, page],
+    queryFn: async () => (await api.get('/history', { params: { tab, page } })).data,
+    enabled: Boolean(user),
+  });
+}
+
+export function useBusinessBilling() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['business-billing'],
+    queryFn: async () => (await api.get('/billing')).data,
+    enabled: Boolean(user),
+  });
+}
+
+
+/* ----------------------------------------------------- Listing inspections */
+
+/**
+ * Technician workspace. The server scopes every call to inspections assigned
+ * to the signed-in technician, so these hooks never send a technician id.
+ */
+export function useTechInspections(scope = 'open') {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['tech', 'inspections', scope],
+    queryFn: async () => (await api.get('/verifications', { params: { scope } })).data,
+    enabled: user?.userType === 'inspector',
+    refetchInterval: 30000,
+  });
+}
+
+export function useTechInspection(id) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['tech', 'inspection', id],
+    queryFn: async () => (await api.get(`/verifications/${id}`)).data,
+    enabled: user?.userType === 'inspector' && Boolean(id),
+  });
+}
+
+/** Writes from the field UI. Each result is saved as soon as it is tapped. */
+export function useTechInspectionActions(id) {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ queryKey: ['tech'] });
+  return {
+    start: useMutation({ mutationFn: async () => (await api.post(`/verifications/${id}/start`)).data, onSuccess: refresh }),
+    record: useMutation({
+      mutationFn: async ({ parameterId, ...body }) =>
+        (await api.patch(`/verifications/${id}/parameters/${parameterId}`, body)).data,
+      onSuccess: refresh,
+    }),
+    addEvidence: useMutation({
+      mutationFn: async ({ parameterId, type, file, text, value, unit }) => {
+        if (file) {
+          const fd = new FormData();
+          fd.append('parameterId', parameterId);
+          fd.append('type', type);
+          if (text) fd.append('text', text);
+          fd.append('file', file);
+          return (await api.post(`/verifications/${id}/evidence`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
+        }
+        return (await api.post(`/verifications/${id}/evidence`, { parameterId, type, text, value, unit })).data;
+      },
+      onSuccess: refresh,
+    }),
+    removeEvidence: useMutation({
+      mutationFn: async (evidenceId) => (await api.delete(`/verifications/${id}/evidence/${evidenceId}`)).data,
+      onSuccess: refresh,
+    }),
+    submit: useMutation({
+      mutationFn: async ({ inspectorNotes }) => (await api.post(`/verifications/${id}/submit`, { inspectorNotes })).data,
+      onSuccess: () => {
+        refresh();
+        qc.invalidateQueries({ queryKey: ['notifications'] });
+      },
+    }),
+  };
+}
+
+/** Full report — assigned technician, listing owner, or a party to the booking. */
+export function useInspectionReport(id) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['inspection-report', id],
+    queryFn: async () => (await api.get(`/verifications/${id}/report`)).data,
+    enabled: Boolean(user) && Boolean(id),
+  });
+}
+
+/** Every inspection run on one of the signed-in owner's listings. */
+export function useListingInspections(resourceId, enabled = true) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['listing-inspections', resourceId],
+    queryFn: async () => (await api.get(`/verifications/resource/${resourceId}`)).data,
+    enabled: Boolean(user) && Boolean(resourceId) && enabled,
+    retry: false,
+  });
+}
+
+export function useAdminInspections(params = {}) {
+  return useQuery({
+    queryKey: ['admin', 'inspections', params],
+    queryFn: async () => (await adminApi.get('/admin/inspections', { params })).data,
+    enabled: useAdminSession(),
+    placeholderData: (prev) => prev,
+    refetchInterval: 30000,
+  });
+}
+
+export function useAdminInspection(id) {
+  return useQuery({
+    queryKey: ['admin', 'inspection', id],
+    queryFn: async () => (await adminApi.get(`/admin/inspections/${id}`)).data,
+    enabled: useAdminSession() && Boolean(id),
+  });
+}
+
+export function useAdminTechnicians() {
+  return useQuery({
+    queryKey: ['admin', 'technicians'],
+    queryFn: async () => (await adminApi.get('/admin/technicians')).data,
+    enabled: useAdminSession(),
+  });
+}
+
+export function useAdminInspectionActions() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ queryKey: ['admin'] });
+  const mutate = (fn) => ({ mutationFn: fn, onSuccess: refresh });
+  return {
+    assign: useMutation(
+      mutate(async ({ id, technicianId, scheduledAt }) =>
+        (await adminApi.patch(`/admin/inspections/${id}/assign`, { technicianId, scheduledAt })).data
+      )
+    ),
+    createInitial: useMutation(mutate(async ({ resourceId }) => (await adminApi.post('/admin/inspections', { resourceId })).data)),
+    createReturn: useMutation(mutate(async ({ bookingId }) => (await adminApi.post('/admin/inspections/return', { bookingId })).data)),
+    resolve: useMutation(
+      mutate(async ({ id, decision, amount, note }) =>
+        (await adminApi.patch(`/admin/inspections/${id}/resolution`, { decision, amount, note })).data
+      )
+    ),
+    createTechnician: useMutation(mutate(async (payload) => (await adminApi.post('/admin/technicians', payload)).data)),
+  };
+}
+
+/** Return inspections on one booking, for either party. */
+export function useBookingInspections(bookingId) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['booking-inspections', bookingId],
+    queryFn: async () => (await api.get(`/verifications/booking/${bookingId}`)).data,
+    enabled: Boolean(user) && Boolean(bookingId),
+  });
+}

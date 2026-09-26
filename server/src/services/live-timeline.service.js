@@ -8,6 +8,7 @@ import Negotiation from '../models/Negotiation.js';
 import LogisticsJob from '../models/LogisticsJob.js';
 import RequestEvent from '../models/RequestEvent.js';
 import CapacityRecoveryOpportunity from '../models/CapacityRecoveryOpportunity.js';
+import VerificationRequest from '../models/VerificationRequest.js';
 
 /**
  * The full story of one request, for the admin Live tracker.
@@ -149,7 +150,44 @@ async function load(subject) {
       .lean(),
   ]);
 
-  return { requirement, proposals, matches, bookings, transactions, negotiations, jobs, reviews, events };
+  // Inspections of the booked listing: the latest initial one (preferring a
+  // completed one) and any return inspection opened for these bookings.
+  const resourceIds = [...new Set(bookings.map((b) => idOf(b.resource)).filter(Boolean))];
+  const inspections = resourceIds.length
+    ? await VerificationRequest.find({
+        $or: [
+          { kind: 'return', booking: { $in: ids } },
+          { kind: 'initial', resource: { $in: resourceIds } },
+        ],
+      })
+        .select('-parameters.instructions -parameters.description -parameters.reason -comparison')
+        .sort('createdAt')
+        .lean()
+    : [];
+  const initials = inspections.filter((v) => v.kind === 'initial');
+  const inspection =
+    [...initials].reverse().find((v) => FINAL_INSPECTION.includes(v.status)) || initials[initials.length - 1] || null;
+  const returnInspections = inspections.filter((v) => v.kind === 'return');
+
+  return { requirement, proposals, matches, bookings, transactions, negotiations, jobs, reviews, events, inspection, returnInspections };
+}
+
+const FINAL_INSPECTION = ['verified', 'conditionally_verified', 'rejected'];
+const DECISION_LABEL = { verified: 'Verified', conditionally_verified: 'Verified with issues', rejected: 'Failed' };
+
+/** Short "87/100 · 2 failed · 3 minor · 6 evidence" line for an inspection. */
+function inspectionDetail(v) {
+  const params = v.parameters || [];
+  const failed = params.filter((p) => p.result === 'fail').length;
+  const minor = params.filter((p) => p.result === 'minor_issue').length;
+  return [
+    v.inspectionId,
+    v.finalScore != null ? `${v.finalScore}/100` : null,
+    `${params.filter((p) => p.result).length} of ${params.length} checks`,
+    failed ? `${failed} failed` : null,
+    minor ? `${minor} minor` : null,
+    `${(v.evidence || []).length} evidence`,
+  ].filter(Boolean).join(' · ');
 }
 
 /* ───────────────────────────────────────────────────────────── the story */
@@ -470,6 +508,33 @@ function buildEvents(d, subject) {
     }
   }
 
+  /* inspections — the listing's physical verification and the return re-check */
+  const tech = (v) => v.assignedTechnician?.name || 'Indulge technician';
+  for (const v of [d.inspection, ...(d.returnInspections || [])].filter(Boolean)) {
+    const isReturn = v.kind === 'return';
+    const phase = isReturn ? 'return_inspection' : 'inspection';
+    const bookingId = isReturn ? idOf(v.booking) : undefined;
+    const what = isReturn ? 'return inspection' : 'listing inspection';
+    if (isReturn) {
+      push({ id: `ins-${v._id}-open`, at: v.createdAt, role: 'platform', actor: 'Indulge', action: 'inspection_created', label: `Opened the return inspection ${v.inspectionId}`, phase, tab: 'bookings', bookingId });
+    }
+    if (v.assignedTechnician?.assignedAt) {
+      push({ id: `ins-${v._id}-assign`, at: v.assignedTechnician.assignedAt, role: 'platform', actor: 'Indulge', action: 'technician_assigned', label: `Assigned ${tech(v)} to the ${what}`, detail: v.inspectionId, phase, tab: 'bookings', bookingId });
+    }
+    if (v.startedAt) {
+      push({ id: `ins-${v._id}-start`, at: v.startedAt, role: 'inspector', actor: tech(v), action: 'inspection_started', label: `Started the ${what}`, detail: v.inspectionId, phase, tab: 'bookings', bookingId });
+    }
+    if (FINAL_INSPECTION.includes(v.status)) {
+      const damage = isReturn && v.damageSummary?.damageDetected
+        ? ` — damage found (${v.damageSummary.newDamage} new issue${v.damageSummary.newDamage === 1 ? '' : 's'}${v.damageSummary.unitsLost ? `, ${v.damageSummary.unitsLost} unit${v.damageSummary.unitsLost === 1 ? '' : 's'} missing` : ''})`
+        : '';
+      push({ id: `ins-${v._id}-done`, at: v.completedAt, role: 'inspector', actor: tech(v), action: 'inspection_submitted', label: `Submitted the ${what}: ${DECISION_LABEL[v.status]}${damage}`, detail: inspectionDetail(v), phase, tab: 'bookings', bookingId });
+    }
+    if (v.resolution?.resolvedAt) {
+      push({ id: `ins-${v._id}-resolved`, at: v.resolution.resolvedAt, role: 'platform', actor: 'Indulge', action: 'dispute_resolved', label: `Resolved the damage review: ${humanise(v.resolution.decision)}`, price: v.resolution.amount ?? null, detail: v.resolution.note || null, phase, tab: 'bookings', bookingId });
+    }
+  }
+
   // Chronological; decisions whose time is not recorded go last, which is
   // where the status that proves them places them in the story.
   return out.sort((a, b) => {
@@ -658,6 +723,29 @@ function buildStages(d, events, negotiation) {
     currentText: 'Waiting for the seeker to confirm the booking',
   });
 
+  // The booked item's physical inspection. An item that was never inspected
+  // is shown as skipped, not missing: inspection is not required to book.
+  if (d.inspection) {
+    const v = d.inspection;
+    const final = FINAL_INSPECTION.includes(v.status);
+    stages.push({
+      key: 'inspection',
+      phase: 'inspection',
+      label: 'Inspection',
+      sub: final ? `${DECISION_LABEL[v.status]} · ${v.finalScore}/100` : 'Not inspected yet',
+      done: final,
+      skipped: !final,
+      at: final ? v.completedAt : null,
+      inspection: {
+        inspectionId: v.inspectionId,
+        technician: v.assignedTechnician?.name || null,
+        status: v.status,
+        score: v.finalScore,
+        detail: inspectionDetail(v),
+      },
+    });
+  }
+
   const paid = agreed.flatMap(txFor).filter((t) => PAID.includes(t.status));
   stages.push({
     key: 'payment',
@@ -695,6 +783,33 @@ function buildStages(d, events, negotiation) {
       latest(completed.map((b) => b.return?.returnCompletedAt || b.return?.returnedAt || b.fulfillment?.deliveredAt)),
     currentText: 'Awaiting fulfilment',
   });
+
+  for (const v of d.returnInspections || []) {
+    const final = FINAL_INSPECTION.includes(v.status);
+    const damage = Boolean(v.damageSummary?.damageDetected);
+    stages.push({
+      key: `return_inspection_${v._id}`,
+      phase: 'return_inspection',
+      label: 'Return inspection',
+      sub: !final
+        ? humanise(v.status)
+        : damage
+          ? v.disputeStatus === 'resolved' ? 'Damage · resolved' : 'Damage found'
+          : `No new damage · ${v.finalScore}/100`,
+      done: final && v.disputeStatus !== 'open',
+      active: !final || v.disputeStatus === 'open',
+      at: v.resolution?.resolvedAt || v.completedAt || null,
+      currentText: !final ? `Return inspection ${v.inspectionId}: ${humanise(v.status)}` : 'Damage review with Indulge',
+      inspection: {
+        inspectionId: v.inspectionId,
+        technician: v.assignedTechnician?.name || null,
+        status: v.status,
+        score: v.finalScore,
+        disputeStatus: v.disputeStatus,
+        detail: inspectionDetail(v),
+      },
+    });
+  }
 
   if (reviews.length) {
     stages.push({ key: 'review', phase: 'review', label: 'Reviewed', sub: `${reviews.length} review${reviews.length === 1 ? '' : 's'}`, done: true, at: reviews[0].createdAt });

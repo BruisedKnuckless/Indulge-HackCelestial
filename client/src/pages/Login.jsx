@@ -32,6 +32,8 @@ export default function Login() {
       const user = await login(email, password);
       if (user?.userType === 'logistics_partner') {
         navigate('/logistics', { replace: true });
+      } else if (user?.userType === 'inspector') {
+        navigate('/technician', { replace: true });
       } else {
         navigate(redirectTo, { replace: true });
       }
@@ -156,6 +158,10 @@ export default function Login() {
             Platform administrator?{' '}
             <Link to="/admin/login" className="link">
               Admin sign in
+            </Link>
+            {' · '}
+            <Link to="/technician/login" className="link">
+              Technician sign in
             </Link>
           </p>
         </div>

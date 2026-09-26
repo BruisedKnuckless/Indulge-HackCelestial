@@ -33,6 +33,7 @@ const ROLE = {
   seeker: { label: 'Seeker', chip: 'badge-indigo', bar: 'border-l-indigo' },
   lister: { label: 'Lister', chip: 'badge-teal', bar: 'border-l-teal' },
   logistics: { label: 'Logistics', chip: 'badge-amber', bar: 'border-l-amber-accent' },
+  inspector: { label: 'Technician', chip: 'badge-green', bar: 'border-l-green-accent' },
   platform: { label: 'Platform', chip: 'badge-muted', bar: 'border-l-line-strong' },
 };
 
@@ -55,6 +56,8 @@ const PHASE_LABEL = {
   payment: 'Payment',
   logistics: 'Logistics',
   fulfilment: 'Fulfilment',
+  inspection: 'Inspection',
+  return_inspection: 'Return inspection',
   review: 'Review',
 };
 
@@ -160,6 +163,12 @@ function StageTooltip({ stage, anchor }) {
       <p className="text-sm font-medium">{stage.label}</p>
       <p className="text-[11px] text-ink-mute">{STATE_LABEL[stage.state]}</p>
       {stage.sub && <p className="text-xs mt-1">{stage.sub}</p>}
+      {stage.inspection && (
+        <p className="text-xs text-ink-soft mt-1">
+          {stage.inspection.technician ? `${stage.inspection.technician} · ` : ''}
+          {stage.inspection.detail}
+        </p>
+      )}
       <p className="text-xs text-ink-soft mt-1">{stage.at ? dateTime(stage.at) : 'No recorded time'}</p>
       {stage.count > 0 && (
         <p className="text-[11px] text-indigo mt-1.5">
@@ -240,7 +249,7 @@ function Tracker({ stages, current, onSelect, selectedPhase }) {
                     {stage.label}
                   </span>
                   <span className="mt-0.5 text-[11px] text-center leading-snug text-ink-soft min-h-[1rem] max-w-[9rem] truncate">
-                    {stage.state === 'skipped' ? 'Not needed' : stage.sub || ''}
+                    {stage.state === 'skipped' && !stage.inspection ? 'Not needed' : stage.sub || ''}
                   </span>
                   <span className="text-[11px] text-ink-mute tabular-nums text-center leading-snug min-h-[2rem]">
                     {stage.state === 'current' ? (

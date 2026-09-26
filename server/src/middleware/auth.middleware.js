@@ -74,12 +74,23 @@ export async function requireAuth(req, res, next) {
       });
     }
 
+    // Technicians get their own workspace and nothing else: no marketplace,
+    // financial or other-business APIs, whatever route forgets its own check.
+    if (user.userType === 'inspector' && !TECHNICIAN_API_PREFIXES.some((p) => req.baseUrl.startsWith(p))) {
+      return res.status(403).json({
+        error: 'Technician accounts can only use the inspection workspace.',
+        code: 'TECHNICIAN_ACCOUNT',
+      });
+    }
+
     req.user = user;
     next();
   } catch (err) {
     next(err);
   }
 }
+
+const TECHNICIAN_API_PREFIXES = ['/api/auth', '/api/verifications', '/api/notifications'];
 
 /**
  * Gate for the admin console. Stands alone — it authenticates an Admin
@@ -121,6 +132,62 @@ export async function requireAdmin(req, res, next) {
   }
 }
 
+/**
+ * Gate allowing either a valid business user session OR an admin session.
+ * Used for dual-access records like financial receipts.
+ */
+export async function requireAuthOrAdmin(req, res, next) {
+  try {
+    const token = bearer(req);
+    if (!token) return res.status(401).json({ error: 'Sign in to continue.' });
+
+    let payload;
+    try {
+      payload = jwt.verify(token, env.jwtSecret);
+    } catch (jwtErr) {
+      return res.status(401).json({
+        error:
+          jwtErr.name === 'TokenExpiredError'
+            ? 'Session expired. Please sign in again.'
+            : 'Invalid or malformed authentication token.',
+        code: jwtErr.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
+      });
+    }
+
+    if (!payload?.sub) {
+      return res.status(401).json({ error: 'Invalid token payload.', code: 'INVALID_TOKEN' });
+    }
+
+    if (isAdminPayload(payload)) {
+      const admin = await Admin.findById(payload.sub);
+      if (!admin || !admin.isActive) {
+        return res.status(401).json({ error: 'Session no longer valid.', code: 'SESSION_INVALID' });
+      }
+      req.admin = admin;
+      req.isAdmin = true;
+      return next();
+    }
+
+    const user = await User.findById(payload.sub);
+    if (!user) return res.status(401).json({ error: 'Session no longer valid.', code: 'SESSION_INVALID' });
+
+    if (user.suspended) {
+      return res.status(403).json({
+        error: user.suspensionReason
+          ? `This account is suspended: ${user.suspensionReason}`
+          : 'This account has been suspended by the platform.',
+        code: 'ACCOUNT_SUSPENDED',
+      });
+    }
+
+    req.user = user;
+    req.isAdmin = false;
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
 /** Gate for logistics partner workspaces. */
 export function requireLogisticsPartner(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Sign in to continue.' });
@@ -137,6 +204,25 @@ export function requireBusinessUser(req, res, next) {
     return res.status(403).json({
       error: 'Logistics partners cannot perform commercial marketplace operations.',
     });
+  }
+  if (req.user.userType === 'inspector') {
+    return res.status(403).json({
+      error: 'Technician accounts cannot perform marketplace operations.',
+      code: 'TECHNICIAN_ACCOUNT',
+    });
+  }
+  next();
+}
+
+/**
+ * Gate for the technician (inspector) workspace. Which inspections a
+ * technician may touch is decided per request by assignment, never by an id
+ * the client sends.
+ */
+export function requireInspector(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Sign in to continue.' });
+  if (req.user.userType !== 'inspector') {
+    return res.status(403).json({ error: 'Access reserved for Indulge technicians.', code: 'NOT_TECHNICIAN' });
   }
   next();
 }

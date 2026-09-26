@@ -13,6 +13,8 @@ import { estimatePrice } from '../utils/pricing.js';
 import { ensureLogisticsJobForBooking } from '../services/logistics.service.js';
 import { PaymentService } from '../services/payment.service.js';
 import { assessDelivery } from '../ml/delivery/predict.js';
+import { openReturnInspectionIfInspected } from '../services/verification/verification.service.js';
+import { recordCustody } from '../services/verification/custody.service.js';
 
 const router = Router();
 
@@ -557,6 +559,14 @@ router.patch(
       return_completed:        'Return completed',
     };
 
+    if (status === 'returned_to_provider' || status === 'return_completed') {
+      await openReturnInspectionIfInspected(booking._id, {
+        actorType: String(req.user._id) === String(booking.seeker) ? 'seeker' : 'provider',
+        actor: req.user._id,
+        actorName: req.user.businessName,
+      });
+    }
+
     // Notify the other party.
     const otherParty =
       String(req.user._id) === String(booking.seeker) ? booking.provider : booking.seeker;
@@ -718,6 +728,17 @@ router.post(
       recordedAt: new Date(),
     });
     await booking.save();
+
+    // Handovers are links in the item's chain of custody.
+    await recordCustody({
+      resource: booking.resource?._id || booking.resource,
+      booking: booking._id,
+      event: { dispatch: 'dispatch_checked', delivery: 'handover', return: 'return_received' }[checkpoint] || 'handover',
+      actorType: { lister: 'provider', seeker: 'seeker', logistics: 'logistics_partner' }[role],
+      actor: req.user._id,
+      actorName: req.user.businessName,
+      details: { checkpoint, overall, countVerified: countVerified ?? null, quantity: booking.requestedQuantity },
+    });
 
     const label = plan.checkpoints.find((c) => c.key === checkpoint)?.label || checkpoint;
     const shortfall = countVerified !== undefined && countVerified < booking.requestedQuantity;

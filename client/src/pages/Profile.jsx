@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { ShieldCheck, Clock, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../api/client';
 import { Alert, Stars } from '../components/ui';
@@ -33,7 +34,10 @@ export default function Profile() {
     phone: user.phone || '',
     businessType: user.businessType || 'other',
     customBusinessType: user.customBusinessType || '',
-    gstNumber: user.gstNumber || '',
+    gstNumber: user.gstin || user.gstNumber || '',
+    gstin: user.gstin || user.gstNumber || '',
+    udyamNumber: user.udyamNumber || '',
+    constitution: user.constitution || 'private_limited',
     preferredProviders: user.preferences?.preferredProviders?.map(String) || [],
     location: user.location || null,
     // Logistics partner specific fields
@@ -130,12 +134,24 @@ export default function Profile() {
           },
         });
       } else {
+        const cleanGst = form.gstin?.trim().toUpperCase();
+        if (!cleanGst) {
+          setError('GSTIN is mandatory for business accounts. Please enter your 15-character GSTIN.');
+          return;
+        }
+        if (cleanGst.length !== 15) {
+          setError('GSTIN must be exactly 15 characters (e.g. 27AABCU9603R1ZM).');
+          return;
+        }
         await updateUser({
           businessName: form.businessName,
           phone: form.phone,
           businessType: form.businessType,
           customBusinessType: form.businessType === 'other' ? form.customBusinessType : undefined,
-          gstNumber: form.gstNumber,
+          gstNumber: cleanGst,
+          gstin: cleanGst,
+          udyamNumber: form.udyamNumber ? form.udyamNumber.trim().toUpperCase() : undefined,
+          constitution: form.constitution,
           preferences: { preferredProviders: form.preferredProviders },
           location: structuredLocation,
         });
@@ -239,10 +255,83 @@ export default function Profile() {
             </div>
           </div>
 
-          <div>
-            <label className="label">GST / Trade registration number</label>
-            <input value={form.gstNumber} onChange={set('gstNumber')} className="field" />
-          </div>
+          {/* ── Business Verification & Tax Registration ───────────── */}
+          {!isPartner ? (
+            <div className="p-4 rounded-xl border border-line bg-surface-sunk/40 space-y-3.5 my-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-ink uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck size={14} className="text-indigo" />
+                  Business Verification & Tax Details
+                </span>
+                {user.verificationStatus === 'verified' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                    <ShieldCheck size={12} />
+                    {user.isDemoBusiness ? 'Demo Verified' : 'Verified'}
+                  </span>
+                ) : user.verificationStatus === 'pending' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                    <Clock size={12} />
+                    Pending Review
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-surface-sunk text-ink-mute border border-line">
+                    Unverified
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <label className="label mb-1">
+                  GSTIN (15-character GST Number) <span className="text-accent">*</span>
+                </label>
+                <input
+                  value={form.gstin}
+                  onChange={(e) => setForm((f) => ({ ...f, gstin: e.target.value.toUpperCase() }))}
+                  placeholder="e.g. 27AABCU9603R1ZM"
+                  className="field font-mono uppercase text-xs"
+                  maxLength={15}
+                  required
+                />
+                <p className="text-[11px] text-ink-mute mt-1">
+                  Mandatory for commercial hospitality trading, invoices, and verified business badge.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label mb-1">
+                    Udyam Registration <span className="text-ink-mute font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    value={form.udyamNumber}
+                    onChange={(e) => setForm((f) => ({ ...f, udyamNumber: e.target.value.toUpperCase() }))}
+                    placeholder="e.g. UDYAM-MH-01-0012345"
+                    className="field font-mono uppercase text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="label mb-1">Business Constitution</label>
+                  <select
+                    value={form.constitution}
+                    onChange={set('constitution')}
+                    className="field-select w-full text-xs"
+                  >
+                    <option value="proprietorship">Sole Proprietorship</option>
+                    <option value="partnership">Partnership Firm</option>
+                    <option value="llp">Limited Liability Partnership (LLP)</option>
+                    <option value="private_limited">Private Limited Company (Pvt Ltd)</option>
+                    <option value="public_limited">Public Limited Company (Ltd)</option>
+                    <option value="other">Other Registered Entity</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="label">GST / Trade registration number</label>
+              <input value={form.gstNumber} onChange={set('gstNumber')} className="field" />
+            </div>
+          )}
 
           {/* ── Searchable Location Component ── */}
           <hr className="border-0 border-t border-line my-4" />
