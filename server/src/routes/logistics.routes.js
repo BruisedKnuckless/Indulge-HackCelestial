@@ -823,14 +823,40 @@ router.patch(
   requireAuth,
   requireLogisticsPartner,
   asyncHandler(async (req, res) => {
-    const { operatingStatus, vehicleInfo, serviceArea, capacityDescription } = req.body;
+    const { operatingStatus, vehicleInfo, serviceArea, capacityDescription, hubLocation, location } = req.body;
     const update = {};
     if (operatingStatus) {
       update['logisticsProfile.operatingStatus'] = operatingStatus === 'available' ? 'active' : operatingStatus;
     }
     if (vehicleInfo !== undefined) update['logisticsProfile.vehicleInfo'] = vehicleInfo;
-    if (serviceArea !== undefined) update['logisticsProfile.serviceArea'] = serviceArea;
+    if (serviceArea !== undefined) {
+      update['logisticsProfile.serviceArea'] = Array.isArray(serviceArea)
+        ? serviceArea
+        : String(serviceArea).split(',').map((s) => s.trim()).filter(Boolean);
+    }
     if (capacityDescription !== undefined) update['logisticsProfile.capacityDescription'] = capacityDescription;
+
+    const locToSave = hubLocation || location;
+    if (locToSave && typeof locToSave === 'object') {
+      let coords = locToSave.coordinates;
+      if (!coords && locToSave.longitude !== undefined && locToSave.latitude !== undefined) {
+        coords = [Number(locToSave.longitude), Number(locToSave.latitude)];
+      }
+      const structured = {
+        type: 'Point',
+        address: locToSave.address || locToSave.formattedAddress || '',
+        formattedAddress: locToSave.formattedAddress || locToSave.address || '',
+        addressLine2: locToSave.addressLine2 || '',
+        city: locToSave.city || '',
+        state: locToSave.state || '',
+        pincode: locToSave.pincode || locToSave.postalCode || '',
+        postalCode: locToSave.postalCode || locToSave.pincode || '',
+        placeId: locToSave.placeId || '',
+        coordinates: Array.isArray(coords) && coords.length === 2 ? coords.map(Number) : undefined,
+      };
+      update['logisticsProfile.hubLocation'] = structured;
+      update['location'] = structured;
+    }
 
     const user = await User.findByIdAndUpdate(req.user._id, { $set: update }, { new: true });
     res.json({ user: sessionUser(user) });

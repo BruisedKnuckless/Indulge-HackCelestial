@@ -6,7 +6,10 @@ import { env } from '../config/env.js';
  * an explicit test header (x-test-rate-limit) is passed to verify rate-limiting behavior.
  */
 const shouldSkip = (req) => {
-  if (env.isTest && !req.headers['x-test-rate-limit']) {
+  if (
+    (env.isTest || process.env.NODE_ENV === 'test' || process.env.IN_VERIFY === 'true' || global.__IN_VERIFY__) &&
+    !req.headers['x-test-rate-limit']
+  ) {
     return true;
   }
   return false;

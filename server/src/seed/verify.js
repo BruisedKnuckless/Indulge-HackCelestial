@@ -6,6 +6,9 @@
  * drives it over HTTP, so this exercises the real routes rather than the
  * services in isolation.
  */
+process.env.IN_VERIFY = 'true';
+global.__IN_VERIFY__ = true;
+
 import http from 'http';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'node:url';
@@ -5331,6 +5334,245 @@ async function main() {
   } else {
     check('7A-11. Procurement child transaction structure intact', true);
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // REGISTRATION LOCATION UX & GEOCODING TESTS
+  // ─────────────────────────────────────────────────────────────────────────
+  console.log('\n--- Registration Location UX & Geocoding Tests ---');
+
+  // 1. Business can register with arbitrary valid coordinates
+  const arbitraryLng = 72.889;
+  const arbitraryLat = 19.0863;
+  const regBiz1 = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'Kurla Grand Banquet',
+      email: 'kurla.banquet@grandorchid.in',
+      password: 'password123',
+      phone: '+91 98200 44556',
+      businessType: 'banquet_venue',
+      location: {
+        type: 'Point',
+        coordinates: [arbitraryLng, arbitraryLat],
+        formattedAddress: 'Phoenix Marketcity, LBS Marg, Kurla West, Mumbai 400070',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        pincode: '400070',
+        placeId: 'ChIJ_arbitrary_place_kurla',
+      },
+    },
+  });
+
+  check(
+    'Location UX-1. Business can register with arbitrary valid coordinates',
+    regBiz1.status === 201 &&
+      Boolean(regBiz1.body?.user?._id) &&
+      regBiz1.body?.user?.location?.coordinates?.[0] === arbitraryLng &&
+      regBiz1.body?.user?.location?.coordinates?.[1] === arbitraryLat
+  );
+
+  // 2. Location is stored in [lng, lat] GeoJSON order in DB
+  const storedBiz1 = await User.findById(regBiz1.body?.user?._id).lean();
+  check(
+    'Location UX-2. Location is stored [lng, lat] GeoJSON Point in MongoDB',
+    storedBiz1 &&
+      storedBiz1.location?.type === 'Point' &&
+      Array.isArray(storedBiz1.location?.coordinates) &&
+      storedBiz1.location.coordinates[0] === arbitraryLng &&
+      storedBiz1.location.coordinates[1] === arbitraryLat &&
+      storedBiz1.location.placeId === 'ChIJ_arbitrary_place_kurla'
+  );
+
+  // 3. Invalid latitude rejected
+  const regInvalidLat = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'Invalid Lat Venue',
+      email: 'invalid.lat@test.in',
+      password: 'password123',
+      businessType: 'hotel',
+      location: {
+        type: 'Point',
+        coordinates: [72.889, 95.5],
+        city: 'Mumbai',
+      },
+    },
+  });
+  check(
+    'Location UX-3. Invalid latitude (> 90 or < -90) rejected with 400',
+    regInvalidLat.status === 400 &&
+      (regInvalidLat.body?.error?.toLowerCase().includes('latitude') ||
+        regInvalidLat.body?.details?.some((d) => d.message?.toLowerCase().includes('latitude')))
+  );
+
+  // 4. Invalid longitude rejected
+  const regInvalidLng = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'Invalid Lng Venue',
+      email: 'invalid.lng@test.in',
+      password: 'password123',
+      businessType: 'hotel',
+      location: {
+        type: 'Point',
+        coordinates: [195.0, 19.08],
+        city: 'Mumbai',
+      },
+    },
+  });
+  check(
+    'Location UX-4. Invalid longitude (> 180 or < -180) rejected with 400',
+    regInvalidLng.status === 400 &&
+      (regInvalidLng.body?.error?.toLowerCase().includes('longitude') ||
+        regInvalidLng.body?.details?.some((d) => d.message?.toLowerCase().includes('longitude')))
+  );
+
+  // 5. Existing geo search still works with newly registered location
+  const newBizToken = regBiz1.body?.token;
+  const resResource = await api('POST', '/api/resources', {
+    token: newBizToken,
+    body: {
+      title: 'Grand Crystal Ballroom Kurla',
+      category: 'banquet_space',
+      description: 'Expansive ballroom near BKC and Kurla',
+      pricing: { basePrice: 50000, priceUnit: 'per_day' },
+      capacity: 600,
+      location: {
+        address: 'Phoenix Marketcity, Kurla',
+        city: 'Mumbai',
+        pincode: '400070',
+        coordinates: [arbitraryLng, arbitraryLat],
+      },
+    },
+  });
+
+  const geoSearchResult = await api(
+    'GET',
+    `/api/search/resources?lng=${arbitraryLng}&lat=${arbitraryLat}&radiusKm=10&q=Kurla`
+  );
+  const foundInGeoSearch = (geoSearchResult.body?.results || []).some(
+    (r) => r._id === resResource.body?.resource?._id || r.title?.includes('Kurla')
+  );
+  check(
+    'Location UX-5. Existing geo search with $geoNear still works with geocoded resource',
+    resResource.status === 201 && geoSearchResult.status === 200 && foundInGeoSearch
+  );
+
+  // 6. businessType=other requires customBusinessType
+  const regOtherWithoutCustom = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'Custom Planner Studio',
+      email: 'planner.nocustom@test.in',
+      password: 'password123',
+      businessType: 'other',
+      location: {
+        coordinates: [72.9, 19.1],
+        city: 'Mumbai',
+      },
+    },
+  });
+
+  const regOtherWithCustom = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'Custom Planner Studio',
+      email: 'planner.withcustom@test.in',
+      password: 'password123',
+      businessType: 'other',
+      customBusinessType: 'Wedding & Destination Event Planner',
+      location: {
+        coordinates: [72.9, 19.1],
+        city: 'Mumbai',
+      },
+    },
+  });
+
+  check(
+    'Location UX-6. businessType=other requires customBusinessType',
+    regOtherWithoutCustom.status === 400 &&
+      regOtherWithCustom.status === 201 &&
+      regOtherWithCustom.body.user?.customBusinessType === 'Wedding & Destination Event Planner'
+  );
+
+  // 7. Predefined type does not require custom type
+  const regPredefined = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'Royal Spice Restaurant',
+      email: 'royal.spice@test.in',
+      password: 'password123',
+      businessType: 'restaurant',
+      location: {
+        coordinates: [72.95, 19.17],
+        city: 'Mulund',
+      },
+    },
+  });
+  check(
+    'Location UX-7. Predefined businessType does not require custom type',
+    regPredefined.status === 201 &&
+      regPredefined.body.user?.businessType === 'restaurant' &&
+      !regPredefined.body.user?.customBusinessType
+  );
+
+  // 8. Logistics hub coordinates persist
+  const hubLng = 73.0583;
+  const hubLat = 19.2967;
+  const regLogistics = await api('POST', '/api/auth/register', {
+    body: {
+      businessName: 'Apex Freight Hub Logistics',
+      email: 'dispatch.apex@test.in',
+      password: 'password123',
+      phone: '+91 98333 44556',
+      userType: 'logistics_partner',
+      location: {
+        type: 'Point',
+        coordinates: [hubLng, hubLat],
+        formattedAddress: 'Bhiwandi Cargo Complex, Building D, Thane 421302',
+        city: 'Bhiwandi',
+        state: 'Maharashtra',
+        pincode: '421302',
+      },
+      logisticsProfile: {
+        serviceArea: ['Bhiwandi', 'Thane', 'Mumbai', 'Navi Mumbai'],
+        operatingStatus: 'active',
+        vehicleInfo: {
+          vehicleType: 'Heavy Freight Cargo Truck (5T+)',
+          model: 'Tata 407 LPT',
+          licensePlate: 'MH-04-AP-8899',
+          capacityKg: 3500,
+        },
+        capacityDescription: '3500 kg payload',
+      },
+    },
+  });
+
+  const storedLogistics = await User.findById(regLogistics.body?.user?._id).lean();
+  check(
+    'Location UX-8. Logistics hub coordinates persist in location and logisticsProfile.hubLocation',
+    regLogistics.status === 201 &&
+      storedLogistics &&
+      storedLogistics.location?.coordinates?.[0] === hubLng &&
+      storedLogistics.location?.coordinates?.[1] === hubLat &&
+      storedLogistics.logisticsProfile?.hubLocation?.coordinates?.[0] === hubLng &&
+      storedLogistics.logisticsProfile?.hubLocation?.coordinates?.[1] === hubLat
+  );
+
+  // 9. Multiple logistics service areas persist
+  check(
+    'Location UX-9. Multiple logistics service areas persist as array of coverage zones',
+    storedLogistics &&
+      Array.isArray(storedLogistics.logisticsProfile?.serviceArea) &&
+      storedLogistics.logisticsProfile.serviceArea.length === 4 &&
+      storedLogistics.logisticsProfile.serviceArea.includes('Bhiwandi') &&
+      storedLogistics.logisticsProfile.serviceArea.includes('Navi Mumbai')
+  );
+
+  // 10. Old user records remain compatible
+  const seededLegacyUser = await User.findOne({ email: 'ops@grandorchid.in' });
+  const legacyToken = signToken(seededLegacyUser._id);
+  const meCheckLegacy = await api('GET', '/api/auth/me', { token: legacyToken });
+  check(
+    'Location UX-10. Old user records remain fully compatible without requiring destructive migration',
+    meCheckLegacy.status === 200 &&
+      meCheckLegacy.body.user?.email === 'ops@grandorchid.in' &&
+      meCheckLegacy.body.user?.location !== undefined
+  );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);
 

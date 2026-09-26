@@ -6,17 +6,8 @@ import { errorMessage } from '../api/client';
 import Logo from '../components/layout/Logo';
 import { Alert } from '../components/ui';
 import { BUSINESS_TYPES } from '../lib/constants';
-
-/**
- * Cities are offered as presets because listings need coordinates for the
- * distance ranking, and a prototype has no geocoding service behind it.
- */
-const CITY_PRESETS = [
-  { label: 'Thane', pincode: '400601', coordinates: [72.9781, 19.2183] },
-  { label: 'Mumbai (Powai)', pincode: '400076', coordinates: [72.9051, 19.1176] },
-  { label: 'Mumbai (Mulund)', pincode: '400080', coordinates: [72.956, 19.1726] },
-  { label: 'Navi Mumbai (Vashi)', pincode: '400703', coordinates: [73.0071, 19.076] },
-];
+import LocationAutocomplete from '../components/map/LocationAutocomplete';
+import ServiceAreaChips from '../components/map/ServiceAreaChips';
 
 const VEHICLE_TYPE_PRESETS = [
   'Tata Ace / Pickup Truck (1.0T - 1.5T)',
@@ -39,10 +30,10 @@ export default function Register() {
     password: '',
     phone: '',
     businessType: 'hotel',
-    address: '',
-    cityIndex: 0,
+    customBusinessType: '',
+    location: null,
     // Logistics Partner specific
-    serviceArea: 'Mumbai, Thane, Navi Mumbai',
+    serviceAreas: ['Mumbai', 'Thane', 'Navi Mumbai'],
     vehicleType: VEHICLE_TYPE_PRESETS[0],
     vehicleModel: '',
     licensePlate: '',
@@ -53,6 +44,15 @@ export default function Register() {
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  const handleBusinessTypeChange = (e) => {
+    const val = e.target.value;
+    setForm((f) => ({
+      ...f,
+      businessType: val,
+      customBusinessType: val === 'other' ? f.customBusinessType : '',
+    }));
+  };
+
   const fillDemoPartner = () => {
     const randomSuffix = Math.floor(100 + Math.random() * 900);
     setForm({
@@ -61,9 +61,20 @@ export default function Register() {
       password: 'indulge123',
       phone: '+91 98200 11099',
       businessType: 'other',
-      address: 'Majiwada, Eastern Express Hwy',
-      cityIndex: 0,
-      serviceArea: 'Mumbai, Thane, Navi Mumbai',
+      customBusinessType: 'Logistics Fleet Dispatch',
+      location: {
+        type: 'Point',
+        coordinates: [72.9781, 19.2183],
+        address: 'Majiwada Logistics Park, Eastern Express Hwy',
+        formattedAddress: 'Majiwada Logistics Park, Eastern Express Hwy, Thane 400601',
+        addressLine2: 'Bay 4, Cargo Dispatch Terminal',
+        city: 'Thane',
+        state: 'Maharashtra',
+        pincode: '400601',
+        postalCode: '400601',
+        placeId: `demo_hub_${randomSuffix}`,
+      },
+      serviceAreas: ['Thane', 'Mumbai', 'Navi Mumbai', 'Kalyan'],
       vehicleType: VEHICLE_TYPE_PRESETS[0],
       vehicleModel: 'Tata Ace Gold Diesel',
       licensePlate: `MH-04-SF-${randomSuffix}`,
@@ -80,10 +91,48 @@ export default function Register() {
       return;
     }
 
+    const isPartner = accountType === 'logistics_partner';
+
+    if (!isPartner && form.businessType === 'other' && !form.customBusinessType?.trim()) {
+      setError('Please specify your business type.');
+      return;
+    }
+
+    const coords = form.location?.coordinates;
+    if (
+      !Array.isArray(coords) ||
+      coords.length !== 2 ||
+      typeof coords[0] !== 'number' ||
+      typeof coords[1] !== 'number' ||
+      isNaN(coords[0]) ||
+      isNaN(coords[1])
+    ) {
+      setError(
+        'Please search and select a valid location from the search suggestions or enter coordinates.'
+      );
+      return;
+    }
+
+    if (isPartner && (!form.serviceAreas || form.serviceAreas.length === 0)) {
+      setError('Please add at least one service area region where your fleet operates.');
+      return;
+    }
+
     setBusy(true);
     try {
-      const city = CITY_PRESETS[Number(form.cityIndex)];
-      const isPartner = accountType === 'logistics_partner';
+      // GeoJSON ordering: [longitude, latitude]
+      const structuredLocation = {
+        type: 'Point',
+        coordinates: [coords[0], coords[1]],
+        address: form.location.address || form.location.formattedAddress || '',
+        formattedAddress: form.location.formattedAddress || form.location.address || '',
+        addressLine2: form.location.addressLine2 || '',
+        city: form.location.city || '',
+        state: form.location.state || '',
+        pincode: form.location.pincode || form.location.postalCode || '',
+        postalCode: form.location.postalCode || form.location.pincode || '',
+        placeId: form.location.placeId || '',
+      };
 
       const payload = {
         businessName: form.businessName,
@@ -91,22 +140,15 @@ export default function Register() {
         password: form.password,
         phone: form.phone,
         businessType: isPartner ? 'other' : form.businessType,
+        customBusinessType: !isPartner && form.businessType === 'other' ? form.customBusinessType.trim() : undefined,
         userType: isPartner ? 'logistics_partner' : 'business',
-        location: {
-          address: form.address || (isPartner ? form.serviceArea : city.label),
-          city: isPartner
-            ? (form.serviceArea?.split(',')[0]?.trim() || city.label.split(' (')[0])
-            : city.label.split(' (')[0],
-          pincode: city.pincode,
-          coordinates: city.coordinates,
-        },
+        location: structuredLocation,
       };
 
       if (isPartner) {
         payload.logisticsProfile = {
-          serviceArea: form.serviceArea
-            ? form.serviceArea.split(',').map((s) => s.trim()).filter(Boolean)
-            : [city.label.split(' (')[0]],
+          serviceArea: form.serviceAreas,
+          hubLocation: structuredLocation,
           operatingStatus: 'active',
           vehicleInfo: {
             vehicleType: form.vehicleType,
@@ -143,7 +185,7 @@ export default function Register() {
           <Logo width={130} dark />
         </Link>
 
-        <div className={`border border-line rounded w-full ${isPartner ? 'max-w-[440px]' : 'max-w-[380px]'} p-5 transition-all`}>
+        <div className={`border border-line rounded w-full ${isPartner ? 'max-w-[480px]' : 'max-w-[440px]'} p-5 transition-all`}>
           <h1 className="h-page mb-2">Create account</h1>
           <p className="text-xs text-ink-mute mb-5">
             {isPartner
@@ -184,7 +226,7 @@ export default function Register() {
               Logistics Partner
             </button>
           </div>
- 
+
           {isPartner && (
             <div className="flex items-center justify-between p-2.5 rounded-lg border border-indigo/25 bg-indigo/5 mb-4">
               <div>
@@ -207,11 +249,11 @@ export default function Register() {
             </Alert>
           )}
 
-          <form onSubmit={submit} className="space-y-3">
+          <form onSubmit={submit} className="space-y-3.5">
             {/* Business / Partner Name */}
             <div>
               <label htmlFor="businessName" className="label">
-                {isPartner ? 'Partner / Company name' : 'Business name'}
+                {isPartner ? 'Partner / Company name' : 'Business name'} <span className="text-red-500">*</span>
               </label>
               <input
                 id="businessName"
@@ -225,29 +267,48 @@ export default function Register() {
 
             {/* Business Type (Business only) */}
             {!isPartner && (
-              <div>
-                <label htmlFor="businessType" className="label">
-                  Business type
-                </label>
-                <select
-                  id="businessType"
-                  value={form.businessType}
-                  onChange={set('businessType')}
-                  className="field-select w-full"
-                >
-                  {BUSINESS_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-2.5">
+                <div>
+                  <label htmlFor="businessType" className="label">
+                    Business type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="businessType"
+                    value={form.businessType}
+                    onChange={handleBusinessTypeChange}
+                    className="field-select w-full"
+                  >
+                    {BUSINESS_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Conditional Other Type Field */}
+                {form.businessType === 'other' && (
+                  <div>
+                    <label htmlFor="customBusinessType" className="label">
+                      Specify business type <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="customBusinessType"
+                      value={form.customBusinessType}
+                      onChange={set('customBusinessType')}
+                      placeholder="e.g. Convention Centre, Wedding Planner, Cloud Kitchen"
+                      className="field"
+                      required
+                    />
+                  </div>
+                )}
               </div>
             )}
 
             {/* Email */}
             <div>
               <label htmlFor="email" className="label">
-                {isPartner ? 'Dispatch / Business email' : 'Business email'}
+                {isPartner ? 'Dispatch / Business email' : 'Business email'} <span className="text-red-500">*</span>
               </label>
               <input
                 id="email"
@@ -264,7 +325,7 @@ export default function Register() {
             {/* Phone */}
             <div>
               <label htmlFor="phone" className="label">
-                {isPartner ? 'Mobile / Dispatch phone' : 'Mobile number'}
+                {isPartner ? 'Mobile / Dispatch phone' : 'Mobile number'} {isPartner && <span className="text-red-500">*</span>}
               </label>
               <input
                 id="phone"
@@ -276,46 +337,35 @@ export default function Register() {
               />
             </div>
 
-            {/* Operating Area / Primary Hub */}
-            <div>
-              <label htmlFor="cityIndex" className="label">
-                {isPartner ? 'Primary operational hub' : 'Operating area'}
-              </label>
-              <select
-                id="cityIndex"
-                value={form.cityIndex}
-                onChange={set('cityIndex')}
-                className="field-select w-full"
-              >
-                {CITY_PRESETS.map((c, i) => (
-                  <option key={c.label} value={i}>
-                    {c.label} — {c.pincode}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-ink-mute mt-1">
-                {isPartner ? 'Base depot for initial pickup proximity.' : 'Used to rank resources by distance from you.'}
-              </p>
+            {/* ── Searchable Location Autocomplete ──────────────────────── */}
+            <div className="pt-1">
+              <LocationAutocomplete
+                label={isPartner ? 'Base dispatch hub' : 'Business location'}
+                required
+                placeholder={
+                  isPartner
+                    ? 'Search hub address, depot, or landmark (e.g. Bhiwandi Logistics Hub)...'
+                    : 'Search venue, mall, street, or landmark (e.g. Viviana Mall, Thane)...'
+                }
+                helperText={
+                  isPartner
+                    ? 'Base depot for initial fleet dispatch and proximity calculation.'
+                    : 'Used to rank resources by exact distance from your venue.'
+                }
+                value={form.location}
+                onChange={(loc) => setForm((f) => ({ ...f, location: loc }))}
+                showAddressLine2={true}
+              />
             </div>
 
             {/* Logistics Partner Specific Fields */}
             {isPartner && (
               <>
-                <div>
-                  <label htmlFor="serviceArea" className="label">
-                    Service area coverage
-                  </label>
-                  <input
-                    id="serviceArea"
-                    value={form.serviceArea}
-                    onChange={set('serviceArea')}
-                    placeholder="e.g. Mumbai, Thane, Navi Mumbai"
-                    className="field"
-                    required
+                <div className="pt-1">
+                  <ServiceAreaChips
+                    areas={form.serviceAreas}
+                    onChange={(newAreas) => setForm((f) => ({ ...f, serviceAreas: newAreas }))}
                   />
-                  <p className="text-xs text-ink-mute mt-1">
-                    Comma-separated regions where your fleet operates.
-                  </p>
                 </div>
 
                 <div className="pt-2 border-t border-line">
@@ -392,26 +442,10 @@ export default function Register() {
               </>
             )}
 
-            {/* Address (Business only) */}
-            {!isPartner && (
-              <div>
-                <label htmlFor="address" className="label">
-                  Street address
-                </label>
-                <input
-                  id="address"
-                  value={form.address}
-                  onChange={set('address')}
-                  placeholder="e.g. Hiranandani Gardens, Powai"
-                  className="field"
-                />
-              </div>
-            )}
-
             {/* Password */}
             <div>
               <label htmlFor="password" className="label">
-                Password
+                Password <span className="text-red-500">*</span>
               </label>
               <input
                 id="password"

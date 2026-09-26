@@ -6,13 +6,8 @@ import { errorMessage } from '../api/client';
 import { Alert, Stars } from '../components/ui';
 import { BUSINESS_TYPES } from '../lib/constants';
 import { useSearch } from '../hooks/queries';
-
-const CITY_PRESETS = [
-  { label: 'Thane', pincode: '400601', coordinates: [72.9781, 19.2183] },
-  { label: 'Mumbai (Powai)', pincode: '400076', coordinates: [72.9051, 19.1176] },
-  { label: 'Mumbai (Mulund)', pincode: '400080', coordinates: [72.956, 19.1726] },
-  { label: 'Navi Mumbai (Vashi)', pincode: '400703', coordinates: [73.0071, 19.076] },
-];
+import LocationAutocomplete from '../components/map/LocationAutocomplete';
+import ServiceAreaChips from '../components/map/ServiceAreaChips';
 
 const VEHICLE_TYPES = [
   'Mini Truck (Tata Ace / Dost)',
@@ -37,16 +32,17 @@ export default function Profile() {
     businessName: user.businessName || '',
     phone: user.phone || '',
     businessType: user.businessType || 'other',
+    customBusinessType: user.customBusinessType || '',
     gstNumber: user.gstNumber || '',
     preferredProviders: user.preferences?.preferredProviders?.map(String) || [],
-    address: user.location?.address || '',
-    city: user.location?.city || '',
-    pincode: user.location?.pincode || '',
+    location: user.location || null,
     // Logistics partner specific fields
     operatingStatus: user.logisticsProfile?.operatingStatus || 'active',
-    serviceArea: Array.isArray(user.logisticsProfile?.serviceArea)
-      ? user.logisticsProfile.serviceArea.join(', ')
-      : 'Mumbai, Thane, Navi Mumbai',
+    serviceAreas: Array.isArray(user.logisticsProfile?.serviceArea)
+      ? user.logisticsProfile.serviceArea
+      : user.logisticsProfile?.serviceArea
+      ? [user.logisticsProfile.serviceArea]
+      : ['Mumbai', 'Thane', 'Navi Mumbai'],
     vehicleType: initialVehicle.vehicleType || 'Mini Truck (Tata Ace / Dost)',
     model: initialVehicle.model || '',
     licensePlate: initialVehicle.licensePlate || '',
@@ -78,10 +74,13 @@ export default function Profile() {
         : [...f.preferredProviders, id],
     }));
 
-  const applyPreset = (index) => {
-    const c = CITY_PRESETS[index];
-    if (!c) return;
-    setForm((f) => ({ ...f, city: c.label.split(' (')[0], pincode: c.pincode }));
+  const handleBusinessTypeChange = (e) => {
+    const val = e.target.value;
+    setForm((f) => ({
+      ...f,
+      businessType: val,
+      customBusinessType: val === 'other' ? f.customBusinessType : '',
+    }));
   };
 
   const submit = async (e) => {
@@ -89,29 +88,39 @@ export default function Profile() {
     setError('');
     setBusy(true);
 
-    const preset = CITY_PRESETS.find((c) => c.label.split(' (')[0] === form.city);
-    const coordinates = preset ? preset.coordinates : user.location?.coordinates;
-
     try {
-      if (isPartner) {
-        const areaArr = form.serviceArea
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean);
+      const loc = form.location;
+      let structuredLocation = undefined;
 
+      if (loc && typeof loc === 'object') {
+        const coords = loc.coordinates;
+        structuredLocation = {
+          type: 'Point',
+          coordinates:
+            Array.isArray(coords) && coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])
+              ? [Number(coords[0]), Number(coords[1])]
+              : user.location?.coordinates,
+          address: loc.address || loc.formattedAddress || '',
+          formattedAddress: loc.formattedAddress || loc.address || '',
+          addressLine2: loc.addressLine2 || '',
+          city: loc.city || '',
+          state: loc.state || '',
+          pincode: loc.pincode || loc.postalCode || '',
+          postalCode: loc.postalCode || loc.pincode || '',
+          placeId: loc.placeId || '',
+        };
+      }
+
+      if (isPartner) {
         await updateUser({
           businessName: form.businessName,
           phone: form.phone,
           gstNumber: form.gstNumber,
-          location: {
-            address: form.address,
-            city: form.city,
-            pincode: form.pincode,
-            coordinates,
-          },
+          location: structuredLocation,
           logisticsProfile: {
             operatingStatus: form.operatingStatus,
-            serviceArea: areaArr.length ? areaArr : ['Mumbai', 'Thane'],
+            serviceArea: form.serviceAreas.length ? form.serviceAreas : ['Mumbai', 'Thane'],
+            hubLocation: structuredLocation,
             vehicleInfo: {
               vehicleType: form.vehicleType,
               model: form.model,
@@ -125,14 +134,10 @@ export default function Profile() {
           businessName: form.businessName,
           phone: form.phone,
           businessType: form.businessType,
+          customBusinessType: form.businessType === 'other' ? form.customBusinessType : undefined,
           gstNumber: form.gstNumber,
           preferences: { preferredProviders: form.preferredProviders },
-          location: {
-            address: form.address,
-            city: form.city,
-            pincode: form.pincode,
-            coordinates,
-          },
+          location: structuredLocation,
         });
       }
       toast.success(isPartner ? 'Logistics partner profile updated' : 'Profile updated');
@@ -194,13 +199,26 @@ export default function Profile() {
             {!isPartner && (
               <div>
                 <label className="label">Business type</label>
-                <select value={form.businessType} onChange={set('businessType')} className="field-select w-full">
+                <select value={form.businessType} onChange={handleBusinessTypeChange} className="field-select w-full">
                   {BUSINESS_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.label}
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {!isPartner && form.businessType === 'other' && (
+              <div>
+                <label className="label">Specify business type</label>
+                <input
+                  value={form.customBusinessType}
+                  onChange={set('customBusinessType')}
+                  placeholder="e.g. Convention Centre, Wedding Planner"
+                  className="field"
+                  required
+                />
               </div>
             )}
 
@@ -225,6 +243,25 @@ export default function Profile() {
             <label className="label">GST / Trade registration number</label>
             <input value={form.gstNumber} onChange={set('gstNumber')} className="field" />
           </div>
+
+          {/* ── Searchable Location Component ── */}
+          <hr className="border-0 border-t border-line my-4" />
+          <LocationAutocomplete
+            label={isPartner ? 'Base Fleet Hub / Station Location' : 'Business Location'}
+            value={form.location}
+            onChange={(loc) => setForm((f) => ({ ...f, location: loc }))}
+            placeholder={
+              isPartner
+                ? 'Search dispatch hub, depot, or yard location...'
+                : 'Search venue, address, or landmark...'
+            }
+            helperText={
+              isPartner
+                ? 'Primary hub station coordinates for transit dispatch calculations.'
+                : 'Your operating location determines which resources appear near you, and how distance is scored.'
+            }
+            showAddressLine2={true}
+          />
 
           {isPartner && (
             <>
@@ -282,54 +319,15 @@ export default function Profile() {
                 </div>
               </div>
 
+              {/* ── Multi-area Service Chips ── */}
               <div className="mt-3">
-                <label className="label">Service Coverage Areas (comma separated)</label>
-                <input
-                  value={form.serviceArea}
-                  onChange={set('serviceArea')}
-                  placeholder="e.g. Mumbai, Thane, Navi Mumbai, Kalyan"
-                  className="field"
-                  required
+                <ServiceAreaChips
+                  areas={form.serviceAreas}
+                  onChange={(areas) => setForm((f) => ({ ...f, serviceAreas: areas }))}
                 />
-                <p className="text-xs text-ink-mute mt-1">
-                  Jobs within these operating zones are routed and suggested to your dispatch queue.
-                </p>
               </div>
             </>
           )}
-
-          <hr className="border-0 border-t border-line my-4" />
-
-          <div>
-            <label className="label">{isPartner ? 'Base Dispatch Hub / Operating Area' : 'Operating area'}</label>
-            <select
-              onChange={(e) => applyPreset(Number(e.target.value))}
-              value={CITY_PRESETS.findIndex((c) => c.label.split(' (')[0] === form.city)}
-              className="field-select w-full"
-            >
-              <option value={-1}>Choose a hub city / zone…</option>
-              {CITY_PRESETS.map((c, i) => (
-                <option key={c.label} value={i}>
-                  {c.label} — {c.pincode}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-ink-mute mt-1">
-              Currently stationed at{' '}
-              <span className="font-semibold">{user.location?.city || 'unassigned hub'}</span>.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-4">
-            <div>
-              <label className="label">Hub / Yard Address</label>
-              <input value={form.address} onChange={set('address')} className="field" />
-            </div>
-            <div>
-              <label className="label">Pincode</label>
-              <input value={form.pincode} onChange={set('pincode')} className="field" />
-            </div>
-          </div>
 
           {!isPartner && (
             <>
@@ -352,12 +350,9 @@ export default function Profile() {
                           key={p._id}
                           type="button"
                           onClick={() => togglePreferred(String(p._id))}
-                          className={`h-9 px-3 text-sm rounded-full border transition-colors ${
-                            on
-                              ? 'bg-ink border-ink text-ink-invert'
-                              : 'border-line-strong text-ink-soft hover:border-ink hover:text-ink'
-                          }`}
+                          className={`btn-sm ${on ? 'btn-primary' : 'btn-secondary'}`}
                         >
+                          {on ? '✓ ' : '+ '}
                           {p.businessName}
                         </button>
                       );
@@ -368,18 +363,10 @@ export default function Profile() {
             </>
           )}
 
-          <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-line">
+          <div className="pt-2">
             <button type="submit" disabled={busy} className="btn-primary">
-              {busy ? 'Saving…' : 'Save changes'}
+              {busy ? 'Saving…' : 'Save profile changes'}
             </button>
-            {isPartner && (
-              <Link to="/logistics" className="btn-secondary">
-                Open Dispatch Center
-              </Link>
-            )}
-            <Link to="/account" className="btn-secondary">
-              Back to account
-            </Link>
           </div>
         </form>
       </div>

@@ -20,6 +20,7 @@ router.post(
       password,
       phone,
       businessType,
+      customBusinessType,
       location,
       gstNumber,
       userType,
@@ -36,16 +37,80 @@ router.post(
     const existing = await User.findOne({ email: email.toLowerCase() });
     if (existing) throw new HttpError(409, 'An account already exists with that email.');
 
+    let normalizedLocation = undefined;
+    if (location && typeof location === 'object') {
+      let coords = location.coordinates;
+      if (!coords && location.longitude !== undefined && location.latitude !== undefined) {
+        coords = [Number(location.longitude), Number(location.latitude)];
+      }
+      normalizedLocation = {
+        type: 'Point',
+        address: location.address || location.formattedAddress || '',
+        formattedAddress: location.formattedAddress || location.address || '',
+        addressLine2: location.addressLine2 || '',
+        city: location.city || '',
+        state: location.state || '',
+        pincode: location.pincode || location.postalCode || '',
+        postalCode: location.postalCode || location.pincode || '',
+        placeId: location.placeId || '',
+        coordinates: Array.isArray(coords) && coords.length === 2 ? coords.map(Number) : undefined,
+      };
+    }
+
+    let normalizedLogisticsProfile = undefined;
+    if (userType === 'logistics_partner') {
+      const lp = logisticsProfile || {};
+      let serviceArea = lp.serviceArea;
+      if (typeof serviceArea === 'string') {
+        serviceArea = serviceArea.split(',').map((s) => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(serviceArea)) {
+        serviceArea = [];
+      }
+
+      let hubLocation = lp.hubLocation || normalizedLocation;
+      if (hubLocation && typeof hubLocation === 'object') {
+        let hubCoords = hubLocation.coordinates;
+        if (!hubCoords && hubLocation.longitude !== undefined && hubLocation.latitude !== undefined) {
+          hubCoords = [Number(hubLocation.longitude), Number(hubLocation.latitude)];
+        }
+        hubLocation = {
+          type: 'Point',
+          address: hubLocation.address || hubLocation.formattedAddress || '',
+          formattedAddress: hubLocation.formattedAddress || hubLocation.address || '',
+          addressLine2: hubLocation.addressLine2 || '',
+          city: hubLocation.city || '',
+          state: hubLocation.state || '',
+          pincode: hubLocation.pincode || hubLocation.postalCode || '',
+          postalCode: hubLocation.postalCode || hubLocation.pincode || '',
+          placeId: hubLocation.placeId || '',
+          coordinates: Array.isArray(hubCoords) && hubCoords.length === 2 ? hubCoords.map(Number) : undefined,
+        };
+      }
+
+      normalizedLogisticsProfile = {
+        serviceArea,
+        hubLocation,
+        operatingStatus: lp.operatingStatus || 'active',
+        vehicleInfo: lp.vehicleInfo || {},
+        capacityDescription: lp.capacityDescription || '',
+        completedJobs: lp.completedJobs || 0,
+        rating: lp.rating || 5.0,
+      };
+    }
+
+    const resolvedBusinessType = userType === 'logistics_partner' ? 'other' : (businessType || 'other');
+
     const user = await User.create({
       businessName,
       email: email.toLowerCase(),
       passwordHash: await User.hashPassword(password),
       phone,
-      businessType,
+      businessType: resolvedBusinessType,
+      customBusinessType: resolvedBusinessType === 'other' ? customBusinessType : undefined,
       gstNumber,
-      location,
+      location: normalizedLocation,
       userType: userType === 'logistics_partner' ? 'logistics_partner' : 'business',
-      logisticsProfile: userType === 'logistics_partner' ? logisticsProfile : undefined,
+      logisticsProfile: normalizedLogisticsProfile,
     });
 
     res.status(201).json({ user: sessionUser(user), token: signToken(user._id) });
@@ -95,6 +160,7 @@ router.patch(
       'businessName',
       'phone',
       'businessType',
+      'customBusinessType',
       'location',
       'gstNumber',
       'preferences',
@@ -107,10 +173,31 @@ router.patch(
             ...(req.user.logisticsProfile?.toObject?.() || req.user.logisticsProfile || {}),
             ...req.body.logisticsProfile,
           };
+        } else if (key === 'location' && typeof req.body[key] === 'object' && req.body[key] !== null) {
+          const loc = req.body.location;
+          let coords = loc.coordinates;
+          if (!coords && loc.longitude !== undefined && loc.latitude !== undefined) {
+            coords = [Number(loc.longitude), Number(loc.latitude)];
+          }
+          req.user.location = {
+            type: 'Point',
+            address: loc.address || loc.formattedAddress || req.user.location?.address || '',
+            formattedAddress: loc.formattedAddress || loc.address || req.user.location?.formattedAddress || '',
+            addressLine2: loc.addressLine2 !== undefined ? loc.addressLine2 : req.user.location?.addressLine2,
+            city: loc.city || req.user.location?.city || '',
+            state: loc.state || req.user.location?.state || '',
+            pincode: loc.pincode || loc.postalCode || req.user.location?.pincode || '',
+            postalCode: loc.postalCode || loc.pincode || req.user.location?.postalCode || '',
+            placeId: loc.placeId || req.user.location?.placeId || '',
+            coordinates: Array.isArray(coords) && coords.length === 2 ? coords.map(Number) : req.user.location?.coordinates,
+          };
         } else {
           req.user[key] = req.body[key];
         }
       }
+    }
+    if (req.user.businessType !== 'other') {
+      req.user.customBusinessType = undefined;
     }
     await req.user.save();
     res.json({ user: sessionUser(req.user) });

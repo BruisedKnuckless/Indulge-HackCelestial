@@ -18,11 +18,22 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     phone: { type: String, trim: true },
     businessType: { type: String, enum: BUSINESS_TYPES, default: 'other' },
+    customBusinessType: { type: String, trim: true },
     gstNumber: { type: String, trim: true },
     location: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point',
+      },
       address: String,
+      formattedAddress: String,
+      addressLine2: String,
       city: String,
+      state: String,
       pincode: String,
+      postalCode: String,
+      placeId: String,
       // GeoJSON [lng, lat] — order matters to MongoDB.
       coordinates: { type: [Number], default: undefined },
     },
@@ -48,6 +59,22 @@ const userSchema = new mongoose.Schema(
     // Dedicated profile for logistics partner accounts.
     logisticsProfile: {
       serviceArea: [String],
+      hubLocation: {
+        type: {
+          type: String,
+          enum: ['Point'],
+          default: 'Point',
+        },
+        address: String,
+        formattedAddress: String,
+        addressLine2: String,
+        city: String,
+        state: String,
+        pincode: String,
+        postalCode: String,
+        placeId: String,
+        coordinates: { type: [Number], default: undefined },
+      },
       operatingStatus: {
         type: String,
         enum: ['active', 'available', 'busy', 'offline'],

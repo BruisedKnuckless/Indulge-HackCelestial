@@ -29,7 +29,7 @@ const PIN_SVG_PATH =
 /**
  * Loads the Google Maps JavaScript API script dynamically if an API key is provided.
  */
-function useGoogleMapsLoader() {
+export function useGoogleMapsLoader() {
   const [loaded, setLoaded] = useState(() => typeof window.google?.maps?.Map === 'function');
   const [loadError, setLoadError] = useState(false);
   const [authError, setAuthError] = useState(false);

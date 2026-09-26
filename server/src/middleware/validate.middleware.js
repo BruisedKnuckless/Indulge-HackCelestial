@@ -29,19 +29,105 @@ export const validate = (schema, source = 'body') => (req, res, next) => {
   }
 };
 
-/* ── 1. Auth Schemas ──────────────────────────────────────────────────────── */
+function validateCoordinates(coords, ctx, path = ['location', 'coordinates']) {
+  if (coords === undefined || coords === null) return;
+  if (!Array.isArray(coords) || coords.length !== 2) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Coordinates must be an array of [longitude, latitude].',
+      path,
+    });
+    return;
+  }
+  const [lng, lat] = coords;
+  if (typeof lng !== 'number' || isNaN(lng) || lng < -180 || lng > 180) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Invalid longitude: must be between -180 and 180.',
+      path: [...path, 0],
+    });
+  }
+  if (typeof lat !== 'number' || isNaN(lat) || lat < -90 || lat > 90) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Invalid latitude: must be between -90 and 90.',
+      path: [...path, 1],
+    });
+  }
+}
 
-export const registerSchema = z.object({
-  businessName: z.string().trim().min(2, 'Business name must be at least 2 characters.'),
-  email: z.string().trim().email('A valid email address is required.'),
-  password: z.string().min(6, 'Passwords must be at least 6 characters.'),
-  phone: z.string().optional(),
-  businessType: z.string().optional(),
-  location: z.any().optional(),
-  gstNumber: z.string().optional(),
-  userType: z.enum(['business', 'logistics_partner']).optional(),
-  logisticsProfile: z.any().optional(),
-});
+function validateLocationObject(loc, ctx, basePath = ['location']) {
+  if (!loc) return;
+  if (typeof loc !== 'object') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Location must be an object.',
+      path: basePath,
+    });
+    return;
+  }
+  if (loc.type !== undefined && loc.type !== 'Point') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Location type must be "Point".',
+      path: [...basePath, 'type'],
+    });
+  }
+  if (loc.coordinates !== undefined) {
+    validateCoordinates(loc.coordinates, ctx, [...basePath, 'coordinates']);
+  }
+  if (loc.latitude !== undefined) {
+    const lat = Number(loc.latitude);
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Invalid latitude: must be between -90 and 90.',
+        path: [...basePath, 'latitude'],
+      });
+    }
+  }
+  if (loc.longitude !== undefined) {
+    const lng = Number(loc.longitude);
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Invalid longitude: must be between -180 and 180.',
+        path: [...basePath, 'longitude'],
+      });
+    }
+  }
+}
+
+export const registerSchema = z
+  .object({
+    businessName: z.string().trim().min(2, 'Business name must be at least 2 characters.'),
+    email: z.string().trim().email('A valid email address is required.'),
+    password: z.string().min(6, 'Passwords must be at least 6 characters.'),
+    phone: z.string().optional(),
+    businessType: z.string().optional(),
+    customBusinessType: z.string().trim().optional(),
+    location: z.any().optional(),
+    gstNumber: z.string().optional(),
+    userType: z.enum(['business', 'logistics_partner']).optional(),
+    logisticsProfile: z.any().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.businessType === 'other' && data.userType !== 'logistics_partner') {
+      if (!data.customBusinessType || !data.customBusinessType.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Specify business type is required when business type is Other.',
+          path: ['customBusinessType'],
+        });
+      }
+    }
+    if (data.location) {
+      validateLocationObject(data.location, ctx, ['location']);
+    }
+    if (data.logisticsProfile?.hubLocation) {
+      validateLocationObject(data.logisticsProfile.hubLocation, ctx, ['logisticsProfile', 'hubLocation']);
+    }
+  });
 
 export const loginSchema = z.object({
   email: z.string().trim().min(1, 'Email is required.'),
