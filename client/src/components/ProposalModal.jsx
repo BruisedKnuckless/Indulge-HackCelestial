@@ -72,7 +72,7 @@ export default function ProposalModal({ requirement, isOpen, onClose }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
           <div>
             <label className="label">
               Select Your Listed Resource ({CATEGORY_LABELS[requirement.category]})
