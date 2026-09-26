@@ -43,6 +43,7 @@ function pickResource(r) {
     description: r.description,
     totalQuantity: r.totalQuantity,
     unit: r.unit,
+    capacity: r.capacity,
     basePrice: r.pricing?.basePrice,
     priceUnit: r.pricing?.priceUnit,
     location: r.location,
@@ -125,8 +126,8 @@ export async function buildUserContext(user, opts = {}) {
     .lean();
 
   // ── My listings (as provider) ─────────────────────────────────────────
-  const myListings = await Resource.find({ owner: userId, status: 'active' })
-    .limit(10)
+  const myListings = await Resource.find({ owner: userId, status: { $ne: 'archived' } })
+    .sort('-createdAt')
     .lean();
 
   // ── My business profile ───────────────────────────────────────────────
@@ -188,6 +189,7 @@ export async function buildUserContext(user, opts = {}) {
       providerName: b.provider?.businessName,
       isAsSeeker: String(b.seeker?._id || b.seeker) === String(userId),
     })),
+    myListings: myListings.map(pickResource),
     myActiveListings: myListings.map(pickResource),
     // targeted context
     focusRequirement: focusRequirement ? safe(focusRequirement) : null,

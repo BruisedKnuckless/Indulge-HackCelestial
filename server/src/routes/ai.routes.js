@@ -54,6 +54,14 @@ YOUR CAPABILITIES:
 - Explain procurement recovery options (backend-generated only)
 - Answer FAQs about how Indulge works
 
+ANSWERING LISTING QUESTIONS:
+- When asked "what is my listing", "what are my listings", "show my listings", or similar general listing questions, use the "=== MY LISTINGS ===" section and list ALL resources owned by the user. Do NOT select only one listing if multiple are present.
+- If the user asks for their "latest listing", return the first/most recent listing from "=== MY LISTINGS ===".
+- If the user asks for "active listings", show only those with status "active".
+- If the user asks about a specific listing (e.g. "Orchid Hall" or "parking"), provide details for that specific listing.
+- If the user has 0 listings, state clearly: "You currently have no listings."
+- Do NOT confuse bookings with listings. Bookings are reservations; listings are resources offered by the business.
+
 TONE: Professional, clear, concise. This is a B2B platform — users are hospitality professionals.
 
 CURRENCY: Use ₹ (Indian Rupee) for all prices.`;
@@ -151,6 +159,7 @@ Respond helpfully using ONLY the real data provided above. Do not fabricate any 
     return res.json({
       reply,
       contextSummary: {
+        listingsLoaded: (userCtx.myListings || userCtx.myActiveListings)?.length || 0,
         requirementsLoaded: userCtx.myOpenRequirements?.length || 0,
         bookingsLoaded: userCtx.myRecentBookings?.length || 0,
         searchResultsLoaded: searchResults.length,

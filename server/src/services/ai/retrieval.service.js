@@ -232,6 +232,23 @@ export function formatContextForPrompt(userCtx, faqSnippets = [], extraData = {}
     }
   }
 
+  const myListings = userCtx.myListings || userCtx.myActiveListings || [];
+  if (myListings.length > 0) {
+    lines.push('\n=== MY LISTINGS (RESOURCES LISTED BY MY BUSINESS) ===');
+    lines.push(`Total listings: ${myListings.length}`);
+    for (const r of myListings) {
+      const cap = r.capacity ? ` | capacity:${r.capacity}` : '';
+      const qty = r.totalQuantity != null ? ` | quantity:${r.totalQuantity} ${r.unit || 'unit'}` : '';
+      const price = r.basePrice != null ? ` | rate:₹${r.basePrice}/${r.priceUnit || 'unit'}` : '';
+      lines.push(
+        `- [${r.id}] ${r.title} | category:${r.category}${qty}${cap}${price} | status:${r.status}`
+      );
+    }
+  } else {
+    lines.push('\n=== MY LISTINGS (RESOURCES LISTED BY MY BUSINESS) ===');
+    lines.push('You currently have no listings (0 listings).');
+  }
+
   if (userCtx.myRecentBookings?.length > 0) {
     lines.push('\n=== MY RECENT BOOKINGS ===');
     for (const b of userCtx.myRecentBookings.slice(0, 6)) {
