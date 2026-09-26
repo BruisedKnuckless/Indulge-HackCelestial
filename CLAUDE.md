@@ -161,9 +161,11 @@ Transaction — this was a real bug once.
   previous Amazon-styled skin was stripped out entirely and stray literals reintroduce
   it. Nohemi (Black weight only) is reserved for the `.wordmark`; body copy uses the
   system stack.
-- The landing page runs a **265-frame scroll-scrubbed canvas animation**
-  (`client/src/components/ScrollSequence.jsx`, frames in `client/public/landing/`,
-  27 MB of JPEGs — ~35 MB once built). Every frame is preloaded before the animation
+- The landing page runs a **1195-frame scroll-scrubbed canvas animation**
+  (`client/src/components/ScrollSequence.jsx`, frames in `client/public/landing/`
+  named `PC_Landing_new00432000.jpg`…`00433194.jpg`, ~198 MB of 1920×1080 JPEGs).
+  If the frames are swapped again, update `FRAME_COUNT`, `FIRST_FRAME` and
+  `framePath` to match. Every frame is preloaded before the animation
   plays, which is instant locally but slow over a network. It pulls itself up under
   the sticky header via `HEADER_H` — **if you change the header height, change that
   constant** or the intro stops being full-bleed.
