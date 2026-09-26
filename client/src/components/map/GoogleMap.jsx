@@ -196,6 +196,35 @@ export default function GoogleMap({
     }
   }, [selectedId, items]);
 
+  // Auto-dismiss Google Maps development mode auth/billing popup
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+    const observer = new MutationObserver(() => {
+      const errNodes = mapContainerRef.current.querySelectorAll(
+        '.gm-err-container, [class*="gm-err"], div[style*="z-index: 100000"]'
+      );
+      errNodes.forEach((node) => {
+        if (
+          node.classList.contains('gm-err-container') ||
+          node.textContent?.includes("This page can't load Google Maps correctly") ||
+          node.textContent?.includes('Do you own this website?')
+        ) {
+          node.remove();
+        }
+      });
+
+      const buttons = mapContainerRef.current.querySelectorAll('button');
+      buttons.forEach((btn) => {
+        if (btn.textContent?.trim() === 'OK') {
+          btn.click();
+        }
+      });
+    });
+
+    observer.observe(mapContainerRef.current, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [isLoaded]);
+
   // Initialize map instance
   useEffect(() => {
     if (!isLoaded || !mapContainerRef.current || !userCoords) return;

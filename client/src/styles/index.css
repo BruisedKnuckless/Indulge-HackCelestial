@@ -789,6 +789,19 @@
     background: rgba(160, 160, 162, 0.7);
   }
 
+  /* ── Suppress Google Maps dev mode error popup dialog ──────── */
+  .gm-err-container,
+  .gm-err-content,
+  .gm-err-message,
+  .gm-err-title,
+  .gm-err-icon,
+  [class*="gm-err-"] {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+
   .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
