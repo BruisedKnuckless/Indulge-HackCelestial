@@ -15,6 +15,7 @@ import {
   isInspectable,
 } from '../services/verification/verification.service.js';
 import { custodyChain } from '../services/verification/custody.service.js';
+import { createTechnicianAccount } from '../services/verification/technician.service.js';
 
 /**
  * Admin console — inspections and technicians. Mounted at /api/admin next to
@@ -228,30 +229,19 @@ router.get(
 
 /**
  * POST /api/admin/technicians { name, email, password, phone?, title?, employeeId?, city? }
- * Technician accounts are created here only — never through public sign-up.
+ * Technicians can also self-register (POST /api/auth/technician/register);
+ * only this route can set a title or employee ID.
  */
 router.post(
   '/technicians',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const { name, email, password, phone, title, employeeId } = req.body || {};
+    const { name, email, password, phone, title, employeeId, city } = req.body || {};
     if (!String(name || '').trim()) throw new HttpError(400, 'Name is required.');
     if (!/^\S+@\S+\.\S+$/.test(String(email || ''))) throw new HttpError(400, 'A valid email is required.');
     if (String(password || '').length < 8) throw new HttpError(400, 'Password must be at least 8 characters.');
-    if (await User.exists({ email: String(email).toLowerCase() })) throw new HttpError(409, 'An account with that email already exists.');
 
-    const hq = await User.findOne({ userType: 'inspector' }).select('location').lean();
-    const tech = await User.create({
-      businessName: String(name).trim(),
-      email: String(email).toLowerCase(),
-      passwordHash: await User.hashPassword(password),
-      phone,
-      businessType: 'other',
-      customBusinessType: 'Indulge inspection team',
-      userType: 'inspector',
-      inspectorProfile: { displayName: String(name).trim(), title: title || 'Field Technician', employeeId },
-      location: hq?.location?.coordinates?.length ? hq.location : { type: 'Point', address: 'Indulge HQ', city: 'Mumbai', coordinates: [72.9051, 19.1176] },
-    });
+    const tech = await createTechnicianAccount({ name, email, password, phone, title, employeeId, city });
     await createAuditLog({
       action: 'technician_created',
       actorId: req.admin._id,

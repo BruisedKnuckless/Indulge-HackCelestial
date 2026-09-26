@@ -87,9 +87,13 @@ export default function TechnicianLogin() {
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-        <p className="text-xs text-ink-mute mt-4">
-          Technician accounts are created by Indulge operations. Demo technician: inspector@indulge.com
+        <p className="text-sm text-ink-mute mt-4">
+          New technician?{' '}
+          <Link to="/technician/register" className="link">
+            Create an account
+          </Link>
         </p>
+        <p className="text-xs text-ink-mute mt-2">Demo technician: inspector@indulge.com</p>
       </div>
 
       <Link to="/login" className="link text-sm mt-6">

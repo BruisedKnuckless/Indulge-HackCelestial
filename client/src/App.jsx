@@ -50,6 +50,7 @@ const InspectionDetails = lazy(() => import('./pages/technician/InspectionDetail
 const InspectionExecution = lazy(() => import('./pages/technician/InspectionExecution'));
 const InspectionReport = lazy(() => import('./pages/technician/InspectionReport'));
 import TechnicianLogin from './pages/technician/TechnicianLogin';
+import TechnicianRegister from './pages/technician/TechnicianRegister';
 import TechnicianShell from './components/technician/TechnicianShell';
 import VerificationBanner from './components/layout/VerificationBanner';
 
@@ -229,6 +230,7 @@ export default function App() {
 
         {/* Technician workspace — field inspections only. */}
         <Route path="/technician/login" element={<TechnicianLogin />} />
+        <Route path="/technician/register" element={<TechnicianRegister />} />
         <Route
           path="/technician/*"
           element={

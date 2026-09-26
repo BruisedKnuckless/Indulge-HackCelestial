@@ -163,6 +163,16 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required.'),
 });
 
+// Public technician sign-up. Unknown keys are stripped, so userType, title,
+// employeeId or suspension cannot be set from the body.
+export const technicianRegisterSchema = z.object({
+  name: z.string().trim().min(2, 'Name must be at least 2 characters.').max(120, 'Name is too long.'),
+  email: z.string().trim().email('A valid email address is required.'),
+  password: z.string().min(8, 'Password must be at least 8 characters.'),
+  phone: z.string().trim().max(30, 'Phone number is too long.').optional(),
+  city: z.string().trim().max(80, 'City is too long.').optional(),
+});
+
 /* ── 2. Resource Mutation Schemas ─────────────────────────────────────────── */
 
 export const createResourceSchema = z.object({

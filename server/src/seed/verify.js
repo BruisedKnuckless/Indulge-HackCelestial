@@ -7242,6 +7242,113 @@ async function main() {
     );
   }
 
+  /* ─────────────────────────── Technician self-registration ─────────────────────────── */
+  // Runs after the inspection block: INS-41 counts exactly the two seeded technicians.
+  {
+    console.log('\nTechnician self-registration');
+
+    const trAdmin = await adminLogin();
+    const reg = await api('POST', '/api/auth/technician/register', {
+      body: { name: 'Anita Desai', email: 'Anita.Desai@example.com', password: 'fieldwork8', phone: '9820000000', city: 'Pune' },
+    });
+    const trToken = reg.body?.token;
+    check(
+      'TR-1. A technician registers and is signed straight in as an inspector',
+      reg.status === 201 &&
+        Boolean(trToken) &&
+        reg.body.user?.userType === 'inspector' &&
+        reg.body.user?.inspectorProfile?.displayName === 'Anita Desai' &&
+        reg.body.user?.email === 'anita.desai@example.com' &&
+        reg.body.user?.passwordHash === undefined,
+      JSON.stringify(reg.body)
+    );
+
+    const trList = await api('GET', '/api/verifications', { token: trToken });
+    check(
+      'TR-2. The new technician reaches the inspection API but not the marketplace',
+      trList.status === 200 && trList.body.inspections.length === 0 && (await api('GET', '/api/cart', { token: trToken })).status === 403
+    );
+
+    const trLogin = await api('POST', '/api/auth/login', { body: { email: 'anita.desai@example.com', password: 'fieldwork8' } });
+    check('TR-3. The new technician can sign in again', trLogin.status === 200 && trLogin.body.user?.userType === 'inspector');
+
+    const dup = await api('POST', '/api/auth/technician/register', {
+      body: { name: 'Anita Again', email: 'anita.desai@example.com', password: 'fieldwork8' },
+    });
+    const shortPw = await api('POST', '/api/auth/technician/register', {
+      body: { name: 'Short Pass', email: 'short.pass@example.com', password: 'abc1234' },
+    });
+    const badEmail = await api('POST', '/api/auth/technician/register', {
+      body: { name: 'Bad Email', email: 'not-an-email', password: 'fieldwork8' },
+    });
+    const takenBusiness = await api('POST', '/api/auth/technician/register', {
+      body: { name: 'Orchid Ops', email: 'ops@grandorchid.in', password: 'fieldwork8' },
+    });
+    check(
+      'TR-4. Duplicate emails, short passwords and bad emails are refused',
+      dup.status === 409 && takenBusiness.status === 409 && shortPw.status === 400 && badEmail.status === 400,
+      [dup.status, takenBusiness.status, shortPw.status, badEmail.status].join(',')
+    );
+
+    const sneaky = await api('POST', '/api/auth/technician/register', {
+      body: {
+        name: 'Sneaky Tech',
+        email: 'sneaky.tech@example.com',
+        password: 'fieldwork8',
+        userType: 'business',
+        suspended: true,
+        inspectorProfile: { employeeId: 'IND-T-999', title: 'Chief Inspector' },
+      },
+    });
+    const sneakyUser = await User.findOne({ email: 'sneaky.tech@example.com' }).lean();
+    check(
+      'TR-5. Sign-up cannot set account type, suspension, title or employee ID',
+      sneaky.status === 201 &&
+        sneakyUser?.userType === 'inspector' &&
+        !sneakyUser.suspended &&
+        !sneakyUser.inspectorProfile?.employeeId &&
+        sneakyUser.inspectorProfile?.title === 'Field Technician'
+    );
+
+    const anita = await User.findOne({ email: 'anita.desai@example.com' }).lean();
+    check(
+      'TR-6. The chosen base city is stored with its preset coordinates',
+      anita?.location?.city === 'Pune' && JSON.stringify(anita.location.coordinates) === JSON.stringify([73.8567, 18.5204]),
+      JSON.stringify(anita?.location)
+    );
+
+    const trTechs = await api('GET', '/api/admin/technicians', { token: trAdmin });
+    const openVr = await VerificationRequest.findOne({ status: { $nin: ['verified', 'conditionally_verified', 'rejected'] } }).lean();
+    const trAssign = await api('PATCH', `/api/admin/inspections/${openVr?._id}/assign`, { token: trAdmin, body: { technicianId: String(anita._id) } });
+    const trAfter = await api('GET', '/api/verifications', { token: trToken });
+    check(
+      'TR-7. Admin sees the self-registered technician and can assign them work',
+      trTechs.body?.technicians?.some((t) => t.email === 'anita.desai@example.com') &&
+        trAssign.status === 200 &&
+        trAfter.body?.inspections?.some((i) => String(i._id) === String(openVr._id)),
+      `assign ${trAssign.status}`
+    );
+
+    const bizAsTech = await api('POST', '/api/auth/register', {
+      body: { businessName: 'Backdoor Tech', email: 'backdoor@example.com', password: 'fieldwork8', userType: 'inspector', location: { city: 'Mumbai' } },
+    });
+    check('TR-8. Business sign-up still refuses to create technicians', bizAsTech.status === 400 && !(await User.exists({ email: 'backdoor@example.com' })));
+
+    const adminMade = await api('POST', '/api/admin/technicians', {
+      token: trAdmin,
+      body: { name: 'Vikram Rao', email: 'vikram.rao@example.com', password: 'fieldwork8', employeeId: 'IND-T-031', city: 'Bengaluru' },
+    });
+    const vikram = await User.findOne({ email: 'vikram.rao@example.com' }).lean();
+    check(
+      'TR-9. Admin-created technicians keep their employee ID and city',
+      adminMade.status === 201 &&
+        vikram?.userType === 'inspector' &&
+        vikram.inspectorProfile?.employeeId === 'IND-T-031' &&
+        vikram.location?.city === 'Bengaluru' &&
+        JSON.stringify(vikram.location.coordinates) === JSON.stringify([77.5946, 12.9716])
+    );
+  }
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
 
   server.close();

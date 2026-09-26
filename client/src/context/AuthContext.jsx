@@ -23,9 +23,9 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = useCallback(
-    async (email, password) => {
-      const { data } = await api.post('/auth/login', { email, password });
+  // Every auth endpoint answers { user, token }; keep the session the same way for all of them.
+  const startSession = useCallback(
+    (data) => {
       localStorage.setItem(TOKEN_KEY, data.token);
       setUser(data.user);
       queryClient.invalidateQueries();
@@ -34,15 +34,19 @@ export function AuthProvider({ children }) {
     [queryClient]
   );
 
+  const login = useCallback(
+    async (email, password) => startSession((await api.post('/auth/login', { email, password })).data),
+    [startSession]
+  );
+
   const register = useCallback(
-    async (payload) => {
-      const { data } = await api.post('/auth/register', payload);
-      localStorage.setItem(TOKEN_KEY, data.token);
-      setUser(data.user);
-      queryClient.invalidateQueries();
-      return data.user;
-    },
-    [queryClient]
+    async (payload) => startSession((await api.post('/auth/register', payload)).data),
+    [startSession]
+  );
+
+  const registerTechnician = useCallback(
+    async (payload) => startSession((await api.post('/auth/technician/register', payload)).data),
+    [startSession]
   );
 
   const logout = useCallback(() => {
@@ -59,8 +63,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, updateUser }),
-    [user, loading, login, register, logout, updateUser]
+    () => ({ user, loading, login, register, registerTechnician, logout, updateUser }),
+    [user, loading, login, register, registerTechnician, logout, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

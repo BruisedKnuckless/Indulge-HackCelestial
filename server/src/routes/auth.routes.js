@@ -5,36 +5,11 @@ import Resource from '../models/Resource.js';
 import Requirement from '../models/Requirement.js';
 import { signToken, requireAuth } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
-import { validate, registerSchema, loginSchema } from '../middleware/validate.middleware.js';
+import { validate, registerSchema, loginSchema, technicianRegisterSchema } from '../middleware/validate.middleware.js';
 import { getSafePublicBadges } from '../services/verification.service.js';
-
-export function resolveDefaultCoordinates(loc) {
-  if (Array.isArray(loc?.coordinates) && loc.coordinates.length === 2 && !isNaN(loc.coordinates[0]) && !isNaN(loc.coordinates[1])) {
-    return [Number(loc.coordinates[0]), Number(loc.coordinates[1])];
-  }
-  if (loc?.longitude !== undefined && loc?.latitude !== undefined && !isNaN(loc.longitude) && !isNaN(loc.latitude)) {
-    return [Number(loc.longitude), Number(loc.latitude)];
-  }
-  const text = `${loc?.city || ''} ${loc?.address || ''} ${loc?.formattedAddress || ''} ${loc?.state || ''}`.toLowerCase();
-  if (text.includes('mumbai') || text.includes('bombay') || text.includes('andheri') || text.includes('bkc') || text.includes('bandra') || text.includes('juhu') || text.includes('powai')) {
-    return [72.8777, 19.0760];
-  }
-  if (text.includes('navi mumbai') || text.includes('vashi') || text.includes('belapur') || text.includes('mahape')) {
-    return [73.0297, 19.0330];
-  }
-  if (text.includes('kalyan')) return [73.1355, 19.2437];
-  if (text.includes('dombivli')) return [73.0970, 19.2144];
-  if (text.includes('bhiwandi')) return [73.0631, 19.2967];
-  if (text.includes('pune')) return [73.8567, 18.5204];
-  if (text.includes('bengaluru') || text.includes('bangalore')) return [77.5946, 12.9716];
-  if (text.includes('delhi') || text.includes('gurgaon') || text.includes('noida')) return [77.2090, 28.6139];
-  if (text.includes('hyderabad')) return [78.4867, 17.3850];
-  if (text.includes('chennai')) return [80.2707, 13.0827];
-  if (text.includes('kolkata')) return [88.3639, 22.5726];
-  if (text.includes('ahmedabad')) return [72.5714, 23.0225];
-  // Default to central MMR / Thane hub
-  return [72.9781, 19.2183];
-}
+import { createTechnicianAccount } from '../services/verification/technician.service.js';
+import { createAuditLog } from '../models/AuditLog.js';
+import { resolveDefaultCoordinates } from '../utils/location.js';
 
 const router = Router();
 
@@ -184,6 +159,30 @@ router.post(
     });
 
     res.status(201).json({ user: user, token: signToken(user._id) });
+  })
+);
+
+/**
+ * POST /api/auth/technician/register { name, email, password, phone?, city? }
+ * Public technician sign-up. The account is active immediately and signed in;
+ * title and employee ID stay with operations (POST /api/admin/technicians).
+ */
+router.post(
+  '/technician/register',
+  validate(technicianRegisterSchema),
+  asyncHandler(async (req, res) => {
+    const { name, email, password, phone, city } = req.body;
+    const tech = await createTechnicianAccount({ name, email, password, phone, city });
+    await createAuditLog({
+      action: 'technician_registered',
+      actorType: 'user',
+      actorId: tech._id,
+      actorEmail: tech.email,
+      targetType: 'user',
+      targetId: tech._id,
+      newState: { email: tech.email, userType: 'inspector', city: tech.location?.city },
+    });
+    res.status(201).json({ user: tech, token: signToken(tech._id) });
   })
 );
 

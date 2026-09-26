@@ -104,6 +104,7 @@ export function createApp() {
   app.use('/api', apiLimiter);
   app.use('/api/auth/login', authLimiter);
   app.use('/api/auth/register', authLimiter);
+  app.use('/api/auth/technician/register', authLimiter);
   app.use('/api/admin/auth/login', authLimiter);
 
   // 7. Observability: Health and Readiness Endpoints

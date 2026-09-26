@@ -290,8 +290,12 @@ decision or listing `verificationStatus` — those fields are in
   VERIFIED (`verified`), VERIFIED_WITH_ISSUES (`conditionally_verified`), FAILED
   (`rejected`). Scoring and submit rules live in `services/verification/scoring.js`
   (pass 1, minor .5, fail 0, N/A excluded; critical required fail or < 60 → FAILED).
-- **Technicians** are `User`s with `userType: 'inspector'` — created only by admins
-  (`POST /api/admin/technicians`) or the seed, never by sign-up. `requireAuth` limits
+- **Technicians** are `User`s with `userType: 'inspector'`, created three ways: self-registration
+  at `/technician/register` → `POST /api/auth/technician/register` (active and signed in
+  immediately), admins (`POST /api/admin/technicians`), or the seed. Both routes go
+  through `createTechnicianAccount` (`services/verification/technician.service.js`);
+  only the admin route can set a title or `employeeId`. The business `/api/auth/register`
+  still refuses `userType: 'inspector'`. `requireAuth` limits
   them to `/api/auth`, `/api/verifications`, `/api/notifications`; every technician
   endpoint scopes by `assignedTechnician.id === req.user._id` and answers 404
   otherwise. Client workspace is `/technician/*`.

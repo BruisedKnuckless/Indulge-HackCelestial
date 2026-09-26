@@ -21,6 +21,21 @@ export const BUSINESS_TYPES = [
   { value: 'other', label: 'Other' },
 ];
 
+// Base cities a technician can register from. Each name must be one the server's
+// resolveDefaultCoordinates (server/src/utils/location.js) maps to a preset point.
+export const TECHNICIAN_CITIES = [
+  'Mumbai',
+  'Navi Mumbai',
+  'Thane',
+  'Pune',
+  'Bengaluru',
+  'Delhi NCR',
+  'Hyderabad',
+  'Chennai',
+  'Kolkata',
+  'Ahmedabad',
+];
+
 export const PRICE_UNIT_LABELS = {
   per_hour: '/hour',
   per_day: '/day',
