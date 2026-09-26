@@ -96,6 +96,7 @@ export function useBooking(id) {
     queryKey: ['booking', id],
     queryFn: async () => (await api.get(`/bookings/${id}`)).data,
     enabled: Boolean(id),
+    refetchInterval: 3000,
   });
 }
 

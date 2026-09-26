@@ -20,7 +20,7 @@ export default function Logo({
 }) {
   // Derive visual dimensions: icon is 28px at default size 21 for precise cap-height balance
   const fontSize = width ? Math.round(width * 0.17) : size;
-  const markSize = Math.max(24, Math.min(36, Math.round(fontSize * 1.35)));
+  const markSize = Math.max(24, Math.min(64, Math.round(fontSize * 1.35)));
 
   // Determine base tone:
   // dark === true  -> explicitly light/white text (for dark backgrounds)

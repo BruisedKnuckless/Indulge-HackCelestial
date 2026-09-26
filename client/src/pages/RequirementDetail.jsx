@@ -475,7 +475,7 @@ export default function RequirementDetail() {
           {/* Modal / Dialog for explicit execution confirmation */}
           {confirmingPlan && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-sm animate-in fade-in">
-              <div className="card max-w-xl w-full p-6 md:p-7 border-line bg-surface shadow-2xl relative">
+              <div className="card max-w-xl w-full p-6 md:p-7 border-line bg-surface shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                 <button
                   type="button"
                   onClick={() => setConfirmingPlan(null)}
