@@ -1,0 +1,500 @@
+{
+  "summary": {
+    "records": 16,
+    "mode": "baseline only",
+    "aiStatuses": [
+      "disabled"
+    ],
+    "categoryAccuracy": 1,
+    "parameterRecall": 1,
+    "relevanceViolations": 0,
+    "relevanceViolationRate": 0,
+    "claimCoverage": 1,
+    "redundantPairs": 0,
+    "validProtocols": 16,
+    "unsafeInstructions": 0,
+    "meanParametersPerProtocol": 18.75,
+    "caveat": "Hand-authored benchmark by the same author as the rules: scores are optimistic and are not evidence of real-world accuracy. Replace with technician-labelled data (dataset/README.md)."
+  },
+  "results": [
+    {
+      "recordId": "bm-001",
+      "product": "Dell Latitude 5420",
+      "expectedCategory": "laptop",
+      "category": "laptop",
+      "categoryCorrect": true,
+      "parameters": 29,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "cpu",
+          "value": "Intel i5",
+          "covered": true,
+          "parameter": "Processor"
+        },
+        {
+          "key": "ram",
+          "value": "16GB",
+          "covered": true,
+          "parameter": "RAM"
+        },
+        {
+          "key": "storage",
+          "value": "512GB SSD",
+          "covered": true,
+          "parameter": "Storage Capacity"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-002",
+      "product": "iPhone 14",
+      "expectedCategory": "mobile_phone",
+      "category": "mobile_phone",
+      "categoryCorrect": true,
+      "parameters": 28,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "storage",
+          "value": "128GB",
+          "covered": true,
+          "parameter": "Storage Capacity"
+        },
+        {
+          "key": "battery_health",
+          "value": "90%",
+          "covered": true,
+          "parameter": "Battery Health"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-003",
+      "product": "Toyota Innova",
+      "expectedCategory": "vehicle",
+      "category": "vehicle",
+      "categoryCorrect": true,
+      "parameters": 23,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "transmission",
+          "value": "Automatic",
+          "covered": true,
+          "parameter": "Transmission"
+        },
+        {
+          "key": "seating_capacity",
+          "value": "7",
+          "covered": true,
+          "parameter": "Seats & Seatbelts"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-004",
+      "product": "50 Banquet Chairs",
+      "expectedCategory": "furniture",
+      "category": "furniture",
+      "categoryCorrect": true,
+      "parameters": 8,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "material",
+          "value": "Wooden",
+          "covered": true,
+          "parameter": "Material"
+        },
+        {
+          "key": "quantity",
+          "value": "50",
+          "covered": true,
+          "parameter": "Unit Count"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-005",
+      "product": "MacBook Pro 14 M3 Pro",
+      "expectedCategory": "laptop",
+      "category": "laptop",
+      "categoryCorrect": true,
+      "parameters": 33,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "cpu",
+          "value": "Apple M3 Pro",
+          "covered": true,
+          "parameter": "Processor"
+        },
+        {
+          "key": "ram",
+          "value": "18GB",
+          "covered": true,
+          "parameter": "RAM"
+        },
+        {
+          "key": "storage",
+          "value": "512GB SSD",
+          "covered": true,
+          "parameter": "Storage Capacity"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-006",
+      "product": "Samsung Galaxy S23 Ultra 256GB",
+      "expectedCategory": "mobile_phone",
+      "category": "mobile_phone",
+      "categoryCorrect": true,
+      "parameters": 28,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "storage",
+          "value": "256GB",
+          "covered": true,
+          "parameter": "Storage Capacity"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-007",
+      "product": "iPad Air 5th gen Wi-Fi only 64GB",
+      "expectedCategory": "tablet",
+      "category": "tablet",
+      "categoryCorrect": true,
+      "parameters": 24,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "storage",
+          "value": "64GB",
+          "covered": true,
+          "parameter": "Storage Capacity"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-008",
+      "product": "Canon EOS R6 mirrorless camera body",
+      "expectedCategory": "camera",
+      "category": "camera",
+      "categoryCorrect": true,
+      "parameters": 18,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "shutter_count",
+          "value": "12,400",
+          "covered": true,
+          "parameter": "Shutter Count"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-009",
+      "product": "Epson EB-2250U projector",
+      "expectedCategory": "projector",
+      "category": "projector",
+      "categoryCorrect": true,
+      "parameters": 14,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "brightness_lumens",
+          "value": "5000 lumens",
+          "covered": true,
+          "parameter": "Brightness (Lumens)"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-010",
+      "product": "Samsung 55\" 4K Smart TV",
+      "expectedCategory": "television",
+      "category": "television",
+      "categoryCorrect": true,
+      "parameters": 17,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "display_size",
+          "value": "55\"",
+          "covered": true,
+          "parameter": "Screen Size"
+        },
+        {
+          "key": "resolution",
+          "value": "4K",
+          "covered": true,
+          "parameter": "Display Resolution"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-011",
+      "product": "2 x JBL PRX815W powered PA speakers",
+      "expectedCategory": "audio_equipment",
+      "category": "audio_equipment",
+      "categoryCorrect": true,
+      "parameters": 14,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "rated_output",
+          "value": "1500 W",
+          "covered": true,
+          "parameter": "Rated Output / Power"
+        },
+        {
+          "key": "quantity",
+          "value": "2",
+          "covered": true,
+          "parameter": "Unit Count"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-012",
+      "product": "Tata Ace refrigerated van",
+      "expectedCategory": "vehicle",
+      "category": "vehicle",
+      "categoryCorrect": true,
+      "parameters": 23,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "transmission",
+          "value": "manual",
+          "covered": true,
+          "parameter": "Transmission"
+        },
+        {
+          "key": "fuel_type",
+          "value": "diesel",
+          "covered": true,
+          "parameter": "Fuel Type"
+        },
+        {
+          "key": "odometer",
+          "value": "82,000",
+          "covered": true,
+          "parameter": "Odometer Reading"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-013",
+      "product": "120 Tiffany chairs",
+      "expectedCategory": "furniture",
+      "category": "furniture",
+      "categoryCorrect": true,
+      "parameters": 8,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "quantity",
+          "value": "120",
+          "covered": true,
+          "parameter": "Unit Count"
+        },
+        {
+          "key": "material",
+          "value": "acrylic",
+          "covered": true,
+          "parameter": "Material"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-014",
+      "product": "Commercial 4-burner gas range with oven",
+      "expectedCategory": "kitchen_equipment",
+      "category": "kitchen_equipment",
+      "categoryCorrect": true,
+      "parameters": 11,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "material",
+          "value": "stainless steel",
+          "covered": true,
+          "parameter": "Material"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-015",
+      "product": "Aluminium box truss set 40 ft",
+      "expectedCategory": "event_equipment",
+      "category": "event_equipment",
+      "categoryCorrect": true,
+      "parameters": 10,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "material",
+          "value": "Aluminium",
+          "covered": true,
+          "parameter": "Material"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    },
+    {
+      "recordId": "bm-016",
+      "product": "Kirloskar 62.5 kVA silent diesel generator",
+      "expectedCategory": "industrial_equipment",
+      "category": "industrial_equipment",
+      "categoryCorrect": true,
+      "parameters": 12,
+      "recall": 1,
+      "missing": [],
+      "violations": [],
+      "claimCoverage": 1,
+      "claims": [
+        {
+          "key": "rated_output",
+          "value": "62.5 KVA",
+          "covered": true,
+          "parameter": "Rated Output / Power"
+        },
+        {
+          "key": "fuel_type",
+          "value": "diesel",
+          "covered": true,
+          "parameter": "Fuel Type"
+        }
+      ],
+      "redundant": [],
+      "valid": true,
+      "unsafe": [],
+      "mode": "baseline_only",
+      "aiStatus": "disabled"
+    }
+  ],
+  "generatedAt": "2026-09-26T15:03:44.637Z"
+}

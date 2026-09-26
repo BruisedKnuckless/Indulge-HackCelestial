@@ -1,0 +1,887 @@
+{
+  "protocolId": "441e9d975ad668b4",
+  "inspectionVersion": "1.0.0",
+  "status": "pending_inspection",
+  "disclaimer": "Generated inspection protocol: it lists what a technician must physically check. It does not verify the product; results come only from the physical inspection and its evidence.",
+  "productName": "iPhone 14",
+  "productCategory": "mobile_phone",
+  "categoryLabel": "Mobile Phone",
+  "product": {
+    "name": "iPhone 14",
+    "brand": "Apple",
+    "model": "iPhone 14",
+    "quantity": 1,
+    "declaredCondition": "Good",
+    "usageAge": null,
+    "sourceRef": null
+  },
+  "classification": {
+    "category": "mobile_phone",
+    "label": "Mobile Phone",
+    "method": "declared_category_plus_keywords",
+    "score": 10,
+    "margin": 10,
+    "matchedTerms": [
+      "declared \"Mobile Phone\"",
+      "iphone"
+    ],
+    "declaredCategory": "Mobile Phone",
+    "runnerUp": null,
+    "template": "mobile_phone",
+    "templateChain": [
+      "electronics",
+      "mobile_phone"
+    ]
+  },
+  "attributes": {
+    "isElectrical": {
+      "value": true,
+      "source": "template default"
+    },
+    "hasBattery": {
+      "value": true,
+      "source": "claim: Battery Health"
+    },
+    "hasTouchscreen": {
+      "value": true,
+      "source": "profile: iphone"
+    },
+    "hasCamera": {
+      "value": true,
+      "source": "profile: iphone"
+    },
+    "quantity": {
+      "value": 1,
+      "source": "derived"
+    },
+    "isLot": {
+      "value": false,
+      "source": "single item"
+    },
+    "isApple": {
+      "value": true,
+      "source": "profile: apple_device"
+    },
+    "hasFaceId": {
+      "value": true,
+      "source": "profile: iphone_face_id"
+    },
+    "hasFingerprint": {
+      "value": false,
+      "source": "profile: iphone_face_id"
+    }
+  },
+  "claims": [
+    {
+      "key": "storage",
+      "title": "Storage Capacity",
+      "value": "128GB",
+      "normalized": "128GB",
+      "rawKey": "storage",
+      "source": "declared_specification"
+    },
+    {
+      "key": "battery_health",
+      "title": "Battery Health",
+      "value": "90%",
+      "normalized": "90%",
+      "rawKey": "battery health",
+      "source": "declared_specification"
+    }
+  ],
+  "inspectionScope": {
+    "quantity": 1,
+    "countAllUnits": false,
+    "sampleSize": null,
+    "rule": "Inspect every unit in full."
+  },
+  "parameters": [
+    {
+      "id": "account_lock",
+      "category": "identity",
+      "title": "Account & Activation Lock Removed",
+      "description": "Confirm the device is not locked to the previous owner's account or a firmware password.",
+      "instructions": [
+        "Check the device is signed out of the previous owner's account",
+        "Check activation or anti-theft locks are off",
+        "Check no firmware or BIOS password is set",
+        "Confirm Find My is turned off and the device has been removed from the previous owner's Apple Account",
+        "Confirm Activation Lock is off"
+      ],
+      "expectedResult": "No account, activation or firmware lock remains.",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "brand_profile"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template). Product-specific (apple_device): Apple devices can stay locked to the previous owner through Activation Lock / Find My.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "imei",
+      "category": "identity",
+      "title": "IMEI",
+      "description": "Record the IMEI and confirm it matches the device and is not blocklisted.",
+      "instructions": [
+        "Dial *#06# to display the IMEI",
+        "Confirm it matches the IMEI in settings and on the SIM tray or box where printed",
+        "Check the IMEI against the national blocklist service",
+        "Confirm the IMEI in Settings > General > About matches the one shown by *#06#"
+      ],
+      "expectedResult": "IMEI consistent everywhere and not blocklisted.",
+      "verificationType": "serial_check",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "brand_profile"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template). Product-specific (iphone): iOS reports battery capacity and non-genuine parts in Settings.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "model_identification",
+      "category": "identity",
+      "title": "Make & Model Identification",
+      "description": "Confirm the item is the make and model listed.",
+      "instructions": [
+        "Read the model number from the label, nameplate or system information",
+        "Compare it with the listed brand and model"
+      ],
+      "expectedResult": "Make and model match the listing.",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "serial_number",
+      "category": "identity",
+      "title": "Serial Number",
+      "description": "Record the serial number and confirm it is consistent everywhere it appears.",
+      "instructions": [
+        "Read the serial number from the physical label",
+        "Where the device shows one in its settings or firmware, confirm it matches the label",
+        "Photograph the label"
+      ],
+      "expectedResult": "Serial number is present, legible and consistent.",
+      "verificationType": "serial_check",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "battery_safety",
+      "category": "safety",
+      "title": "Battery Swelling & Heat",
+      "description": "Look for signs of a swollen or overheating battery without opening the device.",
+      "instructions": [
+        "Place the device on a flat surface and check it sits flat with no rocking",
+        "Check for a lifted screen or panel, a bulging back or separating seams",
+        "Feel for abnormal heat during charging",
+        "If any sign of swelling is found, stop, do not charge or press on it, and flag for a qualified technician"
+      ],
+      "expectedResult": "No swelling, bulging or abnormal heat.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional"
+      ],
+      "reason": "Conditional check: hasBattery = true (claim: Battery Health).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "display_condition",
+      "category": "physical",
+      "title": "Display Condition",
+      "description": "Inspect the physical and visual condition of the display.",
+      "instructions": [
+        "Check the glass for cracks, chips and deep scratches",
+        "Show full-screen white, black, red, green and blue to find dead or stuck pixels",
+        "Look for backlight bleed, burn-in, lines and discolouration"
+      ],
+      "expectedResult": "No cracks, dead pixels, lines or burn-in; uniform colour.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "physical_condition",
+      "category": "physical",
+      "title": "Overall Physical Condition",
+      "description": "Inspect the whole item for damage beyond normal wear.",
+      "instructions": [
+        "Inspect every face of the item under good light",
+        "Note cracks, dents, bends, breaks or missing parts",
+        "Photograph any damage found with a scale reference"
+      ],
+      "expectedResult": "No structural or functional damage; wear consistent with the declared condition.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "back_body",
+      "category": "physical",
+      "title": "Back Panel & Frame",
+      "description": "Inspect the back glass or panel and the frame.",
+      "instructions": [
+        "Check the back glass or panel for cracks",
+        "Check the frame for dents and bends",
+        "Check the camera lens covers for cracks"
+      ],
+      "expectedResult": "No cracks or bends; lens covers intact.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "liquid_damage",
+      "category": "physical",
+      "title": "Liquid Damage Indicator",
+      "description": "Check visible liquid-contact indicators without opening the device.",
+      "instructions": [
+        "Where the manufacturer places an indicator in the SIM slot or a port, inspect it with a torch",
+        "Look for corrosion in the ports"
+      ],
+      "expectedResult": "Indicator not triggered; no corrosion.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "power_on",
+      "category": "functional",
+      "title": "Power-On Test",
+      "description": "Confirm the item powers on normally from its own supply.",
+      "instructions": [
+        "Connect the item's own charger or power cable",
+        "Power on and observe the start-up",
+        "Note any error lights, beeps, smells or abnormal noise and power off immediately if present"
+      ],
+      "expectedResult": "Powers on normally with no error indications.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "boot_os",
+      "category": "functional",
+      "title": "Boot & Operating System",
+      "description": "Confirm the device boots to a working operating system.",
+      "instructions": [
+        "Boot the device from power off",
+        "Confirm it reaches the desktop or home screen without errors",
+        "Confirm the operating system is activated and not locked to a previous user"
+      ],
+      "expectedResult": "Boots cleanly to a working, unlocked operating system.",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "cellular",
+      "category": "functional",
+      "title": "Cellular Network & SIM",
+      "description": "Confirm the device registers on a mobile network and makes calls.",
+      "instructions": [
+        "Insert a test SIM or activate a test eSIM",
+        "Confirm network registration and signal",
+        "Make and receive a short call; test mobile data",
+        "If the phone has no SIM tray (US model), test network registration with an eSIM instead"
+      ],
+      "expectedResult": "Registers on the network; calls and data work.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "brand_profile"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template). Product-specific (iphone_esim_us): US-model iPhone 14 and later have no physical SIM tray and use eSIM only.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "charging",
+      "category": "functional",
+      "title": "Charging",
+      "description": "Confirm the device charges from its own charger.",
+      "instructions": [
+        "Connect the declared charger",
+        "Confirm the charging indicator appears",
+        "Confirm the charge level rises over several minutes"
+      ],
+      "expectedResult": "Charges normally from the supplied charger.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "face_unlock",
+      "category": "functional",
+      "title": "Face Recognition (Face ID)",
+      "description": "Confirm face recognition can be set up and unlocks the device.",
+      "instructions": [
+        "Enrol a test face in the face-recognition settings",
+        "Lock and unlock the device with it",
+        "Remove the test enrolment afterwards"
+      ],
+      "expectedResult": "Enrolment succeeds and unlocks reliably.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional"
+      ],
+      "reason": "Conditional check: hasFaceId = true (profile: iphone_face_id).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "rear_camera",
+      "category": "functional",
+      "title": "Rear Camera",
+      "description": "Test every rear lens, focus and flash.",
+      "instructions": [
+        "Take a photo with each rear lens",
+        "Check autofocus and image sharpness",
+        "Test the flash or torch",
+        "Record a short video"
+      ],
+      "expectedResult": "Every lens focuses and produces a clear image; flash works.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "touchscreen",
+      "category": "functional",
+      "title": "Touchscreen Response",
+      "description": "Confirm touch input works across the whole screen.",
+      "instructions": [
+        "Draw lines across the full screen in a drawing or test app",
+        "Check multi-touch with a pinch gesture",
+        "Note dead zones or phantom touches"
+      ],
+      "expectedResult": "Touch registers everywhere with no dead zones or phantom input.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "front_camera",
+      "category": "functional",
+      "title": "Front Camera",
+      "description": "Test the front-facing camera.",
+      "instructions": [
+        "Take a selfie photo and video",
+        "Check focus and clarity"
+      ],
+      "expectedResult": "Clear front camera image.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "speakers_output",
+      "category": "functional",
+      "title": "Speakers & Audio Output",
+      "description": "Confirm built-in speakers and the audio output work.",
+      "instructions": [
+        "Play audio across the volume range",
+        "Check left and right channels",
+        "Listen for distortion, rattle or crackle"
+      ],
+      "expectedResult": "Clear audio on all channels at all volumes.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "wifi",
+      "category": "functional",
+      "title": "Wi-Fi",
+      "description": "Confirm the device connects to a Wi-Fi network.",
+      "instructions": [
+        "Connect to a known Wi-Fi network",
+        "Load a web page"
+      ],
+      "expectedResult": "Connects and loads pages.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "bluetooth",
+      "category": "functional",
+      "title": "Bluetooth",
+      "description": "Confirm Bluetooth pairs with another device.",
+      "instructions": [
+        "Pair with a test phone or headset",
+        "Confirm the connection stays up"
+      ],
+      "expectedResult": "Pairs and stays connected.",
+      "verificationType": "functional_test",
+      "required": false,
+      "requiresEvidenceOnFail": false,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "microphone",
+      "category": "functional",
+      "title": "Microphone",
+      "description": "Confirm the built-in microphone records clearly.",
+      "instructions": [
+        "Record a short voice clip",
+        "Play it back and check for clarity and noise"
+      ],
+      "expectedResult": "Clear recording without crackle or dropouts.",
+      "verificationType": "functional_test",
+      "required": false,
+      "requiresEvidenceOnFail": false,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "physical_buttons",
+      "category": "functional",
+      "title": "Physical Buttons & Switches",
+      "description": "Test every hardware button and switch.",
+      "instructions": [
+        "Press each button and toggle each switch",
+        "Check each gives a positive click and the expected action"
+      ],
+      "expectedResult": "All buttons and switches respond.",
+      "verificationType": "functional_test",
+      "required": false,
+      "requiresEvidenceOnFail": false,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "battery_health",
+      "category": "performance",
+      "title": "Battery Health",
+      "description": "Read the battery's health or capacity from the device.",
+      "instructions": [
+        "Open Settings > Battery > Battery Health (& Charging)",
+        "Record Maximum Capacity and whether a service message or 'Unknown part' is shown",
+        "Compare Maximum Capacity with the declared battery health"
+      ],
+      "expectedResult": "Battery health reported and consistent with the declaration. Declared: 90%.",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "90%",
+      "verificationInstruction": "Read the battery's maximum capacity on the device's battery health screen or system report and compare it with the claim.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional",
+        "brand_profile",
+        "claim"
+      ],
+      "reason": "Conditional check: hasBattery = true (claim: Battery Health). Product-specific (iphone): iOS reports battery capacity and non-genuine parts in Settings. Provider claim: Battery Health = 90%, declared by the provider.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "spec_storage",
+      "category": "specification",
+      "title": "Storage Capacity",
+      "description": "Verify the provider's declared storage capacity.",
+      "instructions": [
+        "Read the total storage capacity in Settings > About (or General > About) (formatted capacity is slightly below the marketed figure) and compare it with the claim.",
+        "Record the observed value next to the claimed value"
+      ],
+      "expectedResult": "Matches the declared value: 128GB",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "128GB",
+      "verificationInstruction": "Read the total storage capacity in Settings > About (or General > About) (formatted capacity is slightly below the marketed figure) and compare it with the claim.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "claim"
+      ],
+      "reason": "Provider claim: Storage Capacity = 128GB, declared by the provider.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "accessories_declared",
+      "category": "accessories",
+      "title": "Declared Accessories",
+      "description": "Confirm every accessory the provider listed is present and working.",
+      "instructions": [
+        "Tick off each declared accessory",
+        "Check each accessory for damage",
+        "Test powered accessories with the item"
+      ],
+      "expectedResult": "All declared accessories present and serviceable.",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "genuine_parts",
+      "category": "documentation",
+      "title": "Parts & Service History",
+      "description": "Check the device's own record of replaced or non-genuine parts.",
+      "instructions": [
+        "Open Settings > General > About and read the Parts and Service History section where shown",
+        "Record any part listed as 'Unknown Part' or replaced"
+      ],
+      "expectedResult": "No unknown or non-genuine parts, or replacements disclosed by the provider.",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "brand_profile"
+      ],
+      "reason": "Product-specific (iphone): iOS reports battery capacity and non-genuine parts in Settings. Product-specific (iphone): iOS reports battery capacity and non-genuine parts in Settings.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "cosmetic_condition",
+      "category": "cosmetic",
+      "title": "Cosmetic Condition",
+      "description": "Grade surface wear against the provider's declared condition.",
+      "instructions": [
+        "Look for scratches, scuffs, discolouration and stains",
+        "Compare the wear against the declared condition grade",
+        "Photograph representative wear"
+      ],
+      "expectedResult": "Cosmetic wear matches the declared condition.",
+      "verificationType": "comparison",
+      "required": false,
+      "requiresEvidenceOnFail": true,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "declared_condition",
+      "category": "other",
+      "title": "Declared Condition Grade",
+      "description": "Compare the item's overall state with the condition the provider declared.",
+      "instructions": [
+        "Read the declared condition grade",
+        "Decide whether the observed state matches, exceeds or falls short of it",
+        "Record the grade you would assign"
+      ],
+      "expectedResult": "Observed condition matches the declared grade.",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "Good",
+      "verificationInstruction": "Grade the observed condition and compare it with the declared grade.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "claim"
+      ],
+      "reason": "Category baseline for mobile_phone (electronics → mobile_phone template). Provider declared condition: Good.",
+      "status": "pending_inspection"
+    }
+  ],
+  "summary": {
+    "total": 28,
+    "required": 24,
+    "critical": 5,
+    "requiresQualifiedInspector": 0,
+    "claimChecks": 3,
+    "bySource": {
+      "baseline": 28
+    },
+    "byCategory": {
+      "identity": 4,
+      "safety": 1,
+      "physical": 4,
+      "functional": 13,
+      "performance": 1,
+      "specification": 1,
+      "accessories": 1,
+      "documentation": 1,
+      "cosmetic": 1,
+      "other": 1
+    },
+    "brandProfiles": [
+      "apple_device",
+      "iphone",
+      "iphone_face_id",
+      "iphone_esim_us"
+    ]
+  },
+  "imageHints": [],
+  "validation": {
+    "mergedDuplicates": [],
+    "rejectedAiParameters": [],
+    "removedUnsafeInstructions": [],
+    "notApplicable": [
+      {
+        "id": "remote_control",
+        "reason": "condition not met: hasRemote = true"
+      },
+      {
+        "id": "fingerprint",
+        "reason": "condition not met: hasFingerprint = true (profile: iphone_face_id)"
+      },
+      {
+        "id": "stylus",
+        "reason": "condition not met: hasStylus = true"
+      }
+    ]
+  },
+  "generation": {
+    "modelName": "indulge-inspection-protocol-generator",
+    "modelVersion": "1.0.0",
+    "promptVersion": "inspection-prompt-1.0",
+    "templateVersion": "templates-e001da6f2c",
+    "knowledgeVersions": {
+      "taxonomy": "1.0",
+      "parameters": "1.0",
+      "specRules": "1.0",
+      "attributeRules": "1.0",
+      "brandProfiles": "1.0",
+      "safety": "1.0",
+      "priorities": "1.0",
+      "template:electronics": "1.0",
+      "template:mobile_phone": "1.0"
+    },
+    "generationTimestamp": "2026-09-26T15:03:44.141Z",
+    "mode": "baseline_only",
+    "ai": {
+      "status": "disabled",
+      "reason": "no Anthropic credentials configured",
+      "llmModel": null,
+      "imagesUsed": false,
+      "suggested": 0,
+      "accepted": 0,
+      "mergedIntoBaseline": 0,
+      "usage": null,
+      "confidenceNote": "No numeric confidence is reported: the rules are deterministic, and LLM token probabilities are not a validated confidence measure. generationSource and reason explain each parameter instead."
+    }
+  }
+}

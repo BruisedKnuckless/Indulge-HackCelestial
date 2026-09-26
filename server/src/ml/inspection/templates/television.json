@@ -1,0 +1,36 @@
+{
+  "category": "television",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for television.",
+  "extends": "electronics",
+  "mandatoryParameters": [
+    "display_condition",
+    "display_brightness",
+    "video_inputs",
+    "speakers_output",
+    "mounting_hardware"
+  ],
+  "conditionalParameters": [
+    {
+      "param": "wifi",
+      "when": {
+        "isSmart": true
+      }
+    }
+  ],
+  "excludeParameters": [
+    "function_general"
+  ],
+  "attributeDefaults": {
+    "hasBattery": false,
+    "hasRemote": true
+  },
+  "forbiddenTerms": [
+    "keyboard",
+    "touchpad",
+    "imei",
+    "cellular",
+    "battery health",
+    "hinge"
+  ]
+}

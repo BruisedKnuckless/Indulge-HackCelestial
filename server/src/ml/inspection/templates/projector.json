@@ -1,0 +1,28 @@
+{
+  "category": "projector",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for projector.",
+  "extends": "electronics",
+  "mandatoryParameters": [
+    "projection_quality",
+    "light_source_hours",
+    "cooling_fan",
+    "video_inputs"
+  ],
+  "conditionalParameters": [],
+  "excludeParameters": [
+    "function_general"
+  ],
+  "attributeDefaults": {
+    "hasBattery": false,
+    "hasRemote": true
+  },
+  "forbiddenTerms": [
+    "keyboard",
+    "touchpad",
+    "imei",
+    "cellular",
+    "battery health",
+    "hinge"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "category": "laptop",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for laptop.",
+  "extends": "electronics",
+  "mandatoryParameters": [
+    "display_condition",
+    "display_brightness",
+    "keyboard",
+    "touchpad",
+    "hinge_condition",
+    "ports_io",
+    "boot_os",
+    "storage_health",
+    "wifi",
+    "bluetooth",
+    "webcam",
+    "microphone",
+    "speakers_output",
+    "account_lock"
+  ],
+  "conditionalParameters": [
+    "fingerprint"
+  ],
+  "excludeParameters": [
+    "function_general"
+  ],
+  "attributeDefaults": {
+    "hasBattery": true,
+    "hasTouchscreen": false
+  },
+  "forbiddenTerms": [
+    "imei",
+    "sim card",
+    "cellular",
+    "rear camera",
+    "back glass",
+    "lens fungus",
+    "shutter count"
+  ],
+  "parameterOverrides": {
+    "battery_safety": {
+      "appendInstructions": [
+        "On a laptop, a raised keyboard or touchpad is a common sign of a swollen battery"
+      ]
+    }
+  }
+}

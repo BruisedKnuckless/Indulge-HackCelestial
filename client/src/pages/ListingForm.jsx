@@ -4,8 +4,9 @@ import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { Calendar, Clock, Plus, Trash2, ShieldAlert } from 'lucide-react';
 import api, { errorMessage } from '../api/client';
-import { useResource } from '../hooks/queries';
+import { useResource, useDeliveryPreview } from '../hooks/queries';
 import { Alert, Spinner } from '../components/ui';
+import DeliveryConditions from '../components/DeliveryConditions';
 import { CATEGORIES, PRICE_UNITS, UNITS } from '../lib/constants';
 import { toLocalInput, dateTime } from '../lib/format';
 
@@ -75,6 +76,27 @@ export default function ListingForm() {
     reason: '',
   });
   const [blockBusy, setBlockBusy] = useState(false);
+
+  // Live delivery-conditions preview for the full stock, debounced so typing
+  // a title doesn't fire a request per keystroke.
+  const [previewDraft, setPreviewDraft] = useState(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPreviewDraft({
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        totalQuantity: Number(form.totalQuantity) || 1,
+        unit: form.unit,
+        capacity: Number(form.capacity) || undefined,
+        pricing: { basePrice: Number(form.basePrice) || 0, priceUnit: form.priceUnit },
+        highlights: form.highlights.split('\n').map((x) => x.trim()).filter(Boolean),
+        tags: form.tags.split(',').map((x) => x.trim()).filter(Boolean),
+      });
+    }, 500);
+    return () => clearTimeout(t);
+  }, [form.title, form.description, form.category, form.totalQuantity, form.unit, form.capacity, form.basePrice, form.priceUnit, form.highlights, form.tags]);
+  const { data: deliveryPreview, isFetching: previewLoading } = useDeliveryPreview(previewDraft);
 
   // Flatten the nested resource shape into the flat form state.
   useEffect(() => {
@@ -371,6 +393,17 @@ export default function ListingForm() {
                 className="field"
               />
             </Field>
+          </div>
+
+          {/* ── How this listing will be delivered (ML preview) ─────── */}
+          <div className="mb-6">
+            <DeliveryConditions
+              assessment={deliveryPreview}
+              loading={previewLoading}
+              title="How this will be delivered"
+              wide
+              note="preview for your full stock — seekers see it for the quantity they choose"
+            />
           </div>
 
           {/* ── Turnaround & Booking Buffers ────────────────────────── */}

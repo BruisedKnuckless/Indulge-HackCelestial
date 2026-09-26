@@ -1,0 +1,32 @@
+{
+  "category": "other",
+  "templateVersion": "1.0",
+  "description": "Fallback for items no other category covers. Deliberately generic; the AI layer and claims add the specifics.",
+  "extends": null,
+  "mandatoryParameters": [
+    "physical_condition",
+    "cosmetic_condition",
+    "declared_condition",
+    "function_general",
+    "accessories_declared"
+  ],
+  "conditionalParameters": [
+    "unit_count",
+    {
+      "param": "power_on",
+      "when": {
+        "isElectrical": true
+      }
+    },
+    {
+      "param": "power_supply_safety",
+      "when": {
+        "isElectrical": true
+      }
+    },
+    "battery_safety"
+  ],
+  "excludeParameters": [],
+  "attributeDefaults": {},
+  "forbiddenTerms": []
+}

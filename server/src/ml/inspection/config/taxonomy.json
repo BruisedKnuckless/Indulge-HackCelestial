@@ -1,0 +1,104 @@
+{
+  "version": "1.0",
+  "description": "Inspection product categories. Add a category by adding an entry here and a template in ../templates/<id>.json — no code change. `keywords` are matched as whole words against the product name, brand, model and description (name and brand/model count double). `indulgeCategories` are the marketplace listing categories that make this category more likely. `parent` is used for template inheritance and as the fallback when a child category has no template.",
+  "categories": [
+    {
+      "id": "laptop",
+      "label": "Laptop",
+      "parent": "electronics",
+      "keywords": ["laptop", "notebook", "macbook", "latitude", "thinkpad", "ideapad", "inspiron", "xps", "pavilion", "elitebook", "probook", "zenbook", "vivobook", "chromebook", "ultrabook", "surface laptop"],
+      "indulgeCategories": ["av_equipment", "other"]
+    },
+    {
+      "id": "mobile_phone",
+      "label": "Mobile Phone",
+      "parent": "electronics",
+      "keywords": ["iphone", "smartphone", "phone", "mobile", "galaxy s", "galaxy a", "galaxy z", "pixel", "oneplus", "redmi", "xiaomi", "oppo", "vivo", "realme", "nokia"],
+      "indulgeCategories": ["other"]
+    },
+    {
+      "id": "tablet",
+      "label": "Tablet",
+      "parent": "electronics",
+      "keywords": ["ipad", "tablet", "galaxy tab", "surface pro", "kindle"],
+      "indulgeCategories": ["other"]
+    },
+    {
+      "id": "camera",
+      "label": "Camera",
+      "parent": "electronics",
+      "keywords": ["camera", "dslr", "mirrorless", "camcorder", "gopro", "lens", "eos", "alpha", "lumix", "nikon", "fujifilm"],
+      "indulgeCategories": ["av_equipment"]
+    },
+    {
+      "id": "projector",
+      "label": "Projector",
+      "parent": "electronics",
+      "keywords": ["projector", "beamer", "lumens", "dlp", "projection"],
+      "indulgeCategories": ["av_equipment"]
+    },
+    {
+      "id": "television",
+      "label": "Television / Display",
+      "parent": "electronics",
+      "keywords": ["tv", "television", "led tv", "oled", "qled", "smart tv", "display panel", "led wall", "video wall", "monitor"],
+      "indulgeCategories": ["av_equipment"]
+    },
+    {
+      "id": "audio_equipment",
+      "label": "Audio Equipment",
+      "parent": "electronics",
+      "keywords": ["speaker", "speakers", "pa system", "line array", "subwoofer", "amplifier", "mixer", "microphone", "mic", "sound system", "headphones", "soundbar", "dj console"],
+      "indulgeCategories": ["av_equipment"]
+    },
+    {
+      "id": "vehicle",
+      "label": "Vehicle",
+      "parent": null,
+      "keywords": ["car", "vehicle", "suv", "sedan", "hatchback", "mpv", "van", "bus", "coach", "tempo traveller", "truck", "innova", "ertiga", "fortuner", "scorpio", "xuv", "creta", "city", "swift", "dzire", "crysta"],
+      "indulgeCategories": ["vehicle"]
+    },
+    {
+      "id": "furniture",
+      "label": "Furniture",
+      "parent": null,
+      "keywords": ["chair", "chairs", "table", "tables", "sofa", "couch", "stool", "bench", "desk", "cabinet", "ottoman", "furniture", "chiavari", "tiffany"],
+      "indulgeCategories": ["furniture"]
+    },
+    {
+      "id": "kitchen_equipment",
+      "label": "Kitchen Equipment",
+      "parent": null,
+      "keywords": ["oven", "stove", "burner", "tandoor", "fryer", "refrigerator", "fridge", "freezer", "chiller", "mixer grinder", "chafing", "dishwasher", "microwave", "griddle", "kitchen"],
+      "indulgeCategories": ["kitchen_capacity"]
+    },
+    {
+      "id": "event_equipment",
+      "label": "Event Equipment",
+      "parent": null,
+      "keywords": ["stage", "truss", "tent", "canopy", "marquee", "gazebo", "backdrop", "stage lights", "lighting", "par can", "moving head", "fog machine", "podium", "riser", "barricade"],
+      "indulgeCategories": ["av_equipment", "other"]
+    },
+    {
+      "id": "industrial_equipment",
+      "label": "Industrial Equipment",
+      "parent": null,
+      "keywords": ["generator", "genset", "dg set", "kva", "compressor", "forklift", "welding", "pump", "industrial"],
+      "indulgeCategories": ["other"]
+    },
+    {
+      "id": "electronics",
+      "label": "Electronics",
+      "parent": null,
+      "keywords": ["electronic", "electronics", "device", "gadget", "console", "router", "printer", "smartwatch"],
+      "indulgeCategories": ["av_equipment"]
+    },
+    {
+      "id": "other",
+      "label": "Other",
+      "parent": null,
+      "keywords": [],
+      "indulgeCategories": []
+    }
+  ]
+}

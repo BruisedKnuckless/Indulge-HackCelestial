@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "indulge/inspection-training-record/1.0",
+  "title": "Inspection training record",
+  "description": "One product, the protocol generated for it, and what a technician established during the physical inspection. One JSON object per line (JSONL). Designed to support supervised training (input → required parameter ids), fine-tuning (input → protocol), retrieval (similar past products and their protocols) and evaluation. See dataset/README.md.",
+  "type": "object",
+  "required": ["recordId", "productKey", "source", "input", "labels", "createdAt"],
+  "properties": {
+    "recordId": { "type": "string" },
+    "productKey": {
+      "type": "string",
+      "description": "Normalised 'brand|model' (or 'generic|<product type>'). Splits are grouped on this key so the same product never appears in both training and test data."
+    },
+    "source": {
+      "enum": ["technician_feedback", "expert_annotation", "benchmark"],
+      "description": "technician_feedback = from a real inspection; expert_annotation = a reviewer labelled it without inspecting; benchmark = hand-authored acceptance case (evaluation only, never training)."
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "input": { "description": "Exactly the InputSchema object (schema.js) the generator received.", "type": "object" },
+    "protocol": {
+      "type": "object",
+      "description": "What was generated, so feedback is tied to a model version.",
+      "properties": {
+        "protocolId": { "type": "string" },
+        "modelVersion": { "type": "string" },
+        "promptVersion": { "type": "string" },
+        "templateVersion": { "type": "string" },
+        "mode": { "enum": ["baseline_only", "baseline_plus_ai"] },
+        "parameterIds": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "required": ["requiredParameterIds"],
+      "properties": {
+        "category": { "type": "string", "description": "Correct inspection category." },
+        "requiredParameterIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Checks the technician confirms were needed for this product (positive labels)."
+        },
+        "irrelevantParameterIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Generated checks the technician marked not applicable (negative labels — feed precision)."
+        },
+        "missingChecks": {
+          "type": "array",
+          "description": "Checks the technician had to add (recall failures). New recurring ones become library parameters.",
+          "items": {
+            "type": "object",
+            "required": ["title", "category"],
+            "properties": {
+              "title": { "type": "string" },
+              "category": { "type": "string" },
+              "verificationType": { "type": "string" },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "observations": {
+          "type": "array",
+          "description": "Claim vs actual, per parameter. Evidence references point to photos/documents stored by the inspection workflow.",
+          "items": {
+            "type": "object",
+            "required": ["parameterId", "result"],
+            "properties": {
+              "parameterId": { "type": "string" },
+              "claimedValue": { "type": ["string", "null"] },
+              "observedValue": { "type": ["string", "null"] },
+              "result": { "enum": ["pass", "fail", "not_applicable", "not_checked"] },
+              "evidenceRefs": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "description": "Benchmark-only acceptance criteria (source = benchmark).",
+      "properties": {
+        "category": { "type": "string" },
+        "mustInclude": { "type": "array", "items": { "type": "string" } },
+        "mustNotInclude": { "type": "array", "items": { "type": "string" } },
+        "claims": { "type": "array", "items": { "type": "object" } }
+      }
+    }
+  }
+}

@@ -1,0 +1,356 @@
+{
+  "protocolId": "84d44abe4801925b",
+  "inspectionVersion": "1.0.0",
+  "status": "pending_inspection",
+  "disclaimer": "Generated inspection protocol: it lists what a technician must physically check. It does not verify the product; results come only from the physical inspection and its evidence.",
+  "productName": "50 Banquet Chairs",
+  "productCategory": "furniture",
+  "categoryLabel": "Furniture",
+  "product": {
+    "name": "50 Banquet Chairs",
+    "brand": null,
+    "model": null,
+    "quantity": 50,
+    "declaredCondition": "Good",
+    "usageAge": null,
+    "sourceRef": null
+  },
+  "classification": {
+    "category": "furniture",
+    "label": "Furniture",
+    "method": "declared_category_plus_keywords",
+    "score": 10,
+    "margin": 10,
+    "matchedTerms": [
+      "declared \"Furniture\"",
+      "chairs"
+    ],
+    "declaredCategory": "Furniture",
+    "runnerUp": null,
+    "template": "furniture",
+    "templateChain": [
+      "furniture"
+    ]
+  },
+  "attributes": {
+    "hasBattery": {
+      "value": false,
+      "source": "template default"
+    },
+    "isElectrical": {
+      "value": false,
+      "source": "template default"
+    },
+    "material": {
+      "value": "wood",
+      "source": "claim: Material = Wooden"
+    },
+    "quantity": {
+      "value": 50,
+      "source": "claim: Quantity = 50"
+    },
+    "isLot": {
+      "value": true,
+      "source": "from quantity (50)"
+    },
+    "isFoldingOrStackable": {
+      "value": true,
+      "source": "profile: banquet_chairs"
+    }
+  },
+  "claims": [
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Wooden",
+      "normalized": "wood",
+      "rawKey": "material",
+      "source": "declared_specification"
+    },
+    {
+      "key": "quantity",
+      "title": "Quantity",
+      "value": "50",
+      "source": "declared_quantity"
+    }
+  ],
+  "inspectionScope": {
+    "quantity": 50,
+    "countAllUnits": true,
+    "sampleSize": 10,
+    "rule": "Count all 50 units. Checks marked \"sample\" are done in full on 10 randomly chosen units (max of 10 or 10%), with every other unit given a quick visual screen; any failure in the sample widens the check to the whole lot."
+  },
+  "parameters": [
+    {
+      "id": "unit_count",
+      "category": "identity",
+      "title": "Unit Count",
+      "description": "Count every unit in the lot.",
+      "instructions": [
+        "Count every unit individually",
+        "Compare with the listed quantity",
+        "Record any shortfall"
+      ],
+      "expectedResult": "Counted quantity equals the listed quantity. Declared: 50.",
+      "verificationType": "measurement",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "50",
+      "verificationInstruction": "Count every unit and compare with the claim.",
+      "appliesTo": "lot",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional",
+        "claim"
+      ],
+      "reason": "Conditional check: isLot = true (from quantity (50)). Provider claim: Quantity = 50, declared by the provider.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "structural_integrity",
+      "category": "safety",
+      "title": "Structural Integrity",
+      "description": "Check load-bearing parts are sound and the item is stable in use.",
+      "instructions": [
+        "Check legs, frames and joints for cracks, looseness or repairs",
+        "Place on a level floor and check for wobble",
+        "Apply moderate hand pressure as a user would; do not stand on or overload the item",
+        "Sit-test sampled chairs gently; check the seat frame and back spindles for movement"
+      ],
+      "expectedResult": "No cracks or loose joints; stable under normal load.",
+      "verificationType": "manual_test",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "sample",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "brand_profile"
+      ],
+      "reason": "Category baseline for furniture (furniture template). Product-specific (banquet_chairs): Banquet chairs are hired in lots, stacked for transport, and handled most at the backrest and legs.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "wood_joints",
+      "category": "physical",
+      "title": "Wood Joints, Grain & Splits",
+      "description": "Check wooden parts for splits, loose rungs and failed glue joints.",
+      "instructions": [
+        "Check every joint and rung for movement",
+        "Look along the grain for splits and cracks",
+        "Check for woodworm holes"
+      ],
+      "expectedResult": "Joints tight; no splits or woodworm.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "sample",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional"
+      ],
+      "reason": "Conditional check: material = wood (claim: Material = Wooden).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "folding_mechanism",
+      "category": "functional",
+      "title": "Folding / Stacking Mechanism",
+      "description": "Check folding or stacking works and locks.",
+      "instructions": [
+        "Fold and unfold, or stack and unstack, several units",
+        "Check locks engage and there are no pinch hazards from bent parts"
+      ],
+      "expectedResult": "Folds or stacks smoothly; locks engage.",
+      "verificationType": "manual_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "sample",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional"
+      ],
+      "reason": "Conditional check: isFoldingOrStackable = true (profile: banquet_chairs).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "material_verification",
+      "category": "specification",
+      "title": "Material",
+      "description": "Confirm the item is made of the material declared.",
+      "instructions": [
+        "Inspect exposed surfaces, underside and edges",
+        "Compare with the declared material"
+      ],
+      "expectedResult": "Material matches the declaration. Declared: Wooden.",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "Wooden",
+      "verificationInstruction": "Inspect exposed surfaces and compare the material with the claim.",
+      "appliesTo": "sample",
+      "generationSource": "baseline",
+      "basis": [
+        "claim"
+      ],
+      "reason": "Provider claim: Material = Wooden, declared by the provider.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "surface_finish",
+      "category": "cosmetic",
+      "title": "Surface & Finish",
+      "description": "Check paint, polish, lacquer or plating.",
+      "instructions": [
+        "Check for chips, scratches, peeling or flaking finish",
+        "Check the finish is consistent across the lot",
+        "Check the backrest top and legs closely — the most handled areas — for chipped paint or plating"
+      ],
+      "expectedResult": "Finish intact and consistent.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "sample",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "brand_profile"
+      ],
+      "reason": "Category baseline for furniture (furniture template). Product-specific (banquet_chairs): Banquet chairs are hired in lots, stacked for transport, and handled most at the backrest and legs.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "cleanliness",
+      "category": "cosmetic",
+      "title": "Cleanliness & Hygiene",
+      "description": "Check the item is clean and fit to hand to a customer.",
+      "instructions": [
+        "Check for dirt, residue, odour and pests",
+        "Check food-contact or skin-contact surfaces closely"
+      ],
+      "expectedResult": "Clean, odour-free and ready for use.",
+      "verificationType": "visual",
+      "required": false,
+      "requiresEvidenceOnFail": true,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "sample",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for furniture (furniture template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "declared_condition",
+      "category": "other",
+      "title": "Declared Condition Grade",
+      "description": "Compare the item's overall state with the condition the provider declared.",
+      "instructions": [
+        "Read the declared condition grade",
+        "Decide whether the observed state matches, exceeds or falls short of it",
+        "Record the grade you would assign"
+      ],
+      "expectedResult": "Observed condition matches the declared grade.",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "Good",
+      "verificationInstruction": "Grade the observed condition and compare it with the declared grade.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "claim"
+      ],
+      "reason": "Category baseline for furniture (furniture template). Provider declared condition: Good.",
+      "status": "pending_inspection"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "required": 7,
+    "critical": 2,
+    "requiresQualifiedInspector": 0,
+    "claimChecks": 3,
+    "bySource": {
+      "baseline": 8
+    },
+    "byCategory": {
+      "identity": 1,
+      "safety": 1,
+      "physical": 1,
+      "functional": 1,
+      "specification": 1,
+      "cosmetic": 2,
+      "other": 1
+    },
+    "brandProfiles": [
+      "banquet_chairs"
+    ]
+  },
+  "imageHints": [],
+  "validation": {
+    "mergedDuplicates": [],
+    "rejectedAiParameters": [],
+    "removedUnsafeInstructions": [],
+    "notApplicable": [
+      {
+        "id": "upholstery",
+        "reason": "condition not met: isUpholstered = true"
+      }
+    ]
+  },
+  "generation": {
+    "modelName": "indulge-inspection-protocol-generator",
+    "modelVersion": "1.0.0",
+    "promptVersion": "inspection-prompt-1.0",
+    "templateVersion": "templates-e001da6f2c",
+    "knowledgeVersions": {
+      "taxonomy": "1.0",
+      "parameters": "1.0",
+      "specRules": "1.0",
+      "attributeRules": "1.0",
+      "brandProfiles": "1.0",
+      "safety": "1.0",
+      "priorities": "1.0",
+      "template:furniture": "1.0"
+    },
+    "generationTimestamp": "2026-09-26T15:03:44.146Z",
+    "mode": "baseline_only",
+    "ai": {
+      "status": "disabled",
+      "reason": "no Anthropic credentials configured",
+      "llmModel": null,
+      "imagesUsed": false,
+      "suggested": 0,
+      "accepted": 0,
+      "mergedIntoBaseline": 0,
+      "usage": null,
+      "confidenceNote": "No numeric confidence is reported: the rules are deterministic, and LLM token probabilities are not a validated confidence measure. generationSource and reason explain each parameter instead."
+    }
+  }
+}

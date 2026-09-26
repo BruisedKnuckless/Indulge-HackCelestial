@@ -12,6 +12,7 @@ import { recordEvent, roleOn } from '../services/request-events.service.js';
 import { estimatePrice } from '../utils/pricing.js';
 import { ensureLogisticsJobForBooking } from '../services/logistics.service.js';
 import { PaymentService } from '../services/payment.service.js';
+import { assessDelivery } from '../ml/delivery/predict.js';
 
 const router = Router();
 
@@ -19,6 +20,7 @@ const POPULATE = [
   { path: 'resource', select: 'title category images pricing capacity totalQuantity location unit' },
   { path: 'provider', select: 'businessName location ratingAvg ratingCount phone' },
   { path: 'seeker', select: 'businessName location ratingAvg ratingCount phone' },
+  { path: 'conditionChecks.recordedBy', select: 'businessName' },
 ];
 
 /** "Request Now" — bypasses the cart for a single resource. */
@@ -162,8 +164,10 @@ router.get(
 
     // Both parties can see the money trail for their own booking.
     const transaction = await Transaction.findOne({ booking: booking._id }).lean();
+    const out = booking.toJSON();
+    out.deliveryPlan = await deliveryPlanFor(booking);
 
-    res.json({ booking, transaction: transaction || null });
+    res.json({ booking: out, transaction: transaction || null });
   })
 );
 
@@ -617,6 +621,124 @@ router.post(
     }
 
     res.json({ notified: false });
+  })
+);
+
+/**
+ * The booking's delivery plan: the snapshot taken at creation, or — for
+ * bookings made before the model existed — one computed now and marked so.
+ */
+async function deliveryPlanFor(booking) {
+  if (booking.deliveryPlan) return booking.deliveryPlan;
+  const resource = await Resource.findById(booking.resource?._id || booking.resource).lean();
+  if (!resource) return null;
+  return { ...assessDelivery(resource, booking.requestedQuantity), computedNow: true };
+}
+
+/** Who may record each checkpoint: whoever physically holds the goods then. */
+const CHECKPOINT_RECORDERS = {
+  dispatch: ['lister', 'logistics'],
+  delivery: ['seeker', 'logistics'],
+  return: ['lister', 'logistics'],
+};
+const CHECKPOINT_ORDER = ['dispatch', 'delivery', 'return'];
+
+/**
+ * POST /api/bookings/:id/condition-checks/:checkpoint
+ * Record the condition of the goods at one checkpoint of the delivery plan.
+ * Each checkpoint is recorded once, in order, against the plan's checklist,
+ * and the other side is notified — loudly when damage is reported.
+ */
+router.post(
+  '/:id/condition-checks/:checkpoint',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { checkpoint } = req.params;
+    if (!CHECKPOINT_ORDER.includes(checkpoint)) throw new HttpError(400, 'Unknown checkpoint.');
+
+    const booking = await Booking.findById(req.params.id).populate('resource', 'title category');
+    if (!booking) throw new HttpError(404, 'Request not found.');
+
+    const me = String(req.user._id);
+    const isLister = String(booking.provider) === me;
+    const isSeeker = String(booking.seeker) === me;
+    const isPartner = !isLister && !isSeeker && Boolean(await LogisticsJob.exists({ booking: booking._id, logisticsPartner: req.user._id }));
+    if (!isLister && !isSeeker && !isPartner) throw new HttpError(403, 'You are not a party to this request.');
+
+    const role = isLister ? 'lister' : isSeeker ? 'seeker' : 'logistics';
+    if (!CHECKPOINT_RECORDERS[checkpoint].includes(role)) {
+      throw new HttpError(403, `The ${checkpoint} check is recorded by the ${CHECKPOINT_RECORDERS[checkpoint].join(' or ')}.`);
+    }
+    if (!['accepted', 'confirmed', 'completed'].includes(booking.status)) {
+      throw new HttpError(400, `Condition checks start once the booking is accepted; it is ${booking.status}.`);
+    }
+
+    const plan = await deliveryPlanFor(booking);
+    if (!plan?.requiresDelivery) throw new HttpError(400, 'This booking has no delivery, so there is nothing to check.');
+    if (!booking.deliveryPlan) booking.deliveryPlan = plan;
+
+    const recorded = new Set((booking.conditionChecks || []).map((c) => c.checkpoint));
+    if (recorded.has(checkpoint)) throw new HttpError(409, `The ${checkpoint} check has already been recorded.`);
+    const previous = CHECKPOINT_ORDER[CHECKPOINT_ORDER.indexOf(checkpoint) - 1];
+    if (previous && !recorded.has(previous)) {
+      throw new HttpError(409, `Record the ${previous} check first — each check is compared with the one before it.`);
+    }
+
+    // Answers must cover exactly the plan's checklist for this checkpoint.
+    const checklist = plan.checkpoints.find((c) => c.key === checkpoint)?.items || [];
+    const answers = Array.isArray(req.body?.items) ? req.body.items : [];
+    const byKey = new Map(answers.map((a) => [a?.key, a]));
+    const unknown = answers.filter((a) => !checklist.some((i) => i.key === a?.key));
+    if (unknown.length) throw new HttpError(400, `Not on this checklist: ${unknown.map((a) => a?.key).join(', ')}.`);
+    const missing = checklist.filter((i) => typeof byKey.get(i.key)?.ok !== 'boolean');
+    if (missing.length) throw new HttpError(400, `Answer every checklist item: ${missing.map((i) => i.label).join('; ')}.`);
+
+    const overall = req.body?.overall;
+    if (!['good', 'minor_issues', 'damaged'].includes(overall)) {
+      throw new HttpError(400, 'Overall condition must be good, minor_issues or damaged.');
+    }
+    const countVerified = req.body?.countVerified == null ? undefined : Number(req.body.countVerified);
+    if (countVerified !== undefined && (!Number.isFinite(countVerified) || countVerified < 0)) {
+      throw new HttpError(400, 'Count must be a non-negative number.');
+    }
+
+    booking.conditionChecks.push({
+      checkpoint,
+      items: checklist.map((i) => ({
+        key: i.key,
+        label: i.label,
+        ok: byKey.get(i.key).ok,
+        note: String(byKey.get(i.key).note || '').slice(0, 300) || undefined,
+      })),
+      countVerified,
+      overall,
+      notes: String(req.body?.notes || '').slice(0, 1000) || undefined,
+      recordedBy: req.user._id,
+      role,
+      recordedAt: new Date(),
+    });
+    await booking.save();
+
+    const label = plan.checkpoints.find((c) => c.key === checkpoint)?.label || checkpoint;
+    const shortfall = countVerified !== undefined && countVerified < booking.requestedQuantity;
+    for (const user of [booking.seeker, booking.provider].filter((u) => String(u) !== me)) {
+      await notify({
+        user,
+        type: 'fulfillment_update',
+        title:
+          overall === 'damaged'
+            ? `Damage reported — ${label.toLowerCase()} check`
+            : shortfall
+            ? `Count short — ${label.toLowerCase()} check`
+            : `${label} condition check recorded`,
+        message: `${req.user.businessName} recorded the ${label.toLowerCase()} check for ${booking.resource?.title || 'your booking'}: ${overall.replace('_', ' ')}${
+          shortfall ? `, ${countVerified} of ${booking.requestedQuantity} counted` : ''
+        }.`,
+        relatedBooking: booking._id,
+      });
+    }
+
+    res.status(201).json({ booking: await booking.populate(POPULATE) });
   })
 );
 

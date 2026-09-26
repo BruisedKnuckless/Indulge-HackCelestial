@@ -58,6 +58,7 @@ const BOOKING_POPULATE = [
   { path: 'resource', select: 'title category location unit' },
   { path: 'provider', select: 'businessName' },
   { path: 'seeker', select: 'businessName' },
+  { path: 'conditionChecks.recordedBy', select: 'businessName' },
 ];
 
 /* ───────────────────────────────────────────────────────── resolve subject */
@@ -438,6 +439,27 @@ function buildEvents(d, subject) {
         bookingId: bid,
       });
     });
+    /* condition checks — stored on the booking with who recorded them */
+    const CHECK_LABEL = { dispatch: 'before-delivery', delivery: 'after-delivery', return: 'return' };
+    for (const c of b.conditionChecks || []) {
+      const failed = (c.items || []).filter((i) => !i.ok).map((i) => i.label);
+      push({
+        id: `check-${bid}-${c.checkpoint}`,
+        at: c.recordedAt,
+        role: c.role === 'logistics' ? 'logistics' : c.role,
+        actor: name(c.recordedBy),
+        action: 'condition_checked',
+        label: `Recorded the ${CHECK_LABEL[c.checkpoint] || c.checkpoint} condition check — ${humanise(c.overall)}`,
+        detail: [
+          c.countVerified != null ? `${c.countVerified} of ${b.requestedQuantity} counted` : null,
+          failed.length ? `Failed: ${failed.join('; ')}` : null,
+          c.notes,
+        ].filter(Boolean).join(' · ') || null,
+        phase: 'fulfilment',
+        tab: 'bookings',
+        bookingId: bid,
+      });
+    }
     for (const e of logged('booking_completed', forB)) {
       push({ ...fromLog(e), label: 'Marked the booking complete', phase: 'fulfilment', tab: 'bookings', bookingId: bid });
     }

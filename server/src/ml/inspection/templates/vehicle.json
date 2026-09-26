@@ -1,0 +1,49 @@
+{
+  "category": "vehicle",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for vehicle.",
+  "extends": null,
+  "mandatoryParameters": [
+    "vehicle_documents",
+    "vin_chassis",
+    "registration_plate",
+    "odometer",
+    "exterior_body",
+    "glass_mirrors",
+    "tyres",
+    "brakes",
+    "lights_signals",
+    "horn_wipers",
+    "engine_start",
+    "dashboard_warnings",
+    "fluid_levels",
+    "vehicle_battery",
+    "seats_seatbelts",
+    "interior_condition",
+    "fuel_level",
+    "safety_kit",
+    "declared_condition"
+  ],
+  "conditionalParameters": [
+    "transmission_automatic",
+    "transmission_manual",
+    "air_conditioning",
+    "refrigeration_unit"
+  ],
+  "excludeParameters": [],
+  "attributeDefaults": {
+    "hasBattery": false,
+    "isElectrical": false
+  },
+  "forbiddenTerms": [
+    "keyboard",
+    "touchpad",
+    "imei",
+    "dead pixel",
+    "battery health",
+    "hinge",
+    "webcam",
+    "touchscreen",
+    "boot test"
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "category": "kitchen_equipment",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for kitchen equipment.",
+  "extends": null,
+  "mandatoryParameters": [
+    "model_identification",
+    "serial_number",
+    "physical_condition",
+    "food_contact_hygiene",
+    "door_seals",
+    "cleanliness",
+    "declared_condition",
+    "function_general"
+  ],
+  "conditionalParameters": [
+    "gas_safety",
+    "electrical_safety_appliance",
+    "heating_function",
+    "cooling_function",
+    {
+      "param": "power_on",
+      "when": {
+        "isElectrical": true
+      }
+    },
+    "unit_count"
+  ],
+  "excludeParameters": [],
+  "attributeDefaults": {
+    "hasBattery": false
+  },
+  "forbiddenTerms": [
+    "engine",
+    "odometer",
+    "mileage",
+    "tyre",
+    "tire",
+    "brake",
+    "seatbelt",
+    "windscreen",
+    "chassis number",
+    "vin",
+    "imei",
+    "keyboard",
+    "touchpad",
+    "webcam",
+    "boot"
+  ]
+}

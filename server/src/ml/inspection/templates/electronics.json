@@ -1,0 +1,44 @@
+{
+  "category": "electronics",
+  "templateVersion": "1.0",
+  "description": "Base for powered devices. Child templates extend it.",
+  "extends": null,
+  "mandatoryParameters": [
+    "model_identification",
+    "serial_number",
+    "physical_condition",
+    "cosmetic_condition",
+    "declared_condition",
+    "power_on",
+    "power_supply_safety",
+    "function_general",
+    "accessories_declared"
+  ],
+  "conditionalParameters": [
+    "battery_health",
+    "battery_safety",
+    "charging",
+    "touchscreen",
+    "remote_control"
+  ],
+  "excludeParameters": [],
+  "attributeDefaults": {
+    "isElectrical": true
+  },
+  "forbiddenTerms": [
+    "engine",
+    "odometer",
+    "mileage",
+    "tyre",
+    "tire",
+    "brake",
+    "seatbelt",
+    "windscreen",
+    "chassis number",
+    "vin",
+    "upholstery",
+    "wood joint",
+    "gas hose",
+    "seating capacity"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "category": "audio_equipment",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for audio equipment.",
+  "extends": "electronics",
+  "mandatoryParameters": [
+    "audio_output_test",
+    "speaker_drivers_grille",
+    "audio_connectors",
+    "cables_included"
+  ],
+  "conditionalParameters": [
+    "mixer_controls",
+    "wireless_mic",
+    {
+      "param": "bluetooth",
+      "when": {
+        "hasBluetooth": true
+      }
+    },
+    {
+      "param": "unit_count",
+      "when": {
+        "isLot": true
+      }
+    }
+  ],
+  "excludeParameters": [
+    "function_general"
+  ],
+  "attributeDefaults": {
+    "hasBattery": false
+  },
+  "forbiddenTerms": [
+    "keyboard",
+    "touchpad",
+    "imei",
+    "cellular",
+    "hinge",
+    "webcam"
+  ]
+}

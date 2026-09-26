@@ -1,0 +1,60 @@
+{
+  "category": "furniture",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for furniture.",
+  "extends": null,
+  "mandatoryParameters": [
+    "structural_integrity",
+    "surface_finish",
+    "cleanliness",
+    "declared_condition"
+  ],
+  "conditionalParameters": [
+    "unit_count",
+    "wood_joints",
+    "upholstery",
+    "folding_mechanism"
+  ],
+  "excludeParameters": [],
+  "attributeDefaults": {
+    "hasBattery": false,
+    "isElectrical": false
+  },
+  "forbiddenTerms": [
+    "engine",
+    "odometer",
+    "mileage",
+    "tyre",
+    "tire",
+    "brake",
+    "seatbelt",
+    "windscreen",
+    "chassis number",
+    "vin",
+    "power-on",
+    "power on",
+    "battery",
+    "screen",
+    "display",
+    "keyboard",
+    "imei",
+    "wi-fi",
+    "wifi",
+    "charging",
+    "boot",
+    "firmware"
+  ],
+  "lotPolicy": {
+    "countAll": true,
+    "sampleAbove": 20,
+    "sampleFraction": 0.1,
+    "minimumSample": 10,
+    "sampledCategories": [
+      "physical",
+      "cosmetic",
+      "safety",
+      "functional",
+      "specification"
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "samples": 12000,
+  "holdout": 2400,
+  "classifiers": {
+    "tier": {
+      "accuracy": 0.939
+    },
+    "fragility": {
+      "accuracy": 0.97
+    },
+    "checkLevel": {
+      "accuracy": 0.961
+    },
+    "packaging": {
+      "accuracy": 0.975
+    },
+    "vehicle": {
+      "accuracy": 0.921
+    }
+  },
+  "regressors": {
+    "crew": {
+      "mae": 0.39
+    }
+  },
+  "seedListings": {
+    "tier": "7/7",
+    "fragility": "7/7",
+    "checkLevel": "7/7",
+    "packaging": "7/7",
+    "vehicle": "5/7",
+    "crew": "7/7"
+  },
+  "trainedAt": "2026-09-26T11:42:29.394Z"
+}

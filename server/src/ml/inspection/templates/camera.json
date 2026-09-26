@@ -1,0 +1,30 @@
+{
+  "category": "camera",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for camera.",
+  "extends": "electronics",
+  "mandatoryParameters": [
+    "lens_optics",
+    "sensor_condition",
+    "shutter_autofocus",
+    "lens_mount",
+    "memory_card_slot",
+    "display_condition",
+    "physical_buttons"
+  ],
+  "conditionalParameters": [],
+  "excludeParameters": [
+    "function_general",
+    "power_supply_safety"
+  ],
+  "attributeDefaults": {
+    "hasBattery": true
+  },
+  "forbiddenTerms": [
+    "keyboard",
+    "touchpad",
+    "imei",
+    "cellular",
+    "hinge"
+  ]
+}

@@ -100,6 +100,44 @@ export function useBooking(id) {
   });
 }
 
+/* ----------------------------------------------- Delivery conditions (ML) */
+
+/** How moving `quantity` units of a listing has to be handled. */
+export function useDeliveryAssessment(resourceId, quantity) {
+  return useQuery({
+    queryKey: ['delivery', resourceId, quantity],
+    queryFn: async () =>
+      (await api.get(`/resources/${resourceId}/delivery`, { params: { quantity } })).data.assessment,
+    enabled: Boolean(resourceId && quantity),
+    placeholderData: (prev) => prev, // keep the card steady while quantity changes
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** The same assessment for a listing still being written in the form. */
+export function useDeliveryPreview(draft, enabled = true) {
+  return useQuery({
+    queryKey: ['delivery-preview', draft],
+    queryFn: async () => (await api.post('/resources/delivery-preview', draft)).data.assessment,
+    enabled: enabled && Boolean(draft?.category),
+    placeholderData: (prev) => prev,
+    staleTime: 60_000,
+  });
+}
+
+/** Record the condition of the goods at one checkpoint of a booking. */
+export function useRecordConditionCheck(bookingId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ checkpoint, ...body }) =>
+      (await api.post(`/bookings/${bookingId}/condition-checks/${checkpoint}`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['booking', bookingId] });
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
 export function useBookingActions() {
   const qc = useQueryClient();
 

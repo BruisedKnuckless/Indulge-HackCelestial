@@ -1,0 +1,74 @@
+{
+  "category": "event_equipment",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for event equipment.",
+  "extends": null,
+  "mandatoryParameters": [
+    "components_complete",
+    "physical_condition",
+    "declared_condition",
+    "cleanliness"
+  ],
+  "conditionalParameters": [
+    {
+      "param": "structural_integrity",
+      "when": {
+        "isLoadBearingStructure": true
+      }
+    },
+    "load_rating_docs",
+    "fabric_canopy",
+    "lighting_function",
+    {
+      "param": "mounting_hardware",
+      "when": {
+        "isLoadBearingStructure": true
+      }
+    },
+    {
+      "param": "power_supply_safety",
+      "when": {
+        "isElectrical": true
+      }
+    },
+    {
+      "param": "power_supply_safety",
+      "when": {
+        "isLighting": true
+      }
+    },
+    "unit_count"
+  ],
+  "excludeParameters": [],
+  "attributeDefaults": {
+    "hasBattery": false
+  },
+  "forbiddenTerms": [
+    "engine",
+    "odometer",
+    "mileage",
+    "tyre",
+    "tire",
+    "brake",
+    "seatbelt",
+    "windscreen",
+    "chassis number",
+    "vin",
+    "imei",
+    "keyboard",
+    "touchpad",
+    "battery health",
+    "webcam"
+  ],
+  "lotPolicy": {
+    "countAll": true,
+    "sampleAbove": 20,
+    "sampleFraction": 0.1,
+    "minimumSample": 10,
+    "sampledCategories": [
+      "physical",
+      "cosmetic",
+      "functional"
+    ]
+  }
+}

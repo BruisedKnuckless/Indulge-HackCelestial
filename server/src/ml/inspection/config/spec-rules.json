@@ -1,0 +1,219 @@
+{
+  "version": "1.0",
+  "description": "Provider claims → verification parameters. Each key is a canonical specification. `aliases` normalise keys the provider used in `specifications`; `patterns` (case-insensitive) also extract the claim from the name/description/features when it was only written in text — group 1 (and 2 if present) form the value. `onlyCategories` limits where a claim applies (e.g. a bare '128GB' is storage only on phones and tablets). `mergeInto` attaches the claim to an existing library parameter instead of adding a new one. `attribute` also sets an extracted attribute used by conditional checks. Placeholders: {value}, {where}.",
+  "whereToLook": {
+    "laptop": "the operating system's About / System Information screen, or the BIOS/UEFI setup screen",
+    "mobile_phone": "Settings > About (or General > About)",
+    "tablet": "Settings > About (or General > About)",
+    "camera": "the camera's information menu",
+    "projector": "the projector's information or service menu",
+    "television": "the TV's system information menu",
+    "vehicle": "the registration certificate and the vehicle itself",
+    "default": "the item's label, nameplate, settings or documentation"
+  },
+  "specs": {
+    "cpu": {
+      "title": "Processor",
+      "aliases": ["cpu", "processor", "chip", "chipset", "soc"],
+      "patterns": ["\\b(intel\\s+core\\s+(?:ultra\\s+)?i?[3579](?:[-\\s]\\d{4,5}[a-z]{0,2})?|intel\\s+i[3579](?:[-\\s]\\d{4,5}[a-z]{0,2})?|core\\s+i[3579](?:[-\\s]\\d{4,5}[a-z]{0,2})?|amd\\s+ryzen\\s+\\d(?:\\s+\\d{4}[a-z]{0,2})?|apple\\s+m[1-9](?:\\s+(?:pro|max|ultra))?|m[1-9]\\s+(?:pro|max|ultra)|snapdragon\\s+[\\w+ ]{1,12}?\\d{3}|a1\\d\\s+bionic)\\b"],
+      "onlyCategories": ["laptop", "mobile_phone", "tablet", "electronics"],
+      "verificationType": "system_check",
+      "instruction": "Read the processor name in {where} and compare it with the claim."
+    },
+    "ram": {
+      "title": "RAM",
+      "aliases": ["ram", "memory", "unified memory", "system memory"],
+      "patterns": ["\\b(\\d{1,3})\\s?gb\\s?(?:of\\s)?(?:ram|memory|ddr\\d?x?|lpddr\\d?x?|unified memory)\\b", "\\b(?:ram|memory)\\s*[:\\-]?\\s*(\\d{1,3})\\s?gb\\b"],
+      "valueFormat": "{1}GB",
+      "onlyCategories": ["laptop", "mobile_phone", "tablet", "electronics"],
+      "verificationType": "system_check",
+      "instruction": "Read the installed memory in {where} and compare it with the claim."
+    },
+    "storage": {
+      "title": "Storage Capacity",
+      "aliases": ["storage", "ssd", "hdd", "disk", "rom", "internal storage", "hard drive", "hard disk"],
+      "patterns": ["\\b(\\d{2,4})\\s?(gb|tb)\\s?(?:pcie\\s|m\\.2\\s)?(?:ssd|hdd|nvme|emmc|storage|hard drive)\\b", "\\b(?:storage|ssd)\\s*[:\\-]?\\s*(\\d{2,4})\\s?(gb|tb)\\b"],
+      "barePattern": "\\b(64|128|256|512|1024)\\s?(gb)\\b|\\b(1|2)\\s?(tb)\\b",
+      "barePatternCategories": ["mobile_phone", "tablet"],
+      "valueFormat": "{1}{2}",
+      "onlyCategories": ["laptop", "mobile_phone", "tablet", "camera", "electronics"],
+      "verificationType": "system_check",
+      "instruction": "Read the total storage capacity in {where} (formatted capacity is slightly below the marketed figure) and compare it with the claim."
+    },
+    "battery_health": {
+      "title": "Battery Health",
+      "aliases": ["battery health", "battery", "battery capacity", "maximum capacity"],
+      "patterns": ["battery\\s+health\\s*(?:of|:|is|at|=)?\\s*(\\d{2,3})\\s?%", "\\b(\\d{2,3})\\s?%\\s*battery(?:\\s+health)?"],
+      "valueFormat": "{1}%",
+      "mergeInto": "battery_health",
+      "attribute": { "hasBattery": true },
+      "verificationType": "system_check",
+      "instruction": "Read the battery's maximum capacity on the device's battery health screen or system report and compare it with the claim."
+    },
+    "battery_cycles": {
+      "title": "Battery Cycle Count",
+      "aliases": ["cycle count", "battery cycles", "cycles"],
+      "patterns": ["\\b(\\d{1,4})\\s?(?:battery\\s)?cycles?\\b"],
+      "attribute": { "hasBattery": true },
+      "verificationType": "system_check",
+      "instruction": "Read the battery cycle count in {where} and compare it with the claim."
+    },
+    "display_size": {
+      "title": "Screen Size",
+      "aliases": ["screen size", "display size", "screen", "display"],
+      "patterns": ["\\b(\\d{1,3}(?:\\.\\d)?)\\s?(?:\"|-?inch(?:es)?|in\\b)"],
+      "valueFormat": "{1}\"",
+      "onlyCategories": ["laptop", "mobile_phone", "tablet", "television", "electronics"],
+      "verificationType": "measurement",
+      "instruction": "Measure the screen diagonally (visible area) and compare with the claim, or confirm from {where}."
+    },
+    "resolution": {
+      "title": "Display Resolution",
+      "aliases": ["resolution"],
+      "patterns": ["\\b(4k|8k|1080p|1440p|full hd|fhd|qhd|uhd|\\d{3,4}\\s?x\\s?\\d{3,4})\\b"],
+      "onlyCategories": ["laptop", "tablet", "television", "projector", "camera", "electronics"],
+      "verificationType": "system_check",
+      "instruction": "Confirm the native resolution in {where} and compare it with the claim."
+    },
+    "operating_system": {
+      "title": "Operating System",
+      "aliases": ["os", "operating system"],
+      "patterns": ["\\b(windows\\s?1[01](?:\\s?pro|\\s?home)?|macos(?:\\s\\w+)?|ios\\s?\\d{2}|android\\s?\\d{1,2}|chrome\\s?os)\\b"],
+      "onlyCategories": ["laptop", "mobile_phone", "tablet", "electronics"],
+      "verificationType": "system_check",
+      "instruction": "Read the operating system and version in {where} and compare it with the claim."
+    },
+    "gpu": {
+      "title": "Graphics",
+      "aliases": ["gpu", "graphics", "graphics card"],
+      "patterns": ["\\b((?:nvidia\\s)?(?:geforce\\s)?rtx\\s?\\d{4}(?:\\s?ti)?|(?:nvidia\\s)?gtx\\s?\\d{3,4}|radeon\\s\\w+)\\b"],
+      "onlyCategories": ["laptop", "electronics"],
+      "verificationType": "system_check",
+      "instruction": "Read the graphics adapter in {where} and compare it with the claim."
+    },
+    "touchscreen": {
+      "title": "Touchscreen",
+      "aliases": ["touchscreen", "touch screen", "touch"],
+      "patterns": ["\\btouch\\s?screen\\s*[:\\-]\\s*(yes|no)\\b"],
+      "attributeFromValue": "hasTouchscreen",
+      "verificationType": "functional_test",
+      "instruction": "Confirm whether the screen responds to touch and compare with the claim."
+    },
+    "seating_capacity": {
+      "title": "Seating Capacity",
+      "aliases": ["seats", "seating", "seating capacity", "seater", "passenger capacity"],
+      "patterns": ["\\b(\\d{1,2})\\s?[- ]?seat(?:er|s)\\b"],
+      "valueFormat": "{1} seats",
+      "mergeInto": "seats_seatbelts",
+      "onlyCategories": ["vehicle"],
+      "verificationType": "measurement",
+      "instruction": "Count usable seats with belts and compare with the claim and the registration certificate."
+    },
+    "transmission": {
+      "title": "Transmission",
+      "aliases": ["transmission", "gearbox", "gear"],
+      "patterns": ["\\b(automatic|manual|amt|cvt|dct)\\b"],
+      "normalise": { "amt": "automatic", "cvt": "automatic", "dct": "automatic" },
+      "attributeFromValue": "transmission",
+      "onlyCategories": ["vehicle"],
+      "verificationType": "comparison",
+      "instruction": "Confirm the transmission type from the gear selector and registration documents."
+    },
+    "fuel_type": {
+      "title": "Fuel Type",
+      "aliases": ["fuel", "fuel type"],
+      "patterns": ["\\b(diesel|petrol|gasoline|cng|lpg|electric|hybrid)\\b"],
+      "onlyCategories": ["vehicle", "industrial_equipment"],
+      "verificationType": "document_check",
+      "instruction": "Confirm the fuel type on the registration certificate and fuel filler label."
+    },
+    "odometer": {
+      "title": "Odometer Reading",
+      "aliases": ["odometer", "mileage", "km driven", "kilometres", "kilometers", "kms"],
+      "patterns": ["\\b(\\d{1,3}(?:,\\d{3})+|\\d{4,6})\\s?(?:km|kms|kilometres|kilometers)\\b"],
+      "mergeInto": "odometer",
+      "onlyCategories": ["vehicle"],
+      "verificationType": "measurement",
+      "instruction": "Read the odometer and compare it with the claim."
+    },
+    "model_year": {
+      "title": "Model / Registration Year",
+      "aliases": ["year", "model year", "registration year", "manufactured"],
+      "patterns": ["\\b(?:model\\s+year|registered|registration|reg\\.?|year|manufactured|mfg)\\s*[:\\-]?\\s*((?:19|20)\\d{2})\\b", "\\b((?:19|20)\\d{2})\\s+model\\b"],
+      "onlyCategories": ["vehicle", "industrial_equipment"],
+      "verificationType": "document_check",
+      "instruction": "Confirm the year on the registration certificate or nameplate and compare it with the claim."
+    },
+    "material": {
+      "title": "Material",
+      "aliases": ["material", "made of", "construction"],
+      "patterns": ["\\b(wooden|wood|teak|sheesham|oak|rosewood|metal|steel|stainless steel|iron|aluminium|aluminum|plastic|acrylic|resin|rattan|polycarbonate)\\b"],
+      "normalise": { "wooden": "wood", "teak": "wood", "sheesham": "wood", "oak": "wood", "rosewood": "wood", "aluminum": "aluminium", "stainless steel": "steel" },
+      "attributeFromValue": "material",
+      "mergeInto": "material_verification",
+      "onlyCategories": ["furniture", "event_equipment", "kitchen_equipment"],
+      "verificationType": "comparison",
+      "instruction": "Inspect exposed surfaces and compare the material with the claim."
+    },
+    "dimensions": {
+      "title": "Dimensions",
+      "aliases": ["dimensions", "size"],
+      "patterns": ["\\b(\\d{1,3}\\s?(?:ft|feet|m|cm)?\\s?x\\s?\\d{1,3}\\s?(?:ft|feet|m|cm))\\b"],
+      "verificationType": "measurement",
+      "instruction": "Measure the item and compare the dimensions with the claim."
+    },
+    "rated_output": {
+      "title": "Rated Output / Power",
+      "aliases": ["kva", "power", "wattage", "rated power", "output"],
+      "patterns": ["\\b(\\d{1,4}(?:\\.\\d{1,2})?)\\s?(kva|kw)\\b", "\\b(\\d{2,5})\\s?(w|watts?)\\b"],
+      "valueFormat": "{1} {2}",
+      "onlyCategories": ["industrial_equipment", "audio_equipment", "kitchen_equipment", "event_equipment", "electronics"],
+      "verificationType": "document_check",
+      "instruction": "Read the rating on the nameplate and compare it with the claim."
+    },
+    "brightness_lumens": {
+      "title": "Brightness (Lumens)",
+      "aliases": ["lumens", "brightness"],
+      "patterns": ["\\b(\\d{3,5})\\s?(?:ansi\\s)?lumens?\\b"],
+      "valueFormat": "{1} lumens",
+      "onlyCategories": ["projector"],
+      "verificationType": "document_check",
+      "instruction": "Confirm the rated brightness on the model label or datasheet for the identified model."
+    },
+    "megapixels": {
+      "title": "Sensor Resolution",
+      "aliases": ["megapixels", "mp", "sensor"],
+      "patterns": ["\\b(\\d{1,3}(?:\\.\\d)?)\\s?(?:mp|megapixels?)\\b"],
+      "valueFormat": "{1} MP",
+      "onlyCategories": ["camera", "mobile_phone"],
+      "verificationType": "comparison",
+      "instruction": "Confirm the sensor resolution for the identified model from its menu or a test image's metadata."
+    },
+    "shutter_count": {
+      "title": "Shutter Count",
+      "aliases": ["shutter count", "actuations"],
+      "patterns": ["\\bshutter\\s+count\\s*[:\\-]?\\s*([\\d,]{2,9})\\b", "\\b([\\d,]{2,9})\\s+(?:shutter\\s+)?actuations\\b"],
+      "mergeInto": "shutter_count",
+      "onlyCategories": ["camera"],
+      "verificationType": "system_check",
+      "instruction": "Read the shutter count and compare it with the claim."
+    },
+    "color": {
+      "title": "Colour",
+      "aliases": ["color", "colour", "finish colour"],
+      "patterns": [],
+      "verificationType": "visual",
+      "instruction": "Confirm the colour or finish matches the claim."
+    },
+    "quantity": {
+      "title": "Quantity",
+      "aliases": ["quantity", "qty", "units", "pieces", "count"],
+      "patterns": ["^\\s*(\\d{1,5})\\s*(?:x\\s*)?(?!gb|tb|inch|in\\b|km|kva|kw|w\\b|mp|seater|ft\\b|feet)(?=[a-z])"],
+      "mergeInto": "unit_count",
+      "attributeFromValue": "quantity",
+      "patternFields": ["productName"],
+      "verificationType": "measurement",
+      "instruction": "Count every unit and compare with the claim."
+    }
+  }
+}

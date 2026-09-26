@@ -1,0 +1,740 @@
+{
+  "protocolId": "7a0146d47d06ce52",
+  "inspectionVersion": "1.0.0",
+  "status": "pending_inspection",
+  "disclaimer": "Generated inspection protocol: it lists what a technician must physically check. It does not verify the product; results come only from the physical inspection and its evidence.",
+  "productName": "Toyota Innova",
+  "productCategory": "vehicle",
+  "categoryLabel": "Vehicle",
+  "product": {
+    "name": "Toyota Innova",
+    "brand": "Toyota",
+    "model": "Innova",
+    "quantity": 1,
+    "declaredCondition": "Good",
+    "usageAge": null,
+    "sourceRef": null
+  },
+  "classification": {
+    "category": "vehicle",
+    "label": "Vehicle",
+    "method": "declared_category_plus_keywords",
+    "score": 10,
+    "margin": 10,
+    "matchedTerms": [
+      "declared \"Vehicle\"",
+      "innova"
+    ],
+    "declaredCategory": "Vehicle",
+    "runnerUp": null,
+    "template": "vehicle",
+    "templateChain": [
+      "vehicle"
+    ]
+  },
+  "attributes": {
+    "hasBattery": {
+      "value": false,
+      "source": "template default"
+    },
+    "isElectrical": {
+      "value": false,
+      "source": "template default"
+    },
+    "transmission": {
+      "value": "automatic",
+      "source": "claim: Transmission = Automatic"
+    },
+    "quantity": {
+      "value": 1,
+      "source": "derived"
+    },
+    "isLot": {
+      "value": false,
+      "source": "single item"
+    },
+    "hasAC": {
+      "value": true,
+      "source": "profile: toyota_innova"
+    }
+  },
+  "claims": [
+    {
+      "key": "transmission",
+      "title": "Transmission",
+      "value": "Automatic",
+      "normalized": "Automatic",
+      "rawKey": "transmission",
+      "source": "declared_specification"
+    },
+    {
+      "key": "seating_capacity",
+      "title": "Seating Capacity",
+      "value": "7",
+      "normalized": "7",
+      "rawKey": "seats",
+      "source": "declared_specification"
+    }
+  ],
+  "inspectionScope": {
+    "quantity": 1,
+    "countAllUnits": false,
+    "sampleSize": null,
+    "rule": "Inspect every unit in full."
+  },
+  "parameters": [
+    {
+      "id": "vin_chassis",
+      "category": "identity",
+      "title": "Chassis & Engine Number",
+      "description": "Match the stamped chassis/VIN and engine numbers with the registration.",
+      "instructions": [
+        "Locate the chassis/VIN plate and engine number",
+        "Compare both with the registration certificate",
+        "Photograph both"
+      ],
+      "expectedResult": "Chassis/VIN and engine numbers match the registration.",
+      "verificationType": "serial_check",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "registration_plate",
+      "category": "identity",
+      "title": "Registration Plate",
+      "description": "Confirm the number plate matches the documents and is legible.",
+      "instructions": [
+        "Compare front and rear plates with the registration certificate",
+        "Check both are fixed and legible"
+      ],
+      "expectedResult": "Plates match the documents and are legible.",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "brakes",
+      "category": "safety",
+      "title": "Brakes",
+      "description": "Check brake feel and the parking brake with the vehicle stationary; any road test is by a qualified driver only.",
+      "instructions": [
+        "With the engine running and the vehicle stationary, press the brake pedal: it should be firm, not sink",
+        "Check the parking brake holds the vehicle on level ground",
+        "Check for brake warning lights",
+        "Any moving brake test must be done by a qualified, licensed driver at walking pace in a closed, safe area"
+      ],
+      "expectedResult": "Firm pedal, parking brake holds, no brake warnings.",
+      "verificationType": "manual_test",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": true,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "dashboard_warnings",
+      "category": "safety",
+      "title": "Dashboard Warning Lights",
+      "description": "Check no warning lamps remain lit after start-up.",
+      "instructions": [
+        "Turn the ignition on and confirm the warning lamps light briefly",
+        "Start the engine and confirm they go out",
+        "Record any lamp that stays on"
+      ],
+      "expectedResult": "No warning lamps lit with the engine running.",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "lights_signals",
+      "category": "safety",
+      "title": "Lights & Indicators",
+      "description": "Test all exterior and interior lights.",
+      "instructions": [
+        "Test headlights on low and high beam, tail lights, brake lights, indicators and hazard lights",
+        "Test reverse lights and number-plate lights"
+      ],
+      "expectedResult": "Every light works.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "seats_seatbelts",
+      "category": "safety",
+      "title": "Seats & Seatbelts",
+      "description": "Count the seats and test every seatbelt.",
+      "instructions": [
+        "Count usable seats and compare with the declared seating capacity",
+        "Pull and latch every seatbelt; check each retracts and locks on a sharp pull",
+        "Check seat adjusters and headrests"
+      ],
+      "expectedResult": "Seat count matches the claim; every belt latches and locks. Declared: 7.",
+      "verificationType": "manual_test",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "7",
+      "verificationInstruction": "Count usable seats with belts and compare with the claim and the registration certificate.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "claim"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template). Provider claim: Seating Capacity = 7, declared by the provider.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "tyres",
+      "category": "safety",
+      "title": "Tyres & Spare Wheel",
+      "description": "Check tread, sidewalls and pressures, including the spare.",
+      "instructions": [
+        "Measure tread depth on each tyre with a gauge",
+        "Inspect sidewalls for cuts and bulges",
+        "Check pressures with a gauge",
+        "Check the spare wheel, jack and wheel spanner are present"
+      ],
+      "expectedResult": "Tread at or above the legal minimum on every tyre; no sidewall damage; spare present.",
+      "verificationType": "measurement",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "horn_wipers",
+      "category": "safety",
+      "title": "Horn & Wipers",
+      "description": "Test the horn, wipers and washers.",
+      "instructions": [
+        "Sound the horn",
+        "Run the wipers at every speed and the washers"
+      ],
+      "expectedResult": "Horn, wipers and washers work.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "glass_mirrors",
+      "category": "safety",
+      "title": "Windscreen, Windows & Mirrors",
+      "description": "Check glass and mirrors give a clear, safe view.",
+      "instructions": [
+        "Check the windscreen for cracks in the driver's view",
+        "Check every window operates",
+        "Check mirrors are intact and adjustable"
+      ],
+      "expectedResult": "No cracks in the driver's view; windows and mirrors work.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "safety_kit",
+      "category": "safety",
+      "title": "Safety Kit",
+      "description": "Check the safety equipment carried in the vehicle.",
+      "instructions": [
+        "Check the warning triangle, first-aid kit and, where carried, a fire extinguisher within its service date"
+      ],
+      "expectedResult": "Safety kit present and in date.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "exterior_body",
+      "category": "physical",
+      "title": "Exterior Bodywork",
+      "description": "Inspect every body panel.",
+      "instructions": [
+        "Walk around the vehicle and inspect every panel",
+        "Note dents, scratches, rust and paint mismatch",
+        "Photograph all four sides and every damage point"
+      ],
+      "expectedResult": "Bodywork condition recorded; no damage beyond the declared condition.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "transmission_automatic",
+      "category": "functional",
+      "title": "Automatic Transmission",
+      "description": "Check gear selection with the vehicle stationary and the brake held.",
+      "instructions": [
+        "With the engine running and the brake firmly held, move the selector through P, R, N and D",
+        "Confirm each position engages smoothly without clunks or delay",
+        "Confirm no transmission warning appears",
+        "Any driving check is by a qualified driver at low speed in a safe area",
+        "If the selector has a manual (+/−) mode, check it changes gear indication while stationary"
+      ],
+      "expectedResult": "Each gear engages promptly and smoothly; no warnings.",
+      "verificationType": "manual_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": true,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional",
+        "brand_profile"
+      ],
+      "reason": "Conditional check: transmission = automatic (claim: Transmission = Automatic). Product-specific (toyota_innova): The Innova is a 7/8-seat MPV with second-row slide/tumble seats and rear roof AC vents.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "engine_start",
+      "category": "functional",
+      "title": "Engine Start & Idle",
+      "description": "Start the engine and observe the idle with the vehicle parked.",
+      "instructions": [
+        "With the vehicle parked in neutral or park, start the engine",
+        "Observe a steady idle and listen for knocking or misfire",
+        "Look for excessive smoke from the exhaust",
+        "Do not rev the engine hard"
+      ],
+      "expectedResult": "Starts promptly, steady idle, no abnormal noise or smoke.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "mpv_rear_seat_access",
+      "category": "functional",
+      "title": "Second-Row Seats & Third-Row Access",
+      "description": "Check the second-row seats slide and tumble so passengers can reach the third row.",
+      "instructions": [
+        "Slide and recline each second-row seat",
+        "Tumble the second-row seat and confirm it locks back into place",
+        "Check the third-row seats and their belts"
+      ],
+      "expectedResult": "Seats move and lock securely; third row accessible.",
+      "verificationType": "manual_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "brand_profile"
+      ],
+      "reason": "Product-specific (toyota_innova): The Innova is a 7/8-seat MPV with second-row slide/tumble seats and rear roof AC vents.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "vehicle_battery",
+      "category": "functional",
+      "title": "12V Battery",
+      "description": "Check the starter battery from the outside.",
+      "instructions": [
+        "Check the battery is secured",
+        "Look for corrosion on terminals and a cracked case",
+        "Do not touch both terminals or disconnect anything"
+      ],
+      "expectedResult": "Secured, no corrosion or damage; vehicle starts.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "air_conditioning",
+      "category": "functional",
+      "title": "Air Conditioning",
+      "description": "Confirm the air conditioning cools in every zone.",
+      "instructions": [
+        "Run the AC on maximum cooling with the engine running",
+        "Check cold air from every vent, including rear vents where fitted",
+        "Check the blower works at every speed",
+        "Check the rear roof-mounted AC vents and the rear blower control"
+      ],
+      "expectedResult": "Cold air from all vents at every blower speed.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional",
+        "brand_profile"
+      ],
+      "reason": "Conditional check: hasAC = true (profile: toyota_innova). Product-specific (toyota_innova): The Innova is a 7/8-seat MPV with second-row slide/tumble seats and rear roof AC vents.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "fluid_levels",
+      "category": "performance",
+      "title": "Fluid Levels & Leaks",
+      "description": "Check fluid levels and look for leaks with the engine off and cool.",
+      "instructions": [
+        "With the engine off and cool, check engine oil on the dipstick and coolant in the expansion tank",
+        "Check brake and washer fluid reservoirs",
+        "Look under the vehicle for fresh drips",
+        "Never open a hot coolant cap"
+      ],
+      "expectedResult": "Levels within marks; no active leaks.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "spec_transmission",
+      "category": "specification",
+      "title": "Transmission",
+      "description": "Verify the provider's declared transmission.",
+      "instructions": [
+        "Confirm the transmission type from the gear selector and registration documents.",
+        "Record the observed value next to the claimed value"
+      ],
+      "expectedResult": "Matches the declared value: Automatic",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "Automatic",
+      "verificationInstruction": "Confirm the transmission type from the gear selector and registration documents.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "claim"
+      ],
+      "reason": "Provider claim: Transmission = Automatic, declared by the provider.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "odometer",
+      "category": "specification",
+      "title": "Odometer Reading",
+      "description": "Record the odometer reading.",
+      "instructions": [
+        "Read the odometer with the ignition on",
+        "Photograph the reading"
+      ],
+      "expectedResult": "Reading recorded and consistent with any declared figure.",
+      "verificationType": "measurement",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "fuel_level",
+      "category": "specification",
+      "title": "Fuel Level",
+      "description": "Record the fuel level at handover.",
+      "instructions": [
+        "Read the fuel gauge with the ignition on",
+        "Photograph the gauge"
+      ],
+      "expectedResult": "Fuel level recorded.",
+      "verificationType": "measurement",
+      "required": false,
+      "requiresEvidenceOnFail": false,
+      "weight": 1,
+      "priority": "minimal",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "vehicle_documents",
+      "category": "documentation",
+      "title": "Registration, Insurance & Permits",
+      "description": "Check the vehicle's legal documents are valid for the hire period.",
+      "instructions": [
+        "Check the registration certificate",
+        "Check insurance validity dates",
+        "Check pollution certificate and any commercial permit or fitness certificate required for hire use"
+      ],
+      "expectedResult": "All documents present, in the vehicle's name as listed, and valid through the hire period.",
+      "verificationType": "document_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "interior_condition",
+      "category": "cosmetic",
+      "title": "Interior Condition",
+      "description": "Inspect upholstery, trim and floor.",
+      "instructions": [
+        "Check seats for tears and stains",
+        "Check the dashboard, door trims and floor mats",
+        "Note odours"
+      ],
+      "expectedResult": "Interior clean and consistent with the declared condition.",
+      "verificationType": "visual",
+      "required": false,
+      "requiresEvidenceOnFail": true,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "declared_condition",
+      "category": "other",
+      "title": "Declared Condition Grade",
+      "description": "Compare the item's overall state with the condition the provider declared.",
+      "instructions": [
+        "Read the declared condition grade",
+        "Decide whether the observed state matches, exceeds or falls short of it",
+        "Record the grade you would assign"
+      ],
+      "expectedResult": "Observed condition matches the declared grade.",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "Good",
+      "verificationInstruction": "Grade the observed condition and compare it with the declared grade.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "claim"
+      ],
+      "reason": "Category baseline for vehicle (vehicle template). Provider declared condition: Good.",
+      "status": "pending_inspection"
+    }
+  ],
+  "summary": {
+    "total": 23,
+    "required": 21,
+    "critical": 7,
+    "requiresQualifiedInspector": 2,
+    "claimChecks": 3,
+    "bySource": {
+      "baseline": 23
+    },
+    "byCategory": {
+      "identity": 2,
+      "safety": 8,
+      "physical": 1,
+      "functional": 5,
+      "performance": 1,
+      "specification": 3,
+      "documentation": 1,
+      "cosmetic": 1,
+      "other": 1
+    },
+    "brandProfiles": [
+      "toyota_innova"
+    ]
+  },
+  "imageHints": [],
+  "validation": {
+    "mergedDuplicates": [],
+    "rejectedAiParameters": [],
+    "removedUnsafeInstructions": [],
+    "notApplicable": [
+      {
+        "id": "transmission_manual",
+        "reason": "condition not met: transmission = manual (claim: Transmission = Automatic)"
+      },
+      {
+        "id": "refrigeration_unit",
+        "reason": "condition not met: isRefrigerated = true"
+      }
+    ]
+  },
+  "generation": {
+    "modelName": "indulge-inspection-protocol-generator",
+    "modelVersion": "1.0.0",
+    "promptVersion": "inspection-prompt-1.0",
+    "templateVersion": "templates-e001da6f2c",
+    "knowledgeVersions": {
+      "taxonomy": "1.0",
+      "parameters": "1.0",
+      "specRules": "1.0",
+      "attributeRules": "1.0",
+      "brandProfiles": "1.0",
+      "safety": "1.0",
+      "priorities": "1.0",
+      "template:vehicle": "1.0"
+    },
+    "generationTimestamp": "2026-09-26T15:03:44.144Z",
+    "mode": "baseline_only",
+    "ai": {
+      "status": "disabled",
+      "reason": "no Anthropic credentials configured",
+      "llmModel": null,
+      "imagesUsed": false,
+      "suggested": 0,
+      "accepted": 0,
+      "mergedIntoBaseline": 0,
+      "usage": null,
+      "confidenceNote": "No numeric confidence is reported: the rules are deterministic, and LLM token probabilities are not a validated confidence measure. generationSource and reason explain each parameter instead."
+    }
+  }
+}

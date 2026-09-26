@@ -1,0 +1,48 @@
+{
+  "category": "mobile_phone",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for mobile phone.",
+  "extends": "electronics",
+  "mandatoryParameters": [
+    "display_condition",
+    "touchscreen",
+    "back_body",
+    "rear_camera",
+    "front_camera",
+    "speakers_output",
+    "microphone",
+    "charging",
+    "cellular",
+    "imei",
+    "wifi",
+    "bluetooth",
+    "physical_buttons",
+    "liquid_damage",
+    "account_lock",
+    "boot_os"
+  ],
+  "conditionalParameters": [
+    "face_unlock",
+    "fingerprint",
+    "stylus"
+  ],
+  "excludeParameters": [
+    "function_general",
+    "power_supply_safety"
+  ],
+  "attributeDefaults": {
+    "hasBattery": true,
+    "hasTouchscreen": true,
+    "hasCamera": true
+  },
+  "forbiddenTerms": [
+    "keyboard",
+    "touchpad",
+    "trackpad",
+    "hinge",
+    "hdmi",
+    "vehicle",
+    "lamp hours",
+    "projection"
+  ]
+}

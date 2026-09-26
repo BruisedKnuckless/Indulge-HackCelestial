@@ -1,0 +1,209 @@
+{
+  "version": "1.0",
+  "description": "Brand/model knowledge that makes protocols product-specific without an LLM. A profile applies when all its `match` conditions hold: `categories` (inspection category), `text` (regex over name, brand and model), `notText` (regex that must not match). A profile can set `attributes`, `include` library parameter ids, add inline `parameters`, and `override` library parameters (`instructions` replaces, `appendInstructions` adds). `reason` is recorded on every parameter it touches. Keep claims here factual and model-specific; unknown models simply match no profile.",
+  "profiles": [
+    {
+      "id": "apple_device",
+      "match": { "categories": ["laptop", "mobile_phone", "tablet"], "text": "\\b(apple|iphone|ipad|macbook|imac)\\b" },
+      "reason": "Apple devices can stay locked to the previous owner through Activation Lock / Find My.",
+      "attributes": { "isApple": true },
+      "override": {
+        "account_lock": { "appendInstructions": ["Confirm Find My is turned off and the device has been removed from the previous owner's Apple Account", "Confirm Activation Lock is off"] }
+      }
+    },
+    {
+      "id": "iphone",
+      "match": { "categories": ["mobile_phone"], "text": "\\biphone\\b" },
+      "reason": "iOS reports battery capacity and non-genuine parts in Settings.",
+      "attributes": { "hasCamera": true, "hasBattery": true, "hasTouchscreen": true },
+      "include": ["genuine_parts"],
+      "override": {
+        "battery_health": { "instructions": ["Open Settings > Battery > Battery Health (& Charging)", "Record Maximum Capacity and whether a service message or 'Unknown part' is shown", "Compare Maximum Capacity with the declared battery health"] },
+        "genuine_parts": { "instructions": ["Open Settings > General > About and read the Parts and Service History section where shown", "Record any part listed as 'Unknown Part' or replaced"] },
+        "imei": { "appendInstructions": ["Confirm the IMEI in Settings > General > About matches the one shown by *#06#"] }
+      }
+    },
+    {
+      "id": "iphone_face_id",
+      "match": { "categories": ["mobile_phone"], "text": "\\biphone\\s?(x[rs]?|1[1-9]|2\\d)\\b", "notText": "\\bse\\b" },
+      "reason": "iPhone X and later (except SE models) unlock with Face ID.",
+      "attributes": { "hasFaceId": true, "hasFingerprint": false }
+    },
+    {
+      "id": "iphone_touch_id",
+      "match": { "categories": ["mobile_phone"], "text": "\\biphone\\s?(se|[5-8])\\b" },
+      "reason": "iPhone SE and iPhone 8 and earlier unlock with the Touch ID home button.",
+      "attributes": { "hasFingerprint": true, "hasFaceId": false },
+      "override": { "fingerprint": { "appendInstructions": ["Check the Home button clicks and returns to the home screen"] } }
+    },
+    {
+      "id": "iphone_esim_us",
+      "match": { "categories": ["mobile_phone"], "text": "\\biphone\\s?(1[4-9]|2\\d)\\b" },
+      "reason": "US-model iPhone 14 and later have no physical SIM tray and use eSIM only.",
+      "override": { "cellular": { "appendInstructions": ["If the phone has no SIM tray (US model), test network registration with an eSIM instead"] } }
+    },
+    {
+      "id": "macbook",
+      "match": { "categories": ["laptop"], "text": "\\bmacbook\\b" },
+      "reason": "macOS reports battery cycle count and condition, and Apple Diagnostics is built in.",
+      "attributes": { "hasBattery": true, "hasTouchscreen": false },
+      "parameters": [
+        {
+          "id": "apple_diagnostics",
+          "category": "functional",
+          "title": "Apple Diagnostics",
+          "description": "Run Apple's built-in hardware diagnostics.",
+          "instructions": ["Shut down, then start into Apple Diagnostics (Apple silicon: hold the power button until startup options appear, then press Command-D; Intel: hold D at start-up)", "Record the result and any reference codes"],
+          "expectedResult": "Diagnostics report no issues.",
+          "verificationType": "system_check",
+          "weight": 3
+        }
+      ],
+      "override": {
+        "battery_health": { "instructions": ["Open System Settings > General > About > System Report > Power", "Record Cycle Count, Condition and Maximum Capacity", "Compare with any declared figure"] },
+        "account_lock": { "appendInstructions": ["Confirm no firmware password is set (Intel models) and Activation Lock Status reads Disabled in System Report > Hardware"] }
+      }
+    },
+    {
+      "id": "macbook_pro_14_16",
+      "match": { "categories": ["laptop"], "text": "\\bmacbook\\s?pro\\b.*\\b1[46](?:\\s?-?inch|\")?\\b|\\bmacbook\\s?pro\\s?1[46]\\b" },
+      "reason": "MacBook Pro 14/16 (2021 and later) have MagSafe 3 charging, HDMI, an SDXC slot, Touch ID and a mini-LED display.",
+      "attributes": { "hasFingerprint": true },
+      "include": ["memory_card_slot"],
+      "parameters": [
+        {
+          "id": "magsafe_charging",
+          "category": "functional",
+          "title": "MagSafe Charging",
+          "description": "Confirm the MagSafe 3 port charges the laptop.",
+          "instructions": ["Connect a MagSafe 3 cable and confirm it attaches magnetically", "Confirm the connector LED lights and the battery charges", "Also confirm charging over a USB-C port"],
+          "expectedResult": "Charges over MagSafe and USB-C.",
+          "verificationType": "functional_test",
+          "weight": 3
+        }
+      ],
+      "override": {
+        "display_condition": { "appendInstructions": ["On a dark background with bright objects, check for excessive blooming on the mini-LED display"] },
+        "ports_io": { "appendInstructions": ["Test the HDMI output with an external display"] }
+      }
+    },
+    {
+      "id": "dell_business_laptop",
+      "match": { "categories": ["laptop"], "text": "\\b(dell|latitude|precision|vostro)\\b" },
+      "reason": "Dell laptops carry a Service Tag and built-in pre-boot diagnostics; business models are often enrolled in a company's device management.",
+      "parameters": [
+        {
+          "id": "dell_preboot_diagnostics",
+          "category": "functional",
+          "title": "Dell Pre-boot Diagnostics",
+          "description": "Run Dell's built-in hardware diagnostics.",
+          "instructions": ["Restart and press F12 at the Dell logo", "Choose Diagnostics and let the quick test complete", "Record the result and any error codes"],
+          "expectedResult": "Diagnostics complete with no errors.",
+          "verificationType": "system_check",
+          "weight": 3
+        }
+      ],
+      "override": {
+        "serial_number": { "instructions": ["Read the Service Tag on the bottom label", "Confirm the same Service Tag shows in BIOS setup (F2 at start-up)", "Photograph the label"] },
+        "account_lock": { "appendInstructions": ["Confirm no BIOS administrator or system password is set (F2 setup)", "Confirm the laptop is not enrolled in a previous organisation's device management (Windows: Settings > Accounts > Access work or school)"] }
+      }
+    },
+    {
+      "id": "lenovo_thinkpad",
+      "match": { "categories": ["laptop"], "text": "\\bthinkpad\\b" },
+      "reason": "ThinkPads have a TrackPoint pointing stick and physical buttons above the touchpad.",
+      "parameters": [
+        {
+          "id": "trackpoint",
+          "category": "functional",
+          "title": "TrackPoint",
+          "description": "Test the TrackPoint and its three buttons.",
+          "instructions": ["Move the cursor with the TrackPoint in every direction", "Test the three buttons above the touchpad, including middle-button scroll"],
+          "expectedResult": "TrackPoint moves smoothly without drift; buttons respond.",
+          "verificationType": "functional_test",
+          "weight": 2
+        }
+      ]
+    },
+    {
+      "id": "android_phone",
+      "match": { "categories": ["mobile_phone", "tablet"], "text": "\\b(samsung|galaxy|pixel|google|oneplus|xiaomi|redmi|poco|oppo|vivo|realme|motorola|moto|nokia|nothing)\\b" },
+      "reason": "Android devices keep Factory Reset Protection tied to the previous Google account.",
+      "attributes": { "hasCamera": true },
+      "override": { "account_lock": { "appendInstructions": ["Confirm the previous Google account is removed so Factory Reset Protection will not lock the device"] } }
+    },
+    {
+      "id": "samsung_phone",
+      "match": { "categories": ["mobile_phone", "tablet"], "text": "\\b(samsung|galaxy)\\b" },
+      "reason": "Samsung devices also lock through the Samsung account and Find My Mobile.",
+      "override": { "account_lock": { "appendInstructions": ["Confirm the Samsung account is signed out and Find My Mobile is off"] } }
+    },
+    {
+      "id": "toyota_innova",
+      "match": { "categories": ["vehicle"], "text": "\\binnova\\b" },
+      "reason": "The Innova is a 7/8-seat MPV with second-row slide/tumble seats and rear roof AC vents.",
+      "attributes": { "hasAC": true },
+      "parameters": [
+        {
+          "id": "mpv_rear_seat_access",
+          "category": "functional",
+          "title": "Second-Row Seats & Third-Row Access",
+          "description": "Check the second-row seats slide and tumble so passengers can reach the third row.",
+          "instructions": ["Slide and recline each second-row seat", "Tumble the second-row seat and confirm it locks back into place", "Check the third-row seats and their belts"],
+          "expectedResult": "Seats move and lock securely; third row accessible.",
+          "verificationType": "manual_test",
+          "weight": 4
+        }
+      ],
+      "override": {
+        "air_conditioning": { "appendInstructions": ["Check the rear roof-mounted AC vents and the rear blower control"] },
+        "transmission_automatic": { "appendInstructions": ["If the selector has a manual (+/−) mode, check it changes gear indication while stationary"] }
+      }
+    },
+    {
+      "id": "passenger_bus",
+      "match": { "categories": ["vehicle"], "text": "\\b(bus|coach|tempo traveller|minibus|shuttle)\\b" },
+      "reason": "Passenger buses carry commercial permits and emergency exits.",
+      "parameters": [
+        {
+          "id": "emergency_exits",
+          "category": "safety",
+          "title": "Emergency Exits",
+          "description": "Check emergency exits are marked, unobstructed and operable.",
+          "instructions": ["Locate every emergency exit and window hammer", "Confirm exits are marked and not blocked", "Open each emergency door or hatch while stationary and close it again"],
+          "expectedResult": "All emergency exits marked, clear and operable.",
+          "verificationType": "manual_test",
+          "weight": 5
+        }
+      ],
+      "override": { "vehicle_documents": { "appendInstructions": ["Confirm the contract-carriage / tourist permit covers passenger hire"] } }
+    },
+    {
+      "id": "banquet_chairs",
+      "match": { "categories": ["furniture"], "text": "\\b(chiavari|tiffany|banquet chairs?|event chairs?)\\b" },
+      "reason": "Banquet chairs are hired in lots, stacked for transport, and handled most at the backrest and legs.",
+      "attributes": { "isFoldingOrStackable": true },
+      "override": {
+        "surface_finish": { "appendInstructions": ["Check the backrest top and legs closely — the most handled areas — for chipped paint or plating"] },
+        "structural_integrity": { "appendInstructions": ["Sit-test sampled chairs gently; check the seat frame and back spindles for movement"] }
+      }
+    },
+    {
+      "id": "led_video_wall",
+      "match": { "categories": ["television", "event_equipment"], "text": "\\b(led wall|video wall|led panels?|led screen)\\b" },
+      "reason": "LED walls are built from modules that fail individually.",
+      "parameters": [
+        {
+          "id": "led_module_uniformity",
+          "category": "functional",
+          "title": "LED Modules & Uniformity",
+          "description": "Check every module lights and matches its neighbours.",
+          "instructions": ["Display full-screen white, red, green and blue", "Look for dead modules, dead pixels and modules that differ in colour or brightness", "Check module edges are aligned with no visible seams"],
+          "expectedResult": "All modules lit, uniform and aligned.",
+          "verificationType": "functional_test",
+          "weight": 5
+        }
+      ]
+    }
+  ]
+}

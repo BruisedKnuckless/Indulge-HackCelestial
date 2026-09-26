@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "description": "Weight scale for inspection parameters. Every parameter in parameters.json carries a weight 1–5; the level and its justification below are what the weight means. Adjust weights in parameters.json (or in a template's `weightOverrides`), not in code.",
+  "levels": [
+    {
+      "weight": 5,
+      "level": "critical",
+      "justification": "A failure could hurt a person or damage property (battery swelling, brakes, tyres, structural load, gas or mains safety), or means the item is not the item listed (identity, registration, unit count, account locks that make the device unusable)."
+    },
+    {
+      "weight": 4,
+      "level": "high",
+      "justification": "A core function the item is hired for, or a provider claim that determines its value (display, keyboard, storage, RAM, engine start, seating)."
+    },
+    {
+      "weight": 3,
+      "level": "medium",
+      "justification": "A secondary function or a claim that affects usability but not safety or identity (Bluetooth, webcam, ports, upholstery)."
+    },
+    {
+      "weight": 2,
+      "level": "low",
+      "justification": "Cosmetic or convenience condition (minor scratches, cleanliness, interior trim)."
+    },
+    {
+      "weight": 1,
+      "level": "minimal",
+      "justification": "Informational — recorded for the record, not for acceptance."
+    }
+  ],
+  "rules": {
+    "requiredAtOrAbove": 3,
+    "evidenceOnFailCategories": ["physical", "cosmetic", "safety", "identity"],
+    "specClaimWeight": 4,
+    "aiDefaultWeight": 3,
+    "aiMaxWeight": 4
+  }
+}

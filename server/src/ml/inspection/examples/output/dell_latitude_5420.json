@@ -1,0 +1,895 @@
+{
+  "protocolId": "6a9285c76d040f71",
+  "inspectionVersion": "1.0.0",
+  "status": "pending_inspection",
+  "disclaimer": "Generated inspection protocol: it lists what a technician must physically check. It does not verify the product; results come only from the physical inspection and its evidence.",
+  "productName": "Dell Latitude 5420",
+  "productCategory": "laptop",
+  "categoryLabel": "Laptop",
+  "product": {
+    "name": "Dell Latitude 5420",
+    "brand": "Dell",
+    "model": "Latitude 5420",
+    "quantity": 1,
+    "declaredCondition": "Excellent",
+    "usageAge": "2 years",
+    "sourceRef": null
+  },
+  "classification": {
+    "category": "laptop",
+    "label": "Laptop",
+    "method": "declared_category_plus_keywords",
+    "score": 10,
+    "margin": 10,
+    "matchedTerms": [
+      "declared \"Laptop\"",
+      "latitude"
+    ],
+    "declaredCategory": "Laptop",
+    "runnerUp": null,
+    "template": "laptop",
+    "templateChain": [
+      "electronics",
+      "laptop"
+    ]
+  },
+  "attributes": {
+    "isElectrical": {
+      "value": true,
+      "source": "template default"
+    },
+    "hasBattery": {
+      "value": true,
+      "source": "template default"
+    },
+    "hasTouchscreen": {
+      "value": false,
+      "source": "template default"
+    },
+    "quantity": {
+      "value": 1,
+      "source": "derived"
+    },
+    "isLot": {
+      "value": false,
+      "source": "single item"
+    }
+  },
+  "claims": [
+    {
+      "key": "cpu",
+      "title": "Processor",
+      "value": "Intel i5",
+      "normalized": "Intel i5",
+      "rawKey": "cpu",
+      "source": "declared_specification"
+    },
+    {
+      "key": "ram",
+      "title": "RAM",
+      "value": "16GB",
+      "normalized": "16GB",
+      "rawKey": "ram",
+      "source": "declared_specification"
+    },
+    {
+      "key": "storage",
+      "title": "Storage Capacity",
+      "value": "512GB SSD",
+      "normalized": "512GB SSD",
+      "rawKey": "storage",
+      "source": "declared_specification"
+    }
+  ],
+  "inspectionScope": {
+    "quantity": 1,
+    "countAllUnits": false,
+    "sampleSize": null,
+    "rule": "Inspect every unit in full."
+  },
+  "parameters": [
+    {
+      "id": "account_lock",
+      "category": "identity",
+      "title": "Account & Activation Lock Removed",
+      "description": "Confirm the device is not locked to the previous owner's account or a firmware password.",
+      "instructions": [
+        "Check the device is signed out of the previous owner's account",
+        "Check activation or anti-theft locks are off",
+        "Check no firmware or BIOS password is set",
+        "Confirm no BIOS administrator or system password is set (F2 setup)",
+        "Confirm the laptop is not enrolled in a previous organisation's device management (Windows: Settings > Accounts > Access work or school)"
+      ],
+      "expectedResult": "No account, activation or firmware lock remains.",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "brand_profile"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template). Product-specific (dell_business_laptop): Dell laptops carry a Service Tag and built-in pre-boot diagnostics; business models are often enrolled in a company's device management.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "model_identification",
+      "category": "identity",
+      "title": "Make & Model Identification",
+      "description": "Confirm the item is the make and model listed.",
+      "instructions": [
+        "Read the model number from the label, nameplate or system information",
+        "Compare it with the listed brand and model"
+      ],
+      "expectedResult": "Make and model match the listing.",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "serial_number",
+      "category": "identity",
+      "title": "Serial Number",
+      "description": "Record the serial number and confirm it is consistent everywhere it appears.",
+      "instructions": [
+        "Read the Service Tag on the bottom label",
+        "Confirm the same Service Tag shows in BIOS setup (F2 at start-up)",
+        "Photograph the label"
+      ],
+      "expectedResult": "Serial number is present, legible and consistent.",
+      "verificationType": "serial_check",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "brand_profile"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template). Product-specific (dell_business_laptop): Dell laptops carry a Service Tag and built-in pre-boot diagnostics; business models are often enrolled in a company's device management.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "battery_safety",
+      "category": "safety",
+      "title": "Battery Swelling & Heat",
+      "description": "Look for signs of a swollen or overheating battery without opening the device.",
+      "instructions": [
+        "Place the device on a flat surface and check it sits flat with no rocking",
+        "Check for a lifted screen or panel, a bulging back or separating seams",
+        "Feel for abnormal heat during charging",
+        "If any sign of swelling is found, stop, do not charge or press on it, and flag for a qualified technician",
+        "On a laptop, a raised keyboard or touchpad is a common sign of a swollen battery"
+      ],
+      "expectedResult": "No swelling, bulging or abnormal heat.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional"
+      ],
+      "reason": "Conditional check: hasBattery = true (template default).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "power_supply_safety",
+      "category": "safety",
+      "title": "Power Cable & Adapter Condition",
+      "description": "Check the mains cable, plug and adapter are safe to use.",
+      "instructions": [
+        "Inspect the cable, plug and adapter without opening them",
+        "Look for exposed conductors, cuts, scorch marks, bent pins or a loose plug",
+        "Do not use the item on a damaged cable — record it and stop"
+      ],
+      "expectedResult": "Cable, plug and adapter intact with no exposed wiring or heat damage.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "display_condition",
+      "category": "physical",
+      "title": "Display Condition",
+      "description": "Inspect the physical and visual condition of the display.",
+      "instructions": [
+        "Check the glass for cracks, chips and deep scratches",
+        "Show full-screen white, black, red, green and blue to find dead or stuck pixels",
+        "Look for backlight bleed, burn-in, lines and discolouration"
+      ],
+      "expectedResult": "No cracks, dead pixels, lines or burn-in; uniform colour.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "physical_condition",
+      "category": "physical",
+      "title": "Overall Physical Condition",
+      "description": "Inspect the whole item for damage beyond normal wear.",
+      "instructions": [
+        "Inspect every face of the item under good light",
+        "Note cracks, dents, bends, breaks or missing parts",
+        "Photograph any damage found with a scale reference"
+      ],
+      "expectedResult": "No structural or functional damage; wear consistent with the declared condition.",
+      "verificationType": "visual",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "hinge_condition",
+      "category": "physical",
+      "title": "Hinge Condition",
+      "description": "Check the lid hinge holds the screen and moves smoothly.",
+      "instructions": [
+        "Open and close the lid through its full range",
+        "Check the screen stays at any angle without drooping",
+        "Listen for cracking and look for gaps at the hinge"
+      ],
+      "expectedResult": "Hinge firm and smooth; screen holds position.",
+      "verificationType": "manual_test",
+      "required": true,
+      "requiresEvidenceOnFail": true,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "power_on",
+      "category": "functional",
+      "title": "Power-On Test",
+      "description": "Confirm the item powers on normally from its own supply.",
+      "instructions": [
+        "Connect the item's own charger or power cable",
+        "Power on and observe the start-up",
+        "Note any error lights, beeps, smells or abnormal noise and power off immediately if present"
+      ],
+      "expectedResult": "Powers on normally with no error indications.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 5,
+      "priority": "critical",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "boot_os",
+      "category": "functional",
+      "title": "Boot & Operating System",
+      "description": "Confirm the device boots to a working operating system.",
+      "instructions": [
+        "Boot the device from power off",
+        "Confirm it reaches the desktop or home screen without errors",
+        "Confirm the operating system is activated and not locked to a previous user"
+      ],
+      "expectedResult": "Boots cleanly to a working, unlocked operating system.",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "charging",
+      "category": "functional",
+      "title": "Charging",
+      "description": "Confirm the device charges from its own charger.",
+      "instructions": [
+        "Connect the declared charger",
+        "Confirm the charging indicator appears",
+        "Confirm the charge level rises over several minutes"
+      ],
+      "expectedResult": "Charges normally from the supplied charger.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional"
+      ],
+      "reason": "Conditional check: hasBattery = true (template default).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "keyboard",
+      "category": "functional",
+      "title": "Keyboard",
+      "description": "Test every key and the keyboard's physical state.",
+      "instructions": [
+        "Type every key in a keyboard test page or text editor",
+        "Check for sticky, missing or unresponsive keys",
+        "Check the keyboard backlight if fitted"
+      ],
+      "expectedResult": "Every key registers once per press; no missing or damaged keys.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "dell_preboot_diagnostics",
+      "category": "functional",
+      "title": "Dell Pre-boot Diagnostics",
+      "description": "Run Dell's built-in hardware diagnostics.",
+      "instructions": [
+        "Restart and press F12 at the Dell logo",
+        "Choose Diagnostics and let the quick test complete",
+        "Record the result and any error codes"
+      ],
+      "expectedResult": "Diagnostics complete with no errors.",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "brand_profile"
+      ],
+      "reason": "Product-specific (dell_business_laptop): Dell laptops carry a Service Tag and built-in pre-boot diagnostics; business models are often enrolled in a company's device management.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "ports_io",
+      "category": "functional",
+      "title": "Ports & Connectors",
+      "description": "Check every port and connector is intact and working.",
+      "instructions": [
+        "Inspect each port for bent pins, debris or looseness",
+        "Test each port with a known-good cable or device"
+      ],
+      "expectedResult": "All ports physically intact and functional.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "speakers_output",
+      "category": "functional",
+      "title": "Speakers & Audio Output",
+      "description": "Confirm built-in speakers and the audio output work.",
+      "instructions": [
+        "Play audio across the volume range",
+        "Check left and right channels",
+        "Listen for distortion, rattle or crackle"
+      ],
+      "expectedResult": "Clear audio on all channels at all volumes.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "touchpad",
+      "category": "functional",
+      "title": "Touchpad",
+      "description": "Test cursor movement, clicks and gestures.",
+      "instructions": [
+        "Move the cursor across the whole surface",
+        "Test left and right click and two-finger scroll",
+        "Check the surface for cracks"
+      ],
+      "expectedResult": "Smooth tracking; clicks and gestures register.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "wifi",
+      "category": "functional",
+      "title": "Wi-Fi",
+      "description": "Confirm the device connects to a Wi-Fi network.",
+      "instructions": [
+        "Connect to a known Wi-Fi network",
+        "Load a web page"
+      ],
+      "expectedResult": "Connects and loads pages.",
+      "verificationType": "functional_test",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "bluetooth",
+      "category": "functional",
+      "title": "Bluetooth",
+      "description": "Confirm Bluetooth pairs with another device.",
+      "instructions": [
+        "Pair with a test phone or headset",
+        "Confirm the connection stays up"
+      ],
+      "expectedResult": "Pairs and stays connected.",
+      "verificationType": "functional_test",
+      "required": false,
+      "requiresEvidenceOnFail": false,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "display_brightness",
+      "category": "functional",
+      "title": "Display Brightness & Controls",
+      "description": "Confirm brightness adjusts across its full range.",
+      "instructions": [
+        "Adjust brightness from minimum to maximum",
+        "Confirm the screen stays stable without flicker"
+      ],
+      "expectedResult": "Brightness adjusts smoothly with no flicker.",
+      "verificationType": "functional_test",
+      "required": false,
+      "requiresEvidenceOnFail": false,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "microphone",
+      "category": "functional",
+      "title": "Microphone",
+      "description": "Confirm the built-in microphone records clearly.",
+      "instructions": [
+        "Record a short voice clip",
+        "Play it back and check for clarity and noise"
+      ],
+      "expectedResult": "Clear recording without crackle or dropouts.",
+      "verificationType": "functional_test",
+      "required": false,
+      "requiresEvidenceOnFail": false,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "webcam",
+      "category": "functional",
+      "title": "Webcam",
+      "description": "Confirm the built-in camera gives a clear image.",
+      "instructions": [
+        "Open the camera app",
+        "Check the image is clear and the indicator light works"
+      ],
+      "expectedResult": "Clear image; indicator light works.",
+      "verificationType": "functional_test",
+      "required": false,
+      "requiresEvidenceOnFail": false,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "battery_health",
+      "category": "performance",
+      "title": "Battery Health",
+      "description": "Read the battery's health or capacity from the device.",
+      "instructions": [
+        "Go to the device's battery health screen or system report",
+        "Record the maximum capacity and, where shown, the cycle count",
+        "Compare with any figure the provider declared"
+      ],
+      "expectedResult": "Battery health reported and consistent with the declaration.",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "conditional"
+      ],
+      "reason": "Conditional check: hasBattery = true (template default).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "storage_health",
+      "category": "performance",
+      "title": "Storage Health",
+      "description": "Read the drive's health status from software.",
+      "instructions": [
+        "Open the built-in disk utility or a SMART reader",
+        "Record the health status and any reported errors"
+      ],
+      "expectedResult": "Drive reports healthy with no errors.",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "spec_cpu",
+      "category": "specification",
+      "title": "Processor",
+      "description": "Verify the provider's declared processor.",
+      "instructions": [
+        "Read the processor name in the operating system's About / System Information screen, or the BIOS/UEFI setup screen and compare it with the claim.",
+        "Record the observed value next to the claimed value"
+      ],
+      "expectedResult": "Matches the declared value: Intel i5",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "Intel i5",
+      "verificationInstruction": "Read the processor name in the operating system's About / System Information screen, or the BIOS/UEFI setup screen and compare it with the claim.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "claim"
+      ],
+      "reason": "Provider claim: Processor = Intel i5, declared by the provider.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "spec_ram",
+      "category": "specification",
+      "title": "RAM",
+      "description": "Verify the provider's declared ram.",
+      "instructions": [
+        "Read the installed memory in the operating system's About / System Information screen, or the BIOS/UEFI setup screen and compare it with the claim.",
+        "Record the observed value next to the claimed value"
+      ],
+      "expectedResult": "Matches the declared value: 16GB",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "16GB",
+      "verificationInstruction": "Read the installed memory in the operating system's About / System Information screen, or the BIOS/UEFI setup screen and compare it with the claim.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "claim"
+      ],
+      "reason": "Provider claim: RAM = 16GB, declared by the provider.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "spec_storage",
+      "category": "specification",
+      "title": "Storage Capacity",
+      "description": "Verify the provider's declared storage capacity.",
+      "instructions": [
+        "Read the total storage capacity in the operating system's About / System Information screen, or the BIOS/UEFI setup screen (formatted capacity is slightly below the marketed figure) and compare it with the claim.",
+        "Record the observed value next to the claimed value"
+      ],
+      "expectedResult": "Matches the declared value: 512GB SSD",
+      "verificationType": "system_check",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 4,
+      "priority": "high",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "512GB SSD",
+      "verificationInstruction": "Read the total storage capacity in the operating system's About / System Information screen, or the BIOS/UEFI setup screen (formatted capacity is slightly below the marketed figure) and compare it with the claim.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "claim"
+      ],
+      "reason": "Provider claim: Storage Capacity = 512GB SSD, declared by the provider.",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "accessories_declared",
+      "category": "accessories",
+      "title": "Declared Accessories",
+      "description": "Confirm every accessory the provider listed is present and working.",
+      "instructions": [
+        "Tick off each declared accessory",
+        "Check each accessory for damage",
+        "Test powered accessories with the item"
+      ],
+      "expectedResult": "All declared accessories present and serviceable.",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "cosmetic_condition",
+      "category": "cosmetic",
+      "title": "Cosmetic Condition",
+      "description": "Grade surface wear against the provider's declared condition.",
+      "instructions": [
+        "Look for scratches, scuffs, discolouration and stains",
+        "Compare the wear against the declared condition grade",
+        "Photograph representative wear"
+      ],
+      "expectedResult": "Cosmetic wear matches the declared condition.",
+      "verificationType": "comparison",
+      "required": false,
+      "requiresEvidenceOnFail": true,
+      "weight": 2,
+      "priority": "low",
+      "requiresQualifiedInspector": false,
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template).",
+      "status": "pending_inspection"
+    },
+    {
+      "id": "declared_condition",
+      "category": "other",
+      "title": "Declared Condition Grade",
+      "description": "Compare the item's overall state with the condition the provider declared.",
+      "instructions": [
+        "Read the declared condition grade",
+        "Decide whether the observed state matches, exceeds or falls short of it",
+        "Record the grade you would assign"
+      ],
+      "expectedResult": "Observed condition matches the declared grade.",
+      "verificationType": "comparison",
+      "required": true,
+      "requiresEvidenceOnFail": false,
+      "weight": 3,
+      "priority": "medium",
+      "requiresQualifiedInspector": false,
+      "claimedValue": "Excellent",
+      "verificationInstruction": "Grade the observed condition and compare it with the declared grade.",
+      "appliesTo": "every_unit",
+      "generationSource": "baseline",
+      "basis": [
+        "template",
+        "claim"
+      ],
+      "reason": "Category baseline for laptop (electronics → laptop template). Provider declared condition: Excellent.",
+      "status": "pending_inspection"
+    }
+  ],
+  "summary": {
+    "total": 29,
+    "required": 24,
+    "critical": 5,
+    "requiresQualifiedInspector": 0,
+    "claimChecks": 4,
+    "bySource": {
+      "baseline": 29
+    },
+    "byCategory": {
+      "identity": 3,
+      "safety": 2,
+      "physical": 3,
+      "functional": 13,
+      "performance": 2,
+      "specification": 3,
+      "accessories": 1,
+      "cosmetic": 1,
+      "other": 1
+    },
+    "brandProfiles": [
+      "dell_business_laptop"
+    ]
+  },
+  "imageHints": [],
+  "validation": {
+    "mergedDuplicates": [],
+    "rejectedAiParameters": [],
+    "removedUnsafeInstructions": [],
+    "notApplicable": [
+      {
+        "id": "touchscreen",
+        "reason": "condition not met: hasTouchscreen = true (template default)"
+      },
+      {
+        "id": "remote_control",
+        "reason": "condition not met: hasRemote = true"
+      },
+      {
+        "id": "fingerprint",
+        "reason": "condition not met: hasFingerprint = true"
+      }
+    ]
+  },
+  "generation": {
+    "modelName": "indulge-inspection-protocol-generator",
+    "modelVersion": "1.0.0",
+    "promptVersion": "inspection-prompt-1.0",
+    "templateVersion": "templates-e001da6f2c",
+    "knowledgeVersions": {
+      "taxonomy": "1.0",
+      "parameters": "1.0",
+      "specRules": "1.0",
+      "attributeRules": "1.0",
+      "brandProfiles": "1.0",
+      "safety": "1.0",
+      "priorities": "1.0",
+      "template:electronics": "1.0",
+      "template:laptop": "1.0"
+    },
+    "generationTimestamp": "2026-09-26T15:03:44.131Z",
+    "mode": "baseline_only",
+    "ai": {
+      "status": "disabled",
+      "reason": "no Anthropic credentials configured",
+      "llmModel": null,
+      "imagesUsed": false,
+      "suggested": 0,
+      "accepted": 0,
+      "mergedIntoBaseline": 0,
+      "usage": null,
+      "confidenceNote": "No numeric confidence is reported: the rules are deterministic, and LLM token probabilities are not a validated confidence measure. generationSource and reason explain each parameter instead."
+    }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "description": "Safety rules applied to every instruction before it reaches a protocol. An instruction matching `forbiddenInstructions` is removed (and the removal recorded). A parameter matching `qualifiedTriggers` in its title/description is marked requiresQualifiedInspector. If removing unsafe instructions leaves a parameter with none, it is dropped. Baseline instructions are written to pass these rules; the verify suite checks that they do.",
+  "forbiddenInstructions": [
+    {
+      "pattern": "\\b(open|opening|unscrew|pry|prise|remove)\\b[^.]{0,30}\\b(battery|casing|case|chassis|back cover|back panel|housing|power supply|psu|enclosure)\\b(?!\\s+(health|settings|screen|menu|report|information|info|section|page|app|status|level))",
+      "reason": "Requires disassembly; risk of damage or injury (lithium cells, mains voltage).",
+      "unless": "\\bsettings\\b|>|\\bscreen\\b|\\bmenu\\b|\\bapp\\b|\\breport\\b|\\bsystem information\\b"
+    },
+    {
+      "pattern": "\\bdisassembl",
+      "reason": "Requires disassembly."
+    },
+    {
+      "pattern": "\\b(bypass|override|defeat|disable|remove)\\b[^.]{0,25}\\b(safety|interlock|guard|fuse|breaker|cut-?out|thermal)\\b",
+      "reason": "Bypasses a safety mechanism."
+    },
+    {
+      "pattern": "\\b(live|mains|high[- ]voltage)\\b[^.]{0,25}\\b(wir|terminal|conductor|busbar)",
+      "reason": "Live electrical work."
+    },
+    {
+      "pattern": "\\bshort[- ]?circuit",
+      "reason": "Deliberate short circuit."
+    },
+    {
+      "pattern": "\\b(puncture|pierce|crush|bend|heat)\\b[^.]{0,20}\\bbattery\\b",
+      "reason": "Could cause a battery fire."
+    },
+    {
+      "pattern": "\\b(flame|lighter|match(es)?)\\b[^.]{0,30}\\b(gas|leak)\\b|\\b(gas|leak)\\b[^.]{0,30}\\b(flame|lighter|match(es)?)\\b",
+      "reason": "Open flame near gas."
+    },
+    {
+      "pattern": "\\b(drive|driving|road test|test drive)\\b[^.]{0,40}\\b(high speed|top speed|highway|expressway|public road|full throttle)\\b",
+      "reason": "Unsafe vehicle operation."
+    },
+    {
+      "pattern": "\\b(rev|revving)\\b[^.]{0,20}\\b(redline|maximum|max|hard)\\b",
+      "reason": "Unsafe engine operation."
+    },
+    {
+      "pattern": "\\b(touch|reach into|insert (a )?(finger|hand))\\b[^.]{0,25}\\b(fan|blade|belt|moving part|rotor)\\b",
+      "reason": "Contact with moving parts."
+    },
+    {
+      "pattern": "\\b(stand|jump|climb)\\b[^.]{0,15}\\b(on|onto)\\b[^.]{0,20}\\b(chair|table|stage|truss|platform)\\b",
+      "reason": "Fall and overload risk."
+    },
+    {
+      "pattern": "\\b(overload|exceed)\\b[^.]{0,20}\\b(rated|rating|capacity|load)\\b",
+      "reason": "Deliberate overloading."
+    },
+    {
+      "pattern": "\\bclean\\b[^.]{0,15}\\bsensor\\b",
+      "reason": "Can damage the image sensor; specialist task."
+    }
+  ],
+  "qualifiedTriggers": [
+    {
+      "pattern": "\\b(gas leak|gas pressure|pressure test|insulation resistance|pat test|earth(ing)? test|output voltage|load test|rigging|structural load|brake test|road test)\\b",
+      "reason": "Needs a qualified technician and suitable equipment."
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "description": "Attributes that switch conditional parameters on or off. Each attribute is set from, in order of precedence: an explicit value the provider gave (specifications/features), a brand/model profile, these text rules, then the template's attributeDefaults. `negative` patterns win over `positive` ones so 'non-touch' or 'no AC' turn a check off. All patterns are case-insensitive and matched against name, brand, model, description, features and specification values.",
+  "attributes": {
+    "hasTouchscreen": {
+      "positive": ["\\btouch\\s?screen\\b", "\\btouch display\\b", "\\b2-in-1\\b", "\\bconvertible\\b", "\\bflip\\b"],
+      "negative": ["\\bnon[- ]?touch\\b", "\\bno touch\\s?screen\\b", "\\btouch\\s?screen\\s*[:\\-]\\s*no\\b"]
+    },
+    "hasFingerprint": { "positive": ["\\bfingerprint\\b", "\\btouch id\\b"], "negative": ["\\bno fingerprint\\b"] },
+    "hasFaceId": { "positive": ["\\bface id\\b", "\\bface unlock\\b", "\\bface recognition\\b"], "negative": [] },
+    "hasStylus": { "positive": ["\\bstylus\\b", "\\bapple pencil\\b", "\\bs pen\\b", "\\bwith pen\\b"], "negative": ["\\bno stylus\\b", "\\bpen not included\\b"] },
+    "hasRemote": { "positive": ["\\bremote\\b"], "negative": ["\\bno remote\\b", "\\bremote not included\\b"] },
+    "hasCamera": { "positive": ["\\bcamera\\b"], "negative": [] },
+    "hasCellular": { "positive": ["\\bcellular\\b", "\\blte\\b", "\\b[45]g\\b", "\\bsim\\b", "\\besim\\b"], "negative": ["\\bwi-?fi only\\b"] },
+    "hasBattery": {
+      "positive": ["\\bbattery\\b", "\\brechargeable\\b", "\\bcordless\\b", "\\bportable\\b", "\\bbattery[- ]powered\\b"],
+      "negative": ["\\bno battery\\b", "\\bmains only\\b", "\\bbattery not included\\b"]
+    },
+    "hasAC": { "positive": ["\\bac\\b", "\\ba/c\\b", "\\bair[- ]?condition", "\\bclimate control\\b"], "negative": ["\\bnon[- ]?ac\\b", "\\bno ac\\b"] },
+    "isRefrigerated": { "positive": ["\\brefrigerat", "\\breefer\\b", "\\bcold chain\\b", "\\bfreezer\\b", "\\bchiller\\b"], "negative": [] },
+    "isUpholstered": { "positive": ["\\bcushion", "\\bupholster", "\\bfabric\\b", "\\bvelvet\\b", "\\bleather\\b", "\\bpadded\\b", "\\bseat pad"], "negative": [] },
+    "isFoldingOrStackable": { "positive": ["\\bfold", "\\bstack", "\\bcollapsible\\b"], "negative": ["\\bnon[- ]?stack", "\\bnot stack"] },
+    "usesGas": { "positive": ["\\bgas\\b", "\\blpg\\b", "\\bpng\\b", "\\bburner", "\\bstove\\b"], "negative": ["\\belectric only\\b"] },
+    "isElectrical": { "positive": ["\\belectric", "\\bwatt", "\\b\\d+\\s?w\\b", "\\b\\d+\\s?kw\\b", "\\bplug\\b", "\\bmains\\b", "\\b230\\s?v\\b", "\\binduction\\b", "\\bmicrowave\\b"], "negative": ["\\bnon[- ]?electric\\b", "\\bmanual only\\b"] },
+    "heats": { "positive": ["\\boven\\b", "\\bstove\\b", "\\bburner", "\\btandoor\\b", "\\bfryer\\b", "\\bgriddle\\b", "\\bheater\\b", "\\bwarmer\\b", "\\bchafing\\b", "\\bmicrowave\\b", "\\bsalamander\\b"], "negative": [] },
+    "cools": { "positive": ["\\bfridge\\b", "\\brefrigerat", "\\bfreezer\\b", "\\bchiller\\b", "\\bcooler\\b", "\\bice machine\\b"], "negative": [] },
+    "isTent": { "positive": ["\\btent\\b", "\\bcanopy\\b", "\\bmarquee\\b", "\\bgazebo\\b", "\\bhangar\\b"], "negative": [] },
+    "isLoadBearingStructure": { "positive": ["\\bstage\\b", "\\btruss", "\\briser", "\\bplatform\\b", "\\bscaffold", "\\bpodium\\b", "\\brigging\\b"], "negative": [] },
+    "isLighting": { "positive": ["\\blights?\\b", "\\blighting\\b", "\\bpar can", "\\bmoving head", "\\bspotlight", "\\buplighter", "\\bdmx\\b"], "negative": [] },
+    "isGenerator": { "positive": ["\\bgenerator\\b", "\\bgenset\\b", "\\bdg set\\b", "\\bkva\\b"], "negative": [] },
+    "hasMixer": { "positive": ["\\bmixer\\b", "\\bmixing desk\\b", "\\bdj console\\b", "\\bdigital desk\\b"], "negative": [] },
+    "hasMicrophones": { "positive": ["\\bmics?\\b", "\\bmicrophones?\\b"], "negative": [] },
+    "hasBluetooth": { "positive": ["\\bbluetooth\\b", "\\bbt\\b"], "negative": [] },
+    "isSmart": { "positive": ["\\bsmart\\b", "\\bandroid tv\\b", "\\bgoogle tv\\b", "\\bwebos\\b", "\\btizen\\b"], "negative": [] }
+  }
+}

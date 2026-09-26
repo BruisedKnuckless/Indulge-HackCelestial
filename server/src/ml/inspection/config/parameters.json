@@ -1,0 +1,1970 @@
+{
+  "version": "1.0",
+  "description": "Shared library of inspection parameters, referenced by id from templates, spec rules and brand profiles. `aliases` are the words other sources (and the AI) use for the same check — the validator merges them instead of listing duplicates. `when` makes a parameter conditional on an extracted attribute. `qualified: true` marks checks that must be done by a qualified technician; their instructions never ask for disassembly or bypassing a safeguard. `required` defaults to weight >= 3 and `requiresEvidenceOnFail` to the categories in priorities.json unless set here.",
+  "parameters": {
+    "physical_condition": {
+      "category": "physical",
+      "title": "Overall Physical Condition",
+      "description": "Inspect the whole item for damage beyond normal wear.",
+      "instructions": [
+        "Inspect every face of the item under good light",
+        "Note cracks, dents, bends, breaks or missing parts",
+        "Photograph any damage found with a scale reference"
+      ],
+      "expectedResult": "No structural or functional damage; wear consistent with the declared condition.",
+      "verificationType": "visual",
+      "weight": 4,
+      "aliases": [
+        "chassis condition",
+        "overall condition",
+        "physical damage"
+      ]
+    },
+    "cosmetic_condition": {
+      "category": "cosmetic",
+      "title": "Cosmetic Condition",
+      "description": "Grade surface wear against the provider's declared condition.",
+      "instructions": [
+        "Look for scratches, scuffs, discolouration and stains",
+        "Compare the wear against the declared condition grade",
+        "Photograph representative wear"
+      ],
+      "expectedResult": "Cosmetic wear matches the declared condition.",
+      "verificationType": "comparison",
+      "weight": 2,
+      "aliases": [
+        "scratches",
+        "scuffs",
+        "cosmetic wear",
+        "appearance"
+      ]
+    },
+    "declared_condition": {
+      "category": "other",
+      "title": "Declared Condition Grade",
+      "description": "Compare the item's overall state with the condition the provider declared.",
+      "instructions": [
+        "Read the declared condition grade",
+        "Decide whether the observed state matches, exceeds or falls short of it",
+        "Record the grade you would assign"
+      ],
+      "expectedResult": "Observed condition matches the declared grade.",
+      "verificationType": "comparison",
+      "weight": 3,
+      "aliases": [
+        "condition grade",
+        "claimed condition",
+        "declared condition"
+      ]
+    },
+    "cleanliness": {
+      "category": "cosmetic",
+      "title": "Cleanliness & Hygiene",
+      "description": "Check the item is clean and fit to hand to a customer.",
+      "instructions": [
+        "Check for dirt, residue, odour and pests",
+        "Check food-contact or skin-contact surfaces closely"
+      ],
+      "expectedResult": "Clean, odour-free and ready for use.",
+      "verificationType": "visual",
+      "weight": 2,
+      "aliases": [
+        "hygiene",
+        "clean",
+        "dirt",
+        "odour"
+      ]
+    },
+    "serial_number": {
+      "category": "identity",
+      "title": "Serial Number",
+      "description": "Record the serial number and confirm it is consistent everywhere it appears.",
+      "instructions": [
+        "Read the serial number from the physical label",
+        "Where the device shows one in its settings or firmware, confirm it matches the label",
+        "Photograph the label"
+      ],
+      "expectedResult": "Serial number is present, legible and consistent.",
+      "verificationType": "serial_check",
+      "weight": 4,
+      "aliases": [
+        "serial",
+        "serial no",
+        "service tag",
+        "device id"
+      ]
+    },
+    "model_identification": {
+      "category": "identity",
+      "title": "Make & Model Identification",
+      "description": "Confirm the item is the make and model listed.",
+      "instructions": [
+        "Read the model number from the label, nameplate or system information",
+        "Compare it with the listed brand and model"
+      ],
+      "expectedResult": "Make and model match the listing.",
+      "verificationType": "comparison",
+      "weight": 5,
+      "aliases": [
+        "model number",
+        "model verification",
+        "make and model",
+        "product identity",
+        "brand verification"
+      ]
+    },
+    "accessories_declared": {
+      "category": "accessories",
+      "title": "Declared Accessories",
+      "description": "Confirm every accessory the provider listed is present and working.",
+      "instructions": [
+        "Tick off each declared accessory",
+        "Check each accessory for damage",
+        "Test powered accessories with the item"
+      ],
+      "expectedResult": "All declared accessories present and serviceable.",
+      "verificationType": "comparison",
+      "weight": 3,
+      "aliases": [
+        "accessories",
+        "included items",
+        "in the box",
+        "box contents"
+      ]
+    },
+    "power_on": {
+      "category": "functional",
+      "title": "Power-On Test",
+      "description": "Confirm the item powers on normally from its own supply.",
+      "instructions": [
+        "Connect the item's own charger or power cable",
+        "Power on and observe the start-up",
+        "Note any error lights, beeps, smells or abnormal noise and power off immediately if present"
+      ],
+      "expectedResult": "Powers on normally with no error indications.",
+      "verificationType": "functional_test",
+      "weight": 5,
+      "aliases": [
+        "power test",
+        "power on",
+        "turns on"
+      ]
+    },
+    "power_supply_safety": {
+      "category": "safety",
+      "title": "Power Cable & Adapter Condition",
+      "description": "Check the mains cable, plug and adapter are safe to use.",
+      "instructions": [
+        "Inspect the cable, plug and adapter without opening them",
+        "Look for exposed conductors, cuts, scorch marks, bent pins or a loose plug",
+        "Do not use the item on a damaged cable — record it and stop"
+      ],
+      "expectedResult": "Cable, plug and adapter intact with no exposed wiring or heat damage.",
+      "verificationType": "visual",
+      "weight": 5,
+      "aliases": [
+        "power cable",
+        "power cord",
+        "adapter condition",
+        "plug condition"
+      ]
+    },
+    "ports_io": {
+      "category": "functional",
+      "title": "Ports & Connectors",
+      "description": "Check every port and connector is intact and working.",
+      "instructions": [
+        "Inspect each port for bent pins, debris or looseness",
+        "Test each port with a known-good cable or device"
+      ],
+      "expectedResult": "All ports physically intact and functional.",
+      "verificationType": "functional_test",
+      "weight": 3,
+      "aliases": [
+        "ports",
+        "usb ports",
+        "usb",
+        "connectors",
+        "i/o",
+        "port condition",
+        "hdmi port",
+        "hdmi"
+      ]
+    },
+    "display_condition": {
+      "category": "physical",
+      "title": "Display Condition",
+      "description": "Inspect the physical and visual condition of the display.",
+      "instructions": [
+        "Check the glass for cracks, chips and deep scratches",
+        "Show full-screen white, black, red, green and blue to find dead or stuck pixels",
+        "Look for backlight bleed, burn-in, lines and discolouration"
+      ],
+      "expectedResult": "No cracks, dead pixels, lines or burn-in; uniform colour.",
+      "verificationType": "visual",
+      "weight": 4,
+      "aliases": [
+        "screen",
+        "screen condition",
+        "display",
+        "lcd",
+        "monitor",
+        "panel",
+        "dead pixels",
+        "screen damage",
+        "display quality",
+        "front glass"
+      ]
+    },
+    "display_brightness": {
+      "category": "functional",
+      "title": "Display Brightness & Controls",
+      "description": "Confirm brightness adjusts across its full range.",
+      "instructions": [
+        "Adjust brightness from minimum to maximum",
+        "Confirm the screen stays stable without flicker"
+      ],
+      "expectedResult": "Brightness adjusts smoothly with no flicker.",
+      "verificationType": "functional_test",
+      "weight": 2,
+      "aliases": [
+        "brightness",
+        "backlight"
+      ]
+    },
+    "touchscreen": {
+      "category": "functional",
+      "title": "Touchscreen Response",
+      "description": "Confirm touch input works across the whole screen.",
+      "instructions": [
+        "Draw lines across the full screen in a drawing or test app",
+        "Check multi-touch with a pinch gesture",
+        "Note dead zones or phantom touches"
+      ],
+      "expectedResult": "Touch registers everywhere with no dead zones or phantom input.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "touch screen",
+        "touch input",
+        "digitizer",
+        "touch response"
+      ],
+      "when": {
+        "hasTouchscreen": true
+      }
+    },
+    "keyboard": {
+      "category": "functional",
+      "title": "Keyboard",
+      "description": "Test every key and the keyboard's physical state.",
+      "instructions": [
+        "Type every key in a keyboard test page or text editor",
+        "Check for sticky, missing or unresponsive keys",
+        "Check the keyboard backlight if fitted"
+      ],
+      "expectedResult": "Every key registers once per press; no missing or damaged keys.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "keys",
+        "keyboard functionality",
+        "keypad",
+        "typing"
+      ]
+    },
+    "touchpad": {
+      "category": "functional",
+      "title": "Touchpad",
+      "description": "Test cursor movement, clicks and gestures.",
+      "instructions": [
+        "Move the cursor across the whole surface",
+        "Test left and right click and two-finger scroll",
+        "Check the surface for cracks"
+      ],
+      "expectedResult": "Smooth tracking; clicks and gestures register.",
+      "verificationType": "functional_test",
+      "weight": 3,
+      "aliases": [
+        "trackpad",
+        "touch pad",
+        "mouse pad"
+      ]
+    },
+    "hinge_condition": {
+      "category": "physical",
+      "title": "Hinge Condition",
+      "description": "Check the lid hinge holds the screen and moves smoothly.",
+      "instructions": [
+        "Open and close the lid through its full range",
+        "Check the screen stays at any angle without drooping",
+        "Listen for cracking and look for gaps at the hinge"
+      ],
+      "expectedResult": "Hinge firm and smooth; screen holds position.",
+      "verificationType": "manual_test",
+      "weight": 3,
+      "aliases": [
+        "hinge",
+        "hinges",
+        "lid"
+      ]
+    },
+    "boot_os": {
+      "category": "functional",
+      "title": "Boot & Operating System",
+      "description": "Confirm the device boots to a working operating system.",
+      "instructions": [
+        "Boot the device from power off",
+        "Confirm it reaches the desktop or home screen without errors",
+        "Confirm the operating system is activated and not locked to a previous user"
+      ],
+      "expectedResult": "Boots cleanly to a working, unlocked operating system.",
+      "verificationType": "system_check",
+      "weight": 4,
+      "aliases": [
+        "boot",
+        "boot test",
+        "operating system",
+        "os",
+        "startup test"
+      ]
+    },
+    "storage_health": {
+      "category": "performance",
+      "title": "Storage Health",
+      "description": "Read the drive's health status from software.",
+      "instructions": [
+        "Open the built-in disk utility or a SMART reader",
+        "Record the health status and any reported errors"
+      ],
+      "expectedResult": "Drive reports healthy with no errors.",
+      "verificationType": "system_check",
+      "weight": 3,
+      "aliases": [
+        "ssd health",
+        "disk health",
+        "smart status",
+        "drive health"
+      ]
+    },
+    "battery_health": {
+      "category": "performance",
+      "title": "Battery Health",
+      "description": "Read the battery's health or capacity from the device.",
+      "instructions": [
+        "Go to the device's battery health screen or system report",
+        "Record the maximum capacity and, where shown, the cycle count",
+        "Compare with any figure the provider declared"
+      ],
+      "expectedResult": "Battery health reported and consistent with the declaration.",
+      "verificationType": "system_check",
+      "weight": 4,
+      "aliases": [
+        "battery",
+        "battery capacity",
+        "battery life",
+        "cycle count",
+        "battery condition"
+      ],
+      "when": {
+        "hasBattery": true
+      }
+    },
+    "battery_safety": {
+      "category": "safety",
+      "title": "Battery Swelling & Heat",
+      "description": "Look for signs of a swollen or overheating battery without opening the device.",
+      "instructions": [
+        "Place the device on a flat surface and check it sits flat with no rocking",
+        "Check for a lifted screen or panel, a bulging back or separating seams",
+        "Feel for abnormal heat during charging",
+        "If any sign of swelling is found, stop, do not charge or press on it, and flag for a qualified technician"
+      ],
+      "expectedResult": "No swelling, bulging or abnormal heat.",
+      "verificationType": "visual",
+      "weight": 5,
+      "aliases": [
+        "battery swelling",
+        "swollen battery",
+        "battery bulge",
+        "battery safety"
+      ],
+      "when": {
+        "hasBattery": true
+      }
+    },
+    "charging": {
+      "category": "functional",
+      "title": "Charging",
+      "description": "Confirm the device charges from its own charger.",
+      "instructions": [
+        "Connect the declared charger",
+        "Confirm the charging indicator appears",
+        "Confirm the charge level rises over several minutes"
+      ],
+      "expectedResult": "Charges normally from the supplied charger.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "charging test",
+        "charging port",
+        "charge",
+        "charger test"
+      ],
+      "when": {
+        "hasBattery": true
+      }
+    },
+    "wifi": {
+      "category": "functional",
+      "title": "Wi-Fi",
+      "description": "Confirm the device connects to a Wi-Fi network.",
+      "instructions": [
+        "Connect to a known Wi-Fi network",
+        "Load a web page"
+      ],
+      "expectedResult": "Connects and loads pages.",
+      "verificationType": "functional_test",
+      "weight": 3,
+      "aliases": [
+        "wireless",
+        "wlan",
+        "internet connectivity",
+        "wifi network"
+      ]
+    },
+    "bluetooth": {
+      "category": "functional",
+      "title": "Bluetooth",
+      "description": "Confirm Bluetooth pairs with another device.",
+      "instructions": [
+        "Pair with a test phone or headset",
+        "Confirm the connection stays up"
+      ],
+      "expectedResult": "Pairs and stays connected.",
+      "verificationType": "functional_test",
+      "weight": 2,
+      "aliases": [
+        "bt",
+        "bluetooth pairing"
+      ]
+    },
+    "webcam": {
+      "category": "functional",
+      "title": "Webcam",
+      "description": "Confirm the built-in camera gives a clear image.",
+      "instructions": [
+        "Open the camera app",
+        "Check the image is clear and the indicator light works"
+      ],
+      "expectedResult": "Clear image; indicator light works.",
+      "verificationType": "functional_test",
+      "weight": 2,
+      "aliases": [
+        "web camera",
+        "built-in camera",
+        "facetime camera"
+      ]
+    },
+    "microphone": {
+      "category": "functional",
+      "title": "Microphone",
+      "description": "Confirm the built-in microphone records clearly.",
+      "instructions": [
+        "Record a short voice clip",
+        "Play it back and check for clarity and noise"
+      ],
+      "expectedResult": "Clear recording without crackle or dropouts.",
+      "verificationType": "functional_test",
+      "weight": 2,
+      "aliases": [
+        "mic",
+        "mics",
+        "voice recording"
+      ]
+    },
+    "speakers_output": {
+      "category": "functional",
+      "title": "Speakers & Audio Output",
+      "description": "Confirm built-in speakers and the audio output work.",
+      "instructions": [
+        "Play audio across the volume range",
+        "Check left and right channels",
+        "Listen for distortion, rattle or crackle"
+      ],
+      "expectedResult": "Clear audio on all channels at all volumes.",
+      "verificationType": "functional_test",
+      "weight": 3,
+      "aliases": [
+        "speaker",
+        "speakers",
+        "audio",
+        "sound",
+        "earpiece",
+        "built-in speakers"
+      ]
+    },
+    "account_lock": {
+      "category": "identity",
+      "title": "Account & Activation Lock Removed",
+      "description": "Confirm the device is not locked to the previous owner's account or a firmware password.",
+      "instructions": [
+        "Check the device is signed out of the previous owner's account",
+        "Check activation or anti-theft locks are off",
+        "Check no firmware or BIOS password is set"
+      ],
+      "expectedResult": "No account, activation or firmware lock remains.",
+      "verificationType": "system_check",
+      "weight": 5,
+      "aliases": [
+        "activation lock",
+        "icloud lock",
+        "find my",
+        "frp lock",
+        "google lock",
+        "bios password",
+        "account lock"
+      ]
+    },
+    "back_body": {
+      "category": "physical",
+      "title": "Back Panel & Frame",
+      "description": "Inspect the back glass or panel and the frame.",
+      "instructions": [
+        "Check the back glass or panel for cracks",
+        "Check the frame for dents and bends",
+        "Check the camera lens covers for cracks"
+      ],
+      "expectedResult": "No cracks or bends; lens covers intact.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "back glass",
+        "back cover",
+        "rear panel",
+        "housing",
+        "phone frame"
+      ]
+    },
+    "rear_camera": {
+      "category": "functional",
+      "title": "Rear Camera",
+      "description": "Test every rear lens, focus and flash.",
+      "instructions": [
+        "Take a photo with each rear lens",
+        "Check autofocus and image sharpness",
+        "Test the flash or torch",
+        "Record a short video"
+      ],
+      "expectedResult": "Every lens focuses and produces a clear image; flash works.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "camera",
+        "main camera",
+        "back camera",
+        "rear lens"
+      ],
+      "when": {
+        "hasCamera": true
+      }
+    },
+    "front_camera": {
+      "category": "functional",
+      "title": "Front Camera",
+      "description": "Test the front-facing camera.",
+      "instructions": [
+        "Take a selfie photo and video",
+        "Check focus and clarity"
+      ],
+      "expectedResult": "Clear front camera image.",
+      "verificationType": "functional_test",
+      "weight": 3,
+      "aliases": [
+        "selfie camera",
+        "front facing camera"
+      ],
+      "when": {
+        "hasCamera": true
+      }
+    },
+    "face_unlock": {
+      "category": "functional",
+      "title": "Face Recognition (Face ID)",
+      "description": "Confirm face recognition can be set up and unlocks the device.",
+      "instructions": [
+        "Enrol a test face in the face-recognition settings",
+        "Lock and unlock the device with it",
+        "Remove the test enrolment afterwards"
+      ],
+      "expectedResult": "Enrolment succeeds and unlocks reliably.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "face id",
+        "face recognition",
+        "face unlock",
+        "truedepth"
+      ],
+      "when": {
+        "hasFaceId": true
+      }
+    },
+    "fingerprint": {
+      "category": "functional",
+      "title": "Fingerprint Sensor",
+      "description": "Confirm the fingerprint sensor enrols and unlocks.",
+      "instructions": [
+        "Enrol a test fingerprint",
+        "Unlock with it several times",
+        "Remove the test enrolment afterwards"
+      ],
+      "expectedResult": "Enrolment succeeds and unlocks reliably.",
+      "verificationType": "functional_test",
+      "weight": 3,
+      "aliases": [
+        "touch id",
+        "fingerprint reader",
+        "biometric sensor"
+      ],
+      "when": {
+        "hasFingerprint": true
+      }
+    },
+    "cellular": {
+      "category": "functional",
+      "title": "Cellular Network & SIM",
+      "description": "Confirm the device registers on a mobile network and makes calls.",
+      "instructions": [
+        "Insert a test SIM or activate a test eSIM",
+        "Confirm network registration and signal",
+        "Make and receive a short call; test mobile data"
+      ],
+      "expectedResult": "Registers on the network; calls and data work.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "sim",
+        "calls",
+        "mobile data",
+        "signal",
+        "cellular",
+        "mobile network"
+      ]
+    },
+    "imei": {
+      "category": "identity",
+      "title": "IMEI",
+      "description": "Record the IMEI and confirm it matches the device and is not blocklisted.",
+      "instructions": [
+        "Dial *#06# to display the IMEI",
+        "Confirm it matches the IMEI in settings and on the SIM tray or box where printed",
+        "Check the IMEI against the national blocklist service"
+      ],
+      "expectedResult": "IMEI consistent everywhere and not blocklisted.",
+      "verificationType": "serial_check",
+      "weight": 5,
+      "aliases": [
+        "imei number",
+        "imei check"
+      ]
+    },
+    "physical_buttons": {
+      "category": "functional",
+      "title": "Physical Buttons & Switches",
+      "description": "Test every hardware button and switch.",
+      "instructions": [
+        "Press each button and toggle each switch",
+        "Check each gives a positive click and the expected action"
+      ],
+      "expectedResult": "All buttons and switches respond.",
+      "verificationType": "functional_test",
+      "weight": 2,
+      "aliases": [
+        "buttons",
+        "power button",
+        "volume buttons",
+        "switches"
+      ]
+    },
+    "liquid_damage": {
+      "category": "physical",
+      "title": "Liquid Damage Indicator",
+      "description": "Check visible liquid-contact indicators without opening the device.",
+      "instructions": [
+        "Where the manufacturer places an indicator in the SIM slot or a port, inspect it with a torch",
+        "Look for corrosion in the ports"
+      ],
+      "expectedResult": "Indicator not triggered; no corrosion.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "water damage",
+        "lci",
+        "liquid contact indicator",
+        "corrosion"
+      ]
+    },
+    "genuine_parts": {
+      "category": "documentation",
+      "title": "Parts & Service History",
+      "description": "Check the device's own record of replaced or non-genuine parts.",
+      "instructions": [
+        "Open the device's parts or service history screen where the manufacturer provides one",
+        "Record any part reported as replaced, unknown or non-genuine"
+      ],
+      "expectedResult": "No unknown or non-genuine parts, or replacements disclosed by the provider.",
+      "verificationType": "system_check",
+      "weight": 3,
+      "aliases": [
+        "parts history",
+        "service history",
+        "genuine parts",
+        "non-genuine parts"
+      ]
+    },
+    "stylus": {
+      "category": "accessories",
+      "title": "Stylus / Pen",
+      "description": "Confirm the stylus pairs, charges and draws accurately.",
+      "instructions": [
+        "Pair or attach the stylus",
+        "Draw across the screen and check pressure response",
+        "Check the tip is not worn"
+      ],
+      "expectedResult": "Stylus pairs and draws accurately.",
+      "verificationType": "functional_test",
+      "weight": 3,
+      "aliases": [
+        "pen",
+        "apple pencil",
+        "s pen"
+      ],
+      "when": {
+        "hasStylus": true
+      }
+    },
+    "lens_optics": {
+      "category": "physical",
+      "title": "Lens & Optics",
+      "description": "Inspect lens glass and optics.",
+      "instructions": [
+        "Shine a torch through the lens from the rear",
+        "Look for scratches, fungus, haze, dust and separation",
+        "Check the front and rear lens caps"
+      ],
+      "expectedResult": "No fungus, haze, separation or significant scratches.",
+      "verificationType": "visual",
+      "weight": 4,
+      "aliases": [
+        "lens",
+        "optics",
+        "lens glass",
+        "fungus"
+      ]
+    },
+    "sensor_condition": {
+      "category": "physical",
+      "title": "Sensor Condition",
+      "description": "Check the image sensor for dust, marks and dead pixels using test shots only.",
+      "instructions": [
+        "Shoot a plain bright surface at a narrow aperture",
+        "Inspect the image for spots, marks and hot or dead pixels",
+        "Do not touch or clean the sensor"
+      ],
+      "expectedResult": "No marks or pixel defects visible in test shots.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "image sensor",
+        "sensor dust",
+        "hot pixels"
+      ]
+    },
+    "shutter_autofocus": {
+      "category": "functional",
+      "title": "Shutter & Autofocus",
+      "description": "Test shutter release across speeds and autofocus.",
+      "instructions": [
+        "Fire the shutter at several speeds",
+        "Check autofocus locks in single and continuous modes",
+        "Record a short video with sound"
+      ],
+      "expectedResult": "Shutter fires at all speeds; autofocus locks reliably.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "shutter",
+        "autofocus",
+        "af",
+        "focus"
+      ]
+    },
+    "shutter_count": {
+      "category": "specification",
+      "title": "Shutter Count",
+      "description": "Read the shutter actuation count from the camera.",
+      "instructions": [
+        "Read the count from the camera menu or an image's metadata",
+        "Compare with any figure declared"
+      ],
+      "expectedResult": "Shutter count read and consistent with the declaration.",
+      "verificationType": "system_check",
+      "weight": 3,
+      "aliases": [
+        "actuations",
+        "shutter actuations"
+      ]
+    },
+    "lens_mount": {
+      "category": "physical",
+      "title": "Lens Mount & Contacts",
+      "description": "Inspect the mount and electronic contacts.",
+      "instructions": [
+        "Check the mount for wear or looseness",
+        "Check contacts are clean and undamaged",
+        "Mount a lens and confirm it communicates"
+      ],
+      "expectedResult": "Mount firm; lens communicates with the body.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "bayonet",
+        "lens contacts"
+      ]
+    },
+    "memory_card_slot": {
+      "category": "functional",
+      "title": "Memory Card Slot",
+      "description": "Confirm the card slot reads and writes.",
+      "instructions": [
+        "Insert a test card",
+        "Format it in the device, then save and review a file"
+      ],
+      "expectedResult": "Card reads and writes without error.",
+      "verificationType": "functional_test",
+      "weight": 3,
+      "aliases": [
+        "card slot",
+        "sd card",
+        "sd slot"
+      ]
+    },
+    "projection_quality": {
+      "category": "functional",
+      "title": "Projected Image Quality",
+      "description": "Check the projected image for brightness, focus and defects.",
+      "instructions": [
+        "Project a test pattern onto a plain surface",
+        "Check focus across the image, colour uniformity and keystone correction",
+        "Look for spots, dead pixels or colour banding"
+      ],
+      "expectedResult": "Sharp, uniform image without spots or banding.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "projection",
+        "image quality",
+        "focus and keystone",
+        "projected image"
+      ]
+    },
+    "light_source_hours": {
+      "category": "performance",
+      "title": "Lamp / Light Source Hours",
+      "description": "Read the lamp or light-source usage hours from the menu.",
+      "instructions": [
+        "Open the information or service menu",
+        "Record lamp or light-source hours and compare with the rated life"
+      ],
+      "expectedResult": "Hours recorded; remaining life reasonable for the hire.",
+      "verificationType": "system_check",
+      "weight": 3,
+      "aliases": [
+        "lamp hours",
+        "lamp life",
+        "light source"
+      ]
+    },
+    "cooling_fan": {
+      "category": "safety",
+      "title": "Cooling & Ventilation",
+      "description": "Confirm cooling works and vents are clear, from the outside only.",
+      "instructions": [
+        "Run the item for 15 minutes",
+        "Check the vents are unobstructed and airflow is present",
+        "Listen for grinding fans and check for overheating warnings",
+        "Do not open the casing or touch moving fans"
+      ],
+      "expectedResult": "Airflow present, no overheating warnings or abnormal fan noise.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "fan",
+        "ventilation",
+        "overheating"
+      ]
+    },
+    "remote_control": {
+      "category": "accessories",
+      "title": "Remote Control",
+      "description": "Confirm the remote controls the item.",
+      "instructions": [
+        "Test power, input selection and navigation from the remote"
+      ],
+      "expectedResult": "Remote controls the item.",
+      "verificationType": "functional_test",
+      "weight": 2,
+      "aliases": [
+        "remote"
+      ],
+      "when": {
+        "hasRemote": true
+      }
+    },
+    "video_inputs": {
+      "category": "functional",
+      "title": "Video Inputs",
+      "description": "Test each video input with a live source.",
+      "instructions": [
+        "Connect a source to each HDMI or video input",
+        "Confirm picture and sound on each"
+      ],
+      "expectedResult": "Every input shows picture and sound.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "hdmi inputs",
+        "input ports",
+        "video input",
+        "inputs"
+      ]
+    },
+    "mounting_hardware": {
+      "category": "safety",
+      "title": "Stand, Mount & Rigging Points",
+      "description": "Check stands, brackets and mounting points are complete and sound.",
+      "instructions": [
+        "Check every stand, bracket and mounting point for cracks or bends",
+        "Confirm all fixings are present",
+        "Flag any load-bearing damage for a qualified rigger"
+      ],
+      "expectedResult": "Complete, undamaged mounting hardware.",
+      "verificationType": "visual",
+      "weight": 4,
+      "aliases": [
+        "stand",
+        "wall mount",
+        "bracket",
+        "mount",
+        "rigging points",
+        "rigging"
+      ]
+    },
+    "audio_output_test": {
+      "category": "functional",
+      "title": "Audio Output Test",
+      "description": "Play a reference signal through the system across its range.",
+      "instructions": [
+        "Play music and a sweep at low, medium and moderate volume",
+        "Check every driver is producing sound",
+        "Listen for distortion, buzz, crackle or rattle"
+      ],
+      "expectedResult": "Clean output from every driver across the range.",
+      "verificationType": "functional_test",
+      "weight": 5,
+      "aliases": [
+        "sound system test",
+        "pa test",
+        "sweep test"
+      ]
+    },
+    "speaker_drivers_grille": {
+      "category": "physical",
+      "title": "Drivers, Cones & Grilles",
+      "description": "Inspect visible drivers and grilles from the outside.",
+      "instructions": [
+        "Inspect grilles for dents and visible cones for tears or pushed-in dust caps",
+        "Do not remove grilles or press on cones"
+      ],
+      "expectedResult": "No torn cones or damaged grilles.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "cone",
+        "driver",
+        "grille",
+        "speaker cone"
+      ]
+    },
+    "audio_connectors": {
+      "category": "functional",
+      "title": "Audio Inputs & Connectors",
+      "description": "Test XLR, jack and speaker connectors.",
+      "instructions": [
+        "Connect a source to each input",
+        "Wiggle-test connectors for crackle or dropouts"
+      ],
+      "expectedResult": "All inputs pass signal without crackle.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "xlr",
+        "jack",
+        "speakon",
+        "audio input",
+        "line in"
+      ]
+    },
+    "mixer_controls": {
+      "category": "functional",
+      "title": "Mixer Faders, Knobs & Channels",
+      "description": "Test every channel, fader and knob on the mixer.",
+      "instructions": [
+        "Route a source through each channel",
+        "Move each fader and knob through its range and listen for scratching",
+        "Check meters respond"
+      ],
+      "expectedResult": "Every channel passes audio; controls move without noise.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "faders",
+        "knobs",
+        "channels",
+        "mixing desk"
+      ],
+      "when": {
+        "hasMixer": true
+      }
+    },
+    "wireless_mic": {
+      "category": "functional",
+      "title": "Microphones",
+      "description": "Test each microphone and its receiver.",
+      "instructions": [
+        "Pair each wireless mic with its receiver",
+        "Speak at distance and check for dropouts and interference",
+        "Check battery compartments for corrosion"
+      ],
+      "expectedResult": "Every mic clear with no dropouts.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "wireless microphone",
+        "receiver",
+        "radio mic"
+      ],
+      "when": {
+        "hasMicrophones": true
+      }
+    },
+    "cables_included": {
+      "category": "accessories",
+      "title": "Cables & Leads",
+      "description": "Check supplied cables for damage and correct count.",
+      "instructions": [
+        "Count cables against the declaration",
+        "Inspect for cuts, crushed sections and damaged plugs"
+      ],
+      "expectedResult": "Correct number of undamaged cables.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "cables",
+        "leads",
+        "wires"
+      ]
+    },
+    "vehicle_documents": {
+      "category": "documentation",
+      "title": "Registration, Insurance & Permits",
+      "description": "Check the vehicle's legal documents are valid for the hire period.",
+      "instructions": [
+        "Check the registration certificate",
+        "Check insurance validity dates",
+        "Check pollution certificate and any commercial permit or fitness certificate required for hire use"
+      ],
+      "expectedResult": "All documents present, in the vehicle's name as listed, and valid through the hire period.",
+      "verificationType": "document_check",
+      "weight": 5,
+      "aliases": [
+        "rc",
+        "registration",
+        "insurance",
+        "puc",
+        "permit",
+        "fitness certificate",
+        "documents"
+      ]
+    },
+    "vin_chassis": {
+      "category": "identity",
+      "title": "Chassis & Engine Number",
+      "description": "Match the stamped chassis/VIN and engine numbers with the registration.",
+      "instructions": [
+        "Locate the chassis/VIN plate and engine number",
+        "Compare both with the registration certificate",
+        "Photograph both"
+      ],
+      "expectedResult": "Chassis/VIN and engine numbers match the registration.",
+      "verificationType": "serial_check",
+      "weight": 5,
+      "aliases": [
+        "vin",
+        "chassis number",
+        "engine number",
+        "vin check"
+      ]
+    },
+    "registration_plate": {
+      "category": "identity",
+      "title": "Registration Plate",
+      "description": "Confirm the number plate matches the documents and is legible.",
+      "instructions": [
+        "Compare front and rear plates with the registration certificate",
+        "Check both are fixed and legible"
+      ],
+      "expectedResult": "Plates match the documents and are legible.",
+      "verificationType": "comparison",
+      "weight": 4,
+      "aliases": [
+        "number plate",
+        "license plate",
+        "plate"
+      ]
+    },
+    "odometer": {
+      "category": "specification",
+      "title": "Odometer Reading",
+      "description": "Record the odometer reading.",
+      "instructions": [
+        "Read the odometer with the ignition on",
+        "Photograph the reading"
+      ],
+      "expectedResult": "Reading recorded and consistent with any declared figure.",
+      "verificationType": "measurement",
+      "weight": 3,
+      "aliases": [
+        "mileage",
+        "kilometres",
+        "km reading",
+        "odo"
+      ]
+    },
+    "exterior_body": {
+      "category": "physical",
+      "title": "Exterior Bodywork",
+      "description": "Inspect every body panel.",
+      "instructions": [
+        "Walk around the vehicle and inspect every panel",
+        "Note dents, scratches, rust and paint mismatch",
+        "Photograph all four sides and every damage point"
+      ],
+      "expectedResult": "Bodywork condition recorded; no damage beyond the declared condition.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "body",
+        "bodywork",
+        "dents",
+        "exterior",
+        "vehicle paint"
+      ]
+    },
+    "glass_mirrors": {
+      "category": "safety",
+      "title": "Windscreen, Windows & Mirrors",
+      "description": "Check glass and mirrors give a clear, safe view.",
+      "instructions": [
+        "Check the windscreen for cracks in the driver's view",
+        "Check every window operates",
+        "Check mirrors are intact and adjustable"
+      ],
+      "expectedResult": "No cracks in the driver's view; windows and mirrors work.",
+      "verificationType": "visual",
+      "weight": 4,
+      "aliases": [
+        "windscreen",
+        "windshield",
+        "windows",
+        "mirrors",
+        "glass"
+      ]
+    },
+    "tyres": {
+      "category": "safety",
+      "title": "Tyres & Spare Wheel",
+      "description": "Check tread, sidewalls and pressures, including the spare.",
+      "instructions": [
+        "Measure tread depth on each tyre with a gauge",
+        "Inspect sidewalls for cuts and bulges",
+        "Check pressures with a gauge",
+        "Check the spare wheel, jack and wheel spanner are present"
+      ],
+      "expectedResult": "Tread at or above the legal minimum on every tyre; no sidewall damage; spare present.",
+      "verificationType": "measurement",
+      "weight": 5,
+      "aliases": [
+        "tyre",
+        "tires",
+        "tire",
+        "tread",
+        "wheels",
+        "spare wheel"
+      ]
+    },
+    "brakes": {
+      "category": "safety",
+      "title": "Brakes",
+      "description": "Check brake feel and the parking brake with the vehicle stationary; any road test is by a qualified driver only.",
+      "instructions": [
+        "With the engine running and the vehicle stationary, press the brake pedal: it should be firm, not sink",
+        "Check the parking brake holds the vehicle on level ground",
+        "Check for brake warning lights",
+        "Any moving brake test must be done by a qualified, licensed driver at walking pace in a closed, safe area"
+      ],
+      "expectedResult": "Firm pedal, parking brake holds, no brake warnings.",
+      "verificationType": "manual_test",
+      "weight": 5,
+      "qualified": true,
+      "aliases": [
+        "brake",
+        "braking",
+        "parking brake",
+        "handbrake",
+        "brake test"
+      ]
+    },
+    "lights_signals": {
+      "category": "safety",
+      "title": "Lights & Indicators",
+      "description": "Test all exterior and interior lights.",
+      "instructions": [
+        "Test headlights on low and high beam, tail lights, brake lights, indicators and hazard lights",
+        "Test reverse lights and number-plate lights"
+      ],
+      "expectedResult": "Every light works.",
+      "verificationType": "functional_test",
+      "weight": 5,
+      "aliases": [
+        "headlights",
+        "indicators",
+        "brake lights",
+        "hazard lights",
+        "vehicle lights"
+      ]
+    },
+    "horn_wipers": {
+      "category": "safety",
+      "title": "Horn & Wipers",
+      "description": "Test the horn, wipers and washers.",
+      "instructions": [
+        "Sound the horn",
+        "Run the wipers at every speed and the washers"
+      ],
+      "expectedResult": "Horn, wipers and washers work.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "horn",
+        "wipers",
+        "washer"
+      ]
+    },
+    "engine_start": {
+      "category": "functional",
+      "title": "Engine Start & Idle",
+      "description": "Start the engine and observe the idle with the vehicle parked.",
+      "instructions": [
+        "With the vehicle parked in neutral or park, start the engine",
+        "Observe a steady idle and listen for knocking or misfire",
+        "Look for excessive smoke from the exhaust",
+        "Do not rev the engine hard"
+      ],
+      "expectedResult": "Starts promptly, steady idle, no abnormal noise or smoke.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "engine",
+        "ignition",
+        "start test",
+        "idle"
+      ]
+    },
+    "dashboard_warnings": {
+      "category": "safety",
+      "title": "Dashboard Warning Lights",
+      "description": "Check no warning lamps remain lit after start-up.",
+      "instructions": [
+        "Turn the ignition on and confirm the warning lamps light briefly",
+        "Start the engine and confirm they go out",
+        "Record any lamp that stays on"
+      ],
+      "expectedResult": "No warning lamps lit with the engine running.",
+      "verificationType": "system_check",
+      "weight": 5,
+      "aliases": [
+        "warning lights",
+        "dashboard lights",
+        "malfunction indicator",
+        "check engine light"
+      ]
+    },
+    "fluid_levels": {
+      "category": "performance",
+      "title": "Fluid Levels & Leaks",
+      "description": "Check fluid levels and look for leaks with the engine off and cool.",
+      "instructions": [
+        "With the engine off and cool, check engine oil on the dipstick and coolant in the expansion tank",
+        "Check brake and washer fluid reservoirs",
+        "Look under the vehicle for fresh drips",
+        "Never open a hot coolant cap"
+      ],
+      "expectedResult": "Levels within marks; no active leaks.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "engine oil",
+        "coolant",
+        "oil level",
+        "leaks",
+        "fluids"
+      ]
+    },
+    "vehicle_battery": {
+      "category": "functional",
+      "title": "12V Battery",
+      "description": "Check the starter battery from the outside.",
+      "instructions": [
+        "Check the battery is secured",
+        "Look for corrosion on terminals and a cracked case",
+        "Do not touch both terminals or disconnect anything"
+      ],
+      "expectedResult": "Secured, no corrosion or damage; vehicle starts.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "car battery",
+        "starter battery",
+        "12v battery"
+      ]
+    },
+    "seats_seatbelts": {
+      "category": "safety",
+      "title": "Seats & Seatbelts",
+      "description": "Count the seats and test every seatbelt.",
+      "instructions": [
+        "Count usable seats and compare with the declared seating capacity",
+        "Pull and latch every seatbelt; check each retracts and locks on a sharp pull",
+        "Check seat adjusters and headrests"
+      ],
+      "expectedResult": "Seat count matches the claim; every belt latches and locks.",
+      "verificationType": "manual_test",
+      "weight": 5,
+      "aliases": [
+        "seats",
+        "seatbelts",
+        "seat belts",
+        "seating"
+      ]
+    },
+    "transmission_automatic": {
+      "category": "functional",
+      "title": "Automatic Transmission",
+      "description": "Check gear selection with the vehicle stationary and the brake held.",
+      "instructions": [
+        "With the engine running and the brake firmly held, move the selector through P, R, N and D",
+        "Confirm each position engages smoothly without clunks or delay",
+        "Confirm no transmission warning appears",
+        "Any driving check is by a qualified driver at low speed in a safe area"
+      ],
+      "expectedResult": "Each gear engages promptly and smoothly; no warnings.",
+      "verificationType": "manual_test",
+      "weight": 4,
+      "qualified": true,
+      "aliases": [
+        "automatic gearbox",
+        "transmission",
+        "gear shift"
+      ],
+      "when": {
+        "transmission": "automatic"
+      }
+    },
+    "transmission_manual": {
+      "category": "functional",
+      "title": "Manual Gearbox & Clutch",
+      "description": "Check clutch feel and gear selection while stationary.",
+      "instructions": [
+        "With the engine off, check the clutch pedal travel and return",
+        "With the engine running and the clutch pressed, select each gear while stationary and check for grinding",
+        "Any driving check is by a qualified driver at low speed in a safe area"
+      ],
+      "expectedResult": "Clutch smooth; every gear selects without grinding.",
+      "verificationType": "manual_test",
+      "weight": 4,
+      "qualified": true,
+      "aliases": [
+        "clutch",
+        "manual transmission",
+        "manual gearbox"
+      ],
+      "when": {
+        "transmission": "manual"
+      }
+    },
+    "air_conditioning": {
+      "category": "functional",
+      "title": "Air Conditioning",
+      "description": "Confirm the air conditioning cools in every zone.",
+      "instructions": [
+        "Run the AC on maximum cooling with the engine running",
+        "Check cold air from every vent, including rear vents where fitted",
+        "Check the blower works at every speed"
+      ],
+      "expectedResult": "Cold air from all vents at every blower speed.",
+      "verificationType": "functional_test",
+      "weight": 3,
+      "aliases": [
+        "ac",
+        "a/c",
+        "climate control",
+        "air con"
+      ],
+      "when": {
+        "hasAC": true
+      }
+    },
+    "interior_condition": {
+      "category": "cosmetic",
+      "title": "Interior Condition",
+      "description": "Inspect upholstery, trim and floor.",
+      "instructions": [
+        "Check seats for tears and stains",
+        "Check the dashboard, door trims and floor mats",
+        "Note odours"
+      ],
+      "expectedResult": "Interior clean and consistent with the declared condition.",
+      "verificationType": "visual",
+      "weight": 2,
+      "aliases": [
+        "interior",
+        "cabin",
+        "seat upholstery"
+      ]
+    },
+    "fuel_level": {
+      "category": "specification",
+      "title": "Fuel Level",
+      "description": "Record the fuel level at handover.",
+      "instructions": [
+        "Read the fuel gauge with the ignition on",
+        "Photograph the gauge"
+      ],
+      "expectedResult": "Fuel level recorded.",
+      "verificationType": "measurement",
+      "weight": 1,
+      "aliases": [
+        "fuel",
+        "fuel gauge"
+      ]
+    },
+    "safety_kit": {
+      "category": "safety",
+      "title": "Safety Kit",
+      "description": "Check the safety equipment carried in the vehicle.",
+      "instructions": [
+        "Check the warning triangle, first-aid kit and, where carried, a fire extinguisher within its service date"
+      ],
+      "expectedResult": "Safety kit present and in date.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "first aid",
+        "warning triangle",
+        "fire extinguisher",
+        "emergency kit"
+      ]
+    },
+    "refrigeration_unit": {
+      "category": "functional",
+      "title": "Refrigeration Unit",
+      "description": "Confirm the refrigeration unit reaches and holds temperature.",
+      "instructions": [
+        "Run the unit and record the temperature display",
+        "Check the cargo box reaches the set temperature within the stated time",
+        "Check door seals"
+      ],
+      "expectedResult": "Reaches and holds the set temperature.",
+      "verificationType": "measurement",
+      "weight": 4,
+      "aliases": [
+        "reefer",
+        "cold chain",
+        "refrigerated box",
+        "chiller unit"
+      ],
+      "when": {
+        "isRefrigerated": true
+      }
+    },
+    "unit_count": {
+      "category": "identity",
+      "title": "Unit Count",
+      "description": "Count every unit in the lot.",
+      "instructions": [
+        "Count every unit individually",
+        "Compare with the listed quantity",
+        "Record any shortfall"
+      ],
+      "expectedResult": "Counted quantity equals the listed quantity.",
+      "verificationType": "measurement",
+      "weight": 5,
+      "aliases": [
+        "count",
+        "quantity",
+        "quantity check",
+        "number of units"
+      ],
+      "when": {
+        "isLot": true
+      }
+    },
+    "structural_integrity": {
+      "category": "safety",
+      "title": "Structural Integrity",
+      "description": "Check load-bearing parts are sound and the item is stable in use.",
+      "instructions": [
+        "Check legs, frames and joints for cracks, looseness or repairs",
+        "Place on a level floor and check for wobble",
+        "Apply moderate hand pressure as a user would; do not stand on or overload the item"
+      ],
+      "expectedResult": "No cracks or loose joints; stable under normal load.",
+      "verificationType": "manual_test",
+      "weight": 5,
+      "aliases": [
+        "stability",
+        "wobble",
+        "joints",
+        "frame",
+        "legs",
+        "structure",
+        "load bearing"
+      ]
+    },
+    "wood_joints": {
+      "category": "physical",
+      "title": "Wood Joints, Grain & Splits",
+      "description": "Check wooden parts for splits, loose rungs and failed glue joints.",
+      "instructions": [
+        "Check every joint and rung for movement",
+        "Look along the grain for splits and cracks",
+        "Check for woodworm holes"
+      ],
+      "expectedResult": "Joints tight; no splits or woodworm.",
+      "verificationType": "visual",
+      "weight": 4,
+      "aliases": [
+        "wood joints",
+        "rungs",
+        "splits",
+        "woodworm",
+        "glue joints"
+      ],
+      "when": {
+        "material": "wood"
+      }
+    },
+    "surface_finish": {
+      "category": "cosmetic",
+      "title": "Surface & Finish",
+      "description": "Check paint, polish, lacquer or plating.",
+      "instructions": [
+        "Check for chips, scratches, peeling or flaking finish",
+        "Check the finish is consistent across the lot"
+      ],
+      "expectedResult": "Finish intact and consistent.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "finish",
+        "paint",
+        "polish",
+        "gold finish",
+        "lacquer"
+      ]
+    },
+    "upholstery": {
+      "category": "cosmetic",
+      "title": "Upholstery & Cushions",
+      "description": "Inspect fabric, leather and cushions.",
+      "instructions": [
+        "Check for tears, stains, fading and loose stitching",
+        "Check cushions are firm and attached"
+      ],
+      "expectedResult": "No tears or stains; cushions intact.",
+      "verificationType": "visual",
+      "weight": 3,
+      "aliases": [
+        "cushions",
+        "cushion",
+        "seat pad",
+        "covers",
+        "upholstery fabric"
+      ],
+      "when": {
+        "isUpholstered": true
+      }
+    },
+    "folding_mechanism": {
+      "category": "functional",
+      "title": "Folding / Stacking Mechanism",
+      "description": "Check folding or stacking works and locks.",
+      "instructions": [
+        "Fold and unfold, or stack and unstack, several units",
+        "Check locks engage and there are no pinch hazards from bent parts"
+      ],
+      "expectedResult": "Folds or stacks smoothly; locks engage.",
+      "verificationType": "manual_test",
+      "weight": 3,
+      "aliases": [
+        "folding",
+        "stacking",
+        "stackable",
+        "foldable",
+        "locking mechanism"
+      ],
+      "when": {
+        "isFoldingOrStackable": true
+      }
+    },
+    "material_verification": {
+      "category": "specification",
+      "title": "Material",
+      "description": "Confirm the item is made of the material declared.",
+      "instructions": [
+        "Inspect exposed surfaces, underside and edges",
+        "Compare with the declared material"
+      ],
+      "expectedResult": "Material matches the declaration.",
+      "verificationType": "comparison",
+      "weight": 3,
+      "aliases": [
+        "material",
+        "construction material"
+      ]
+    },
+    "gas_safety": {
+      "category": "safety",
+      "title": "Gas Connection Safety",
+      "description": "Check gas hoses, regulators and valves; leak testing by a qualified technician only.",
+      "instructions": [
+        "Inspect hoses for cracks, hardening and expiry dates",
+        "Check regulators and valves operate and shut fully",
+        "Leak testing is done by a qualified gas technician using an approved leak-detection solution — never a flame"
+      ],
+      "expectedResult": "Hoses in date and undamaged; valves shut fully; no leaks found by the qualified test.",
+      "verificationType": "visual",
+      "weight": 5,
+      "qualified": true,
+      "aliases": [
+        "gas",
+        "gas leak",
+        "gas hose",
+        "regulator",
+        "gas valve"
+      ],
+      "when": {
+        "usesGas": true
+      }
+    },
+    "electrical_safety_appliance": {
+      "category": "safety",
+      "title": "Electrical Safety",
+      "description": "Check the appliance's electrical safety from the outside; testing is by a qualified electrician.",
+      "instructions": [
+        "Inspect the cord, plug and casing for damage without opening",
+        "Confirm an earth connection is present on the plug where required",
+        "Portable-appliance or insulation testing is carried out by a qualified electrician only"
+      ],
+      "expectedResult": "No visible electrical damage; qualified test passed where performed.",
+      "verificationType": "visual",
+      "weight": 5,
+      "qualified": true,
+      "aliases": [
+        "earthing",
+        "insulation",
+        "pat test",
+        "electrical test"
+      ],
+      "when": {
+        "isElectrical": true
+      }
+    },
+    "heating_function": {
+      "category": "functional",
+      "title": "Heating Performance",
+      "description": "Confirm the appliance reaches and holds its set temperature.",
+      "instructions": [
+        "Set a known temperature",
+        "Measure with a probe thermometer once it indicates ready",
+        "Check the thermostat cycles"
+      ],
+      "expectedResult": "Reaches the set temperature within tolerance.",
+      "verificationType": "measurement",
+      "weight": 4,
+      "aliases": [
+        "heating",
+        "thermostat",
+        "temperature control",
+        "burner"
+      ],
+      "when": {
+        "heats": true
+      }
+    },
+    "cooling_function": {
+      "category": "functional",
+      "title": "Cooling Performance",
+      "description": "Confirm the unit reaches and holds its set temperature.",
+      "instructions": [
+        "Run the unit empty",
+        "Measure the internal temperature with a probe thermometer after the stated pull-down time",
+        "Check door seals for gaps"
+      ],
+      "expectedResult": "Reaches the set temperature; seals close fully.",
+      "verificationType": "measurement",
+      "weight": 4,
+      "aliases": [
+        "cooling",
+        "refrigeration",
+        "temperature",
+        "door seal"
+      ],
+      "when": {
+        "cools": true
+      }
+    },
+    "food_contact_hygiene": {
+      "category": "safety",
+      "title": "Food-Contact Surfaces",
+      "description": "Check food-contact surfaces are clean, rust-free and intact.",
+      "instructions": [
+        "Check trays, racks and interiors for rust, pitting and residue",
+        "Check non-stick coatings are not flaking"
+      ],
+      "expectedResult": "Food-contact surfaces clean and intact.",
+      "verificationType": "visual",
+      "weight": 4,
+      "aliases": [
+        "food contact",
+        "food safety",
+        "rust",
+        "coating"
+      ]
+    },
+    "door_seals": {
+      "category": "physical",
+      "title": "Doors, Hinges & Seals",
+      "description": "Check doors close and seal properly.",
+      "instructions": [
+        "Open and close every door",
+        "Check hinges and gaskets for damage",
+        "Check latches hold"
+      ],
+      "expectedResult": "Doors close and seal; latches hold.",
+      "verificationType": "manual_test",
+      "weight": 3,
+      "aliases": [
+        "gasket",
+        "doors",
+        "seals"
+      ]
+    },
+    "components_complete": {
+      "category": "accessories",
+      "title": "Components & Fixings Complete",
+      "description": "Count every component and fixing needed to assemble the item.",
+      "instructions": [
+        "Lay out all sections, pins, clamps, bolts and connectors",
+        "Count against the declared parts list",
+        "Check threads and pins are undamaged"
+      ],
+      "expectedResult": "Every component present and undamaged.",
+      "verificationType": "measurement",
+      "weight": 5,
+      "aliases": [
+        "parts list",
+        "fixings",
+        "clamps",
+        "pins",
+        "bolts",
+        "components"
+      ]
+    },
+    "load_rating_docs": {
+      "category": "documentation",
+      "title": "Load Rating & Certification",
+      "description": "Check load ratings and any certification for structures that carry people or rigged loads.",
+      "instructions": [
+        "Check the manufacturer's load rating label or documentation",
+        "Check any inspection certificate and its date",
+        "Structural assessment is by a qualified rigger or engineer"
+      ],
+      "expectedResult": "Load rating known and documentation current.",
+      "verificationType": "document_check",
+      "weight": 5,
+      "qualified": true,
+      "aliases": [
+        "load rating",
+        "certification",
+        "load capacity",
+        "swl",
+        "safe working load"
+      ],
+      "when": {
+        "isLoadBearingStructure": true
+      }
+    },
+    "fabric_canopy": {
+      "category": "physical",
+      "title": "Fabric & Canopy",
+      "description": "Inspect tent or canopy fabric.",
+      "instructions": [
+        "Unfold and inspect for tears, holes, mould and failed seams",
+        "Check zips, eyelets and straps"
+      ],
+      "expectedResult": "No tears, mould or failed seams.",
+      "verificationType": "visual",
+      "weight": 4,
+      "aliases": [
+        "canvas",
+        "fabric",
+        "tent fabric",
+        "canopy",
+        "waterproofing"
+      ],
+      "when": {
+        "isTent": true
+      }
+    },
+    "lighting_function": {
+      "category": "functional",
+      "title": "Lighting Fixtures",
+      "description": "Test every fixture and its control.",
+      "instructions": [
+        "Power each fixture",
+        "Test colours, dimming and movement, and DMX control where fitted",
+        "Check lenses and clamps"
+      ],
+      "expectedResult": "Every fixture lights and responds to control.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "lights",
+        "fixtures",
+        "dmx",
+        "lighting"
+      ],
+      "when": {
+        "isLighting": true
+      }
+    },
+    "generator_output": {
+      "category": "functional",
+      "title": "Electrical Output",
+      "description": "Measure output voltage and frequency at the outlet; qualified electrician only.",
+      "instructions": [
+        "With the generator running and no load, a qualified electrician measures voltage and frequency at the output terminals",
+        "Repeat under a known test load",
+        "Compare with the rated output"
+      ],
+      "expectedResult": "Voltage and frequency within rated tolerance.",
+      "verificationType": "measurement",
+      "weight": 5,
+      "qualified": true,
+      "aliases": [
+        "output voltage",
+        "frequency",
+        "kva output",
+        "voltage"
+      ],
+      "when": {
+        "isGenerator": true
+      }
+    },
+    "run_hours": {
+      "category": "performance",
+      "title": "Running Hours",
+      "description": "Record the hour meter reading.",
+      "instructions": [
+        "Read the hour meter",
+        "Compare with the service record"
+      ],
+      "expectedResult": "Hours recorded; service interval not overdue.",
+      "verificationType": "system_check",
+      "weight": 3,
+      "aliases": [
+        "hour meter",
+        "engine hours",
+        "running hours"
+      ]
+    },
+    "guards_emergency_stop": {
+      "category": "safety",
+      "title": "Guards & Emergency Stop",
+      "description": "Confirm safety guards are fitted and the emergency stop works.",
+      "instructions": [
+        "Check every guard and cover is fitted and undamaged",
+        "Test the emergency stop shuts the machine down",
+        "Never run the machine with a guard removed"
+      ],
+      "expectedResult": "All guards fitted; emergency stop works.",
+      "verificationType": "functional_test",
+      "weight": 5,
+      "aliases": [
+        "guards",
+        "emergency stop",
+        "e-stop",
+        "safety guard",
+        "interlock"
+      ]
+    },
+    "service_records": {
+      "category": "documentation",
+      "title": "Service Records",
+      "description": "Check the maintenance history.",
+      "instructions": [
+        "Review the service log",
+        "Confirm the last service date and that no service is overdue"
+      ],
+      "expectedResult": "Service up to date.",
+      "verificationType": "document_check",
+      "weight": 3,
+      "aliases": [
+        "maintenance records",
+        "service log",
+        "service history log"
+      ]
+    },
+    "function_general": {
+      "category": "functional",
+      "title": "Primary Function Test",
+      "description": "Confirm the item performs the function it is listed for.",
+      "instructions": [
+        "Use the item for its listed purpose",
+        "Check every mode or setting mentioned in the listing"
+      ],
+      "expectedResult": "Performs its listed function in every declared mode.",
+      "verificationType": "functional_test",
+      "weight": 4,
+      "aliases": [
+        "function test",
+        "functionality",
+        "working condition",
+        "operation"
+      ]
+    }
+  }
+}

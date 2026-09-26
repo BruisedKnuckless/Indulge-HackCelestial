@@ -27,7 +27,8 @@ cd client && npm install && npm run dev
 **Port 5050, not 5000** — macOS AirPlay Receiver occupies 5000.
 
 ```bash
-cd server && npm run verify   # ~370-check end-to-end suite — the only test suite
+cd server && npm run verify   # ~440-check end-to-end suite — the only test suite
+cd server && npm run train:delivery  # retrain the delivery-conditions model (~40s)
 cd server && npm run seed     # re-seed the database
 cd client && npm run build    # production build (also the fastest syntax check)
 ```
@@ -87,6 +88,50 @@ to a booking, proposal, offer or requirement, record an event for it** or the
 tracker will show the new state with no actor or time. `recordEvent` never throws,
 so it cannot break the action it logs. Never pad the story: a time that was not
 recorded must stay `null`.
+
+### Delivery-conditions model (`server/src/ml/delivery/`)
+
+A trained random forest reads a listing plus a quantity and predicts how it must be
+moved: handling tier, crew, fragility, packaging, vehicle and condition-check level.
+Both sides see it on the listing page (`GET /api/resources/:id/delivery?quantity=`), in the
+listing form (`POST /api/resources/delivery-preview`), and on the booking, where it is
+**snapshotted** into `Booking.deliveryPlan` by a `pre('save')` hook when the booking is
+created, like `matchBreakdown`. Handlers then record before/after condition checks against
+the plan (`POST /api/bookings/:id/condition-checks/:checkpoint`: dispatch → delivery →
+return; each once, in order, by whoever holds the goods).
+
+- **There is no real delivery history**, so the model is trained on synthetic listings
+  (`synth.js`) labelled by `policy.js`. **`policy.js` is the source of truth for labels.**
+  Change it, `features.js` or `synth.js`, then run `npm run train:delivery` and commit the
+  new `model.json` and `metrics.json`. Bump `FEATURE_VERSION` whenever the feature vector
+  changes; `predict.js` refuses a mismatched model. Production never trains.
+- `forest.js` is a small in-house CART forest (quantile-binned splits). The npm
+  `ml-random-forest` package was too slow here: it didn't finish one forest in 10 minutes.
+- **Handling cost is advisory.** It is a formula of the predicted plan (`policy.costFor`),
+  shown with that label, and never added to a quote, cart or transaction.
+- Around the model sit deterministic layers, each commented in `predict.js`: a gate
+  (halls, parking, kitchens and staff are used on site), consistency rules between targets,
+  and wording (`guidance.js`).
+
+### Inspection protocol generator (`server/src/ml/inspection/`)
+
+Generates the checklist a quality-verification technician inspects for a listed
+product. It covers generation only: no routes or UI yet. It is a hybrid of a JSON
+knowledge base and optional Claude augmentation. Full details are in its `README.md`.
+
+- **Not a trained model.** There is no inspection data yet; don't describe it as
+  trained. `dataset/` holds the future training-record format and a grouped split.
+  `benchmark.jsonl` is a hand-authored acceptance set for evaluation only.
+- **Knowledge lives in JSON:** `config/*.json` and `templates/*.json`. `knowledge.js`
+  validates it at load and throws on unknown ids, shared aliases or unsafe baseline
+  instructions. Add a category with a taxonomy entry plus a template, not code.
+- **AI is optional and additive.** It is on only with Anthropic credentials
+  (`INSPECTION_AI`). Any failure falls back to the full baseline protocol. It never
+  removes a baseline check.
+- **Never mark anything verified.** Every parameter is `pending_inspection`, and claims
+  stay claims (`claimedValue`) until a technician observes them.
+- `npm run inspect:demo` · `npm run inspect:eval` · the verify suite covers it
+  offline, with a mock AI client.
 
 ## Architecture
 

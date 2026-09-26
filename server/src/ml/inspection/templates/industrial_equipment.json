@@ -1,0 +1,40 @@
+{
+  "category": "industrial_equipment",
+  "templateVersion": "1.0",
+  "description": "Baseline inspection parameters for industrial equipment.",
+  "extends": null,
+  "mandatoryParameters": [
+    "model_identification",
+    "serial_number",
+    "physical_condition",
+    "guards_emergency_stop",
+    "run_hours",
+    "service_records",
+    "fluid_levels",
+    "function_general",
+    "declared_condition"
+  ],
+  "conditionalParameters": [
+    "generator_output",
+    "electrical_safety_appliance",
+    {
+      "param": "power_supply_safety",
+      "when": {
+        "isElectrical": true
+      }
+    }
+  ],
+  "excludeParameters": [],
+  "attributeDefaults": {
+    "hasBattery": false
+  },
+  "forbiddenTerms": [
+    "imei",
+    "keyboard",
+    "touchpad",
+    "touchscreen",
+    "upholstery",
+    "webcam",
+    "seatbelt"
+  ]
+}

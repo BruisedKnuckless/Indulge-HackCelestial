@@ -3,10 +3,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api, { errorMessage } from '../api/client';
-import { useResource, useCartMutations, useBookingActions } from '../hooks/queries';
+import { useResource, useCartMutations, useBookingActions, useDeliveryAssessment } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
 import { Price, Stars, Panel, Spinner, Alert, DealBadge } from '../components/ui';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
+import DeliveryConditions from '../components/DeliveryConditions';
 import { CATEGORY_LABELS, PRICE_UNIT_LABELS, resourceImage } from '../lib/constants';
 import { toLocalInput, defaultWindow, durationHours, relative, inr } from '../lib/format';
 
@@ -40,6 +41,9 @@ export default function ResourceDetail() {
       ).data,
     enabled: Boolean(id && start && end),
   });
+
+  // How the chosen quantity has to be moved — recomputed as quantity changes.
+  const { data: delivery, isFetching: deliveryLoading } = useDeliveryAssessment(id, quantity);
 
   if (isLoading) return <Spinner label="Loading resource" />;
   if (!resource) return <div className="shell pt-12 pb-20">Resource not found.</div>;
@@ -225,6 +229,14 @@ export default function ResourceDetail() {
               </Alert>
             )}
 
+            <div className="mb-4">
+              <DeliveryConditions
+                assessment={delivery}
+                loading={deliveryLoading}
+                note={isOwn ? 'what seekers see for this quantity' : 'changes with the quantity you choose'}
+              />
+            </div>
+
             {resource.tags?.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {resource.tags.map((t) => (
@@ -295,21 +307,33 @@ export default function ResourceDetail() {
                   <label className="label" htmlFor="qty">
                     Quantity
                   </label>
-                  <select
-                    id="qty"
-                    value={quantity}
-                    onChange={(e) => setQuantity(Number(e.target.value))}
-                    className="field-select w-full"
-                  >
-                    {Array.from(
-                      { length: Math.min(resource.totalQuantity, 20) },
-                      (_, i) => i + 1
-                    ).map((n) => (
-                      <option key={n} value={n}>
-                        Qty: {n}
-                      </option>
-                    ))}
-                  </select>
+                  {/* Bulk stock (300 chairs) needs a number, not a 1–20 list. */}
+                  {resource.totalQuantity > 20 ? (
+                    <input
+                      id="qty"
+                      type="number"
+                      min={1}
+                      max={resource.totalQuantity}
+                      value={quantity}
+                      onChange={(e) =>
+                        setQuantity(Math.min(resource.totalQuantity, Math.max(1, Math.round(Number(e.target.value) || 1))))
+                      }
+                      className="field"
+                    />
+                  ) : (
+                    <select
+                      id="qty"
+                      value={quantity}
+                      onChange={(e) => setQuantity(Number(e.target.value))}
+                      className="field-select w-full"
+                    >
+                      {Array.from({ length: resource.totalQuantity }, (_, i) => i + 1).map((n) => (
+                        <option key={n} value={n}>
+                          Qty: {n}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 

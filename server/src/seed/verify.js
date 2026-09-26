@@ -18,6 +18,12 @@ import Booking from '../models/Booking.js';
 import Resource from '../models/Resource.js';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
+import Notification from '../models/Notification.js';
+import { readFileSync } from 'node:fs';
+import { loadModel } from '../ml/delivery/predict.js';
+import { generateInspectionProtocol, generateForResource } from '../ml/inspection/generate.js';
+import { DEMO_CASES } from '../ml/inspection/examples/cases.js';
+import { FEATURE_VERSION as DELIVERY_FEATURE_VERSION } from '../ml/delivery/features.js';
 import Admin from '../models/Admin.js';
 import { runSeed, seedAdmins } from './seed.js';
 import { ADMINS } from './seedData.js';
@@ -6057,6 +6063,285 @@ async function main() {
         latestAdminMetrics.body?.counts !== undefined
     );
   }
+
+  // ---- delivery conditions (ML) ----
+  // The model is trained offline (npm run train:delivery) on policy-labelled
+  // synthetic listings; these checks pin its behaviour on the real listings
+  // and the recorded before/after condition checks built on it.
+  console.log('\nDelivery conditions — model');
+  check('the delivery model loads and matches the feature code', loadModel().version === DELIVERY_FEATURE_VERSION);
+  const deliveryMetrics = JSON.parse(
+    readFileSync(new URL('../ml/delivery/metrics.json', import.meta.url), 'utf8')
+  );
+  check(
+    'hold-out accuracy meets the bar (tier ≥ 90%, crew MAE ≤ 1)',
+    deliveryMetrics.classifiers.tier.accuracy >= 0.9 && deliveryMetrics.regressors.crew.mae <= 1,
+    JSON.stringify({ tier: deliveryMetrics.classifiers.tier, crew: deliveryMetrics.regressors.crew })
+  );
+
+  const chairRes = await Resource.findOne({ title: /Chiavari/ }).lean();
+  const paRes = await Resource.findOne({ title: /Line Array/ }).lean();
+  const hallRes = await Resource.findOne({ title: /Crystal Grand/ }).lean();
+  const assess = async (id, q) => (await api('GET', `/api/resources/${id}/delivery?quantity=${q}`)).body.assessment;
+
+  const bulkChairs = await assess(chairRes._id, 300);
+  check(
+    '300 chairs need professional handlers, a crew of 4+ and a truck',
+    bulkChairs.requiresDelivery &&
+      bulkChairs.plan.tier === 'professional_handlers' &&
+      bulkChairs.plan.crew >= 4 &&
+      /^truck/.test(bulkChairs.plan.vehicle),
+    JSON.stringify(bulkChairs.plan)
+  );
+  const fewChairs = await assess(chairRes._id, 20);
+  check('crew grows with quantity: 300 chairs need more hands than 20', bulkChairs.plan.crew > fewChairs.plan.crew);
+
+  const twoSpeakers = await assess(paRes._id, 2);
+  check(
+    '2 PA speakers get a different plan: small crew, fragile, flight cases, function test',
+    twoSpeakers.plan.crew < bulkChairs.plan.crew &&
+      twoSpeakers.plan.fragility === 'high' &&
+      twoSpeakers.plan.packaging === 'flight_cases' &&
+      twoSpeakers.plan.checkLevel === 'itemised_photo_function_test' &&
+      twoSpeakers.checkpoints[0].items.some((i) => i.key === 'function'),
+    JSON.stringify(twoSpeakers.plan)
+  );
+  check(
+    'both sides get instructions, and the cost is marked advisory',
+    bulkChairs.instructions.lister.length > 0 && bulkChairs.instructions.seeker.length > 0 && bulkChairs.cost.advisory === true && bulkChairs.cost.max >= bulkChairs.cost.min
+  );
+  check('a hall is used on site and needs no delivery', (await assess(hallRes._id, 1)).requiresDelivery === false);
+  check('the quantity assessed is clamped to the stock listed', (await assess(chairRes._id, 99999)).quantity === chairRes.totalQuantity);
+
+  const draft = { title: 'Crystal chandelier', description: 'Handcrafted, 1.2m drop', category: 'other', totalQuantity: 4, pricing: { basePrice: 12000 } };
+  check('the listing preview requires sign-in', (await api('POST', '/api/resources/delivery-preview', { body: draft })).status === 401);
+  check(
+    'the listing preview rejects an unknown category',
+    (await api('POST', '/api/resources/delivery-preview', { token: seasons, body: { ...draft, category: 'spaceship' } })).status === 400
+  );
+  const preview = await api('POST', '/api/resources/delivery-preview', { token: seasons, body: draft });
+  check(
+    'a draft listing is assessed while it is being written',
+    preview.status === 200 && preview.body.assessment.requiresDelivery && preview.body.assessment.plan.fragility === 'high'
+  );
+
+  console.log('\nDelivery conditions — booking plan and condition checks');
+  const cBooking = await api('POST', '/api/bookings', {
+    token: kalpataru,
+    body: { resourceId: chairRes._id, quantity: 20, startDateTime: at(96, 10), endDateTime: at(96, 22) },
+  });
+  const cId = cBooking.body.booking?._id;
+  const cDetail = await api('GET', `/api/bookings/${cId}`, { token: kalpataru });
+  check(
+    'a new booking carries a snapshot of its delivery plan',
+    cDetail.body.booking?.deliveryPlan?.requiresDelivery === true &&
+      cDetail.body.booking.deliveryPlan.quantity === 20 &&
+      !cDetail.body.booking.deliveryPlan.computedNow
+  );
+
+  const checklistOf = (plan, cp) => plan.checkpoints.find((c) => c.key === cp).items;
+  const answer = (items, fail = []) => items.map((i) => ({ key: i.key, ok: !fail.includes(i.key) }));
+  const plan = cDetail.body.booking.deliveryPlan;
+  const record = (cp, token, body) => api('POST', `/api/bookings/${cId}/condition-checks/${cp}`, { token, body });
+  const good = (cp) => ({ items: answer(checklistOf(plan, cp)), overall: 'good', countVerified: 20 });
+
+  check('no checks before the booking is accepted', (await record('dispatch', silverline, good('dispatch'))).status === 400);
+  await api('PATCH', `/api/bookings/${cId}/accept`, { token: silverline, body: {} });
+  check('an outsider cannot record a check', (await record('dispatch', orchid, good('dispatch'))).status === 403);
+  check('the seeker cannot record the before-delivery check', (await record('dispatch', kalpataru, good('dispatch'))).status === 403);
+  check('checks are recorded in order', (await record('delivery', kalpataru, good('delivery'))).status === 409);
+  check(
+    'answers must come from the plan’s checklist',
+    (await record('dispatch', silverline, { ...good('dispatch'), items: [...good('dispatch').items, { key: 'made_up', ok: true }] })).status === 400
+  );
+  check(
+    'every checklist item must be answered',
+    (await record('dispatch', silverline, { ...good('dispatch'), items: good('dispatch').items.slice(1) })).status === 400
+  );
+  const dispatched = await record('dispatch', silverline, good('dispatch'));
+  check('the lister records the before-delivery check', dispatched.status === 201);
+  check('a checkpoint is recorded only once', (await record('dispatch', silverline, good('dispatch'))).status === 409);
+
+  const damaged = await record('delivery', kalpataru, {
+    items: answer(checklistOf(plan, 'delivery'), ['visible_damage']),
+    overall: 'damaged',
+    countVerified: 19,
+    notes: 'One chair arrived with a cracked leg.',
+  });
+  check('the seeker records the after-delivery check', damaged.status === 201);
+  check(
+    'reported damage notifies the lister',
+    Boolean(await Notification.findOne({ user: chairRes.owner, relatedBooking: cId, title: /Damage reported/ }))
+  );
+
+  // The logistics partner assigned to the job may record too.
+  await api('PATCH', `/api/bookings/${cId}/confirm`, { token: kalpataru });
+  const cJob = await LogisticsJob.findOne({ booking: cId }).lean();
+  const partnerUser = await User.findOne({ email: 'dispatch@swiftfleet.in' }).lean();
+  if (cJob && partnerUser) {
+    await api('PATCH', `/api/admin/logistics/${cJob._id}/assign`, { token: admin, body: { partnerId: partnerUser._id } });
+    const partnerToken = await login('dispatch@swiftfleet.in');
+    check('the assigned logistics partner can record the return check', (await record('return', partnerToken, good('return'))).status === 201);
+  }
+
+  const seen = await Promise.all([kalpataru, silverline].map((t) => api('GET', `/api/bookings/${cId}`, { token: t })));
+  check(
+    'both parties see every recorded check',
+    seen.every((r) => (r.body.booking?.conditionChecks || []).length === (cJob ? 3 : 2)) &&
+      seen[1].body.booking.conditionChecks.find((c) => c.checkpoint === 'delivery').items.some((i) => i.key === 'visible_damage' && i.ok === false)
+  );
+  const cStory = (await api('GET', `/api/admin/live/booking/${cId}/timeline`, { token: admin })).body;
+  const checkRoles = cStory.events.filter((e) => e.action === 'condition_checked').map((e) => e.role);
+  check(
+    'the Live tracker shows each check with who recorded it',
+    checkRoles[0] === 'lister' && checkRoles[1] === 'seeker' && (!cJob || checkRoles[2] === 'logistics'),
+    checkRoles.join(',')
+  );
+
+  // ---- inspection protocol generator (AI/model only; no routes or UI) ----
+  // Offline: the AI layer is exercised with a mock Claude client, so these
+  // checks cost nothing and never depend on the network.
+  console.log('\nInspection protocol generator');
+  const inspect = (c, opts = { ai: false }) => generateInspectionProtocol(DEMO_CASES.find((x) => x.key === c).input, opts);
+  const inspDell = await inspect('dell_latitude_5420');
+  const inspIphone = await inspect('iphone_14');
+  const inspInnova = await inspect('toyota_innova');
+  const inspChairs = await inspect('banquet_chairs_50');
+  const inspMac = await inspect('macbook_pro_14_m3_pro');
+  const idsOf = (p) => new Set(p.parameters.map((x) => x.id));
+  const titles = (p) => p.parameters.map((x) => `${x.title} ${x.description}`.toLowerCase()).join(' | ');
+
+  check(
+    'each test product lands in its own category',
+    [inspDell.productCategory, inspIphone.productCategory, inspInnova.productCategory, inspChairs.productCategory].join() === 'laptop,mobile_phone,vehicle,furniture'
+  );
+  const sets = [inspDell, inspIphone, inspInnova, inspChairs].map(idsOf);
+  const exclusive = (a, b) => [...a].filter((x) => !b.has(x)).length;
+  check(
+    'the four protocols are clearly different (every pair has 7+ checks exclusive to each side)',
+    sets.every((a, i) => sets.every((b, j) => i === j || exclusive(a, b) >= 7)),
+    sets.map((s) => s.size).join('/')
+  );
+  check(
+    'two laptops differ too: Dell gets its diagnostics, the MacBook gets MagSafe and Apple Diagnostics',
+    idsOf(inspDell).has('dell_preboot_diagnostics') && !idsOf(inspDell).has('magsafe_charging') &&
+      idsOf(inspMac).has('magsafe_charging') && idsOf(inspMac).has('apple_diagnostics') && !idsOf(inspMac).has('dell_preboot_diagnostics')
+  );
+  const ram = inspDell.parameters.find((p) => p.title === 'RAM');
+  check(
+    'a declared spec becomes a claim-vs-actual check (RAM claimed 16GB, system check)',
+    ram?.claimedValue === '16GB' && ram.verificationType === 'system_check' && ram.category === 'specification' && Boolean(ram.verificationInstruction)
+  );
+  check(
+    'the iPhone gets Face ID, IMEI and battery health from its 90% claim — and no keyboard, engine or HDMI',
+    idsOf(inspIphone).has('face_unlock') && idsOf(inspIphone).has('imei') &&
+      inspIphone.parameters.find((p) => p.id === 'battery_health')?.claimedValue === '90%' &&
+      !/keyboard|engine|hdmi|mileage/.test(titles(inspIphone))
+  );
+  check(
+    'conditional checks follow the attributes: automatic Innova gets the gear test, not a clutch test',
+    idsOf(inspInnova).has('transmission_automatic') && !idsOf(inspInnova).has('transmission_manual')
+  );
+  const inspTouchOn = await generateInspectionProtocol({ ...DEMO_CASES[0].input, specifications: { ...DEMO_CASES[0].input.specifications, touchscreen: 'Yes' } }, { ai: false });
+  check('a touchscreen laptop gets a touchscreen check; the standard Dell does not', idsOf(inspTouchOn).has('touchscreen') && !idsOf(inspDell).has('touchscreen'));
+  check(
+    'battery checks only where there is a battery',
+    idsOf(inspDell).has('battery_safety') && !idsOf(inspChairs).has('battery_safety') && !idsOf(inspInnova).has('battery_health')
+  );
+  check(
+    'a lot of 50 chairs is counted in full and sampled for detailed checks',
+    inspChairs.inspectionScope.sampleSize === 10 &&
+      inspChairs.parameters.find((p) => p.id === 'unit_count')?.appliesTo === 'lot' &&
+      inspChairs.parameters.find((p) => p.id === 'structural_integrity')?.appliesTo === 'sample'
+  );
+  check(
+    'every parameter has a method, an expected result and is pending inspection — nothing is marked verified',
+    [inspDell, inspIphone, inspInnova, inspChairs].every((p) =>
+      p.status === 'pending_inspection' &&
+      p.parameters.every((x) => x.verificationType && x.expectedResult && x.instructions.length && x.status === 'pending_inspection')
+    )
+  );
+  check(
+    'damage-type checks require evidence on failure',
+    inspDell.parameters.filter((p) => ['physical', 'safety', 'identity'].includes(p.category)).every((p) => p.requiresEvidenceOnFail)
+  );
+  check(
+    'specialist vehicle checks are flagged for a qualified inspector',
+    inspInnova.parameters.find((p) => p.id === 'brakes')?.requiresQualifiedInspector === true
+  );
+  check(
+    'every protocol records model, prompt and template versions',
+    ['modelName', 'modelVersion', 'promptVersion', 'templateVersion', 'generationTimestamp'].every((k) => inspDell.generation[k])
+  );
+  check('with AI off the protocol is complete and says so', inspDell.generation.mode === 'baseline_only' && inspDell.generation.ai.status === 'disabled');
+
+  // AI layer, with a mock Claude client.
+  const mockClient = (reply) => ({
+    beta: { messages: { create: async () => (typeof reply === 'function' ? reply() : reply) } },
+  });
+  const aiParam = (over) => ({
+    title: 'X', category: 'functional', description: 'd', instructions: ['Do it'], expectedResult: 'ok',
+    verificationType: 'functional_test', weight: 3, requiresEvidenceOnFail: false, claimedValue: null, basedOnImage: false, reason: 'r', ...over,
+  });
+  const aiReply = {
+    stop_reason: 'end_turn',
+    model: 'claude-opus-5',
+    usage: { input_tokens: 1, output_tokens: 1 },
+    content: [{
+      type: 'text',
+      text: JSON.stringify({
+        inferredCategory: 'mobile_phone',
+        imageObservations: [{ observation: 'Scuff on the lower-left corner', suggestedFocus: 'Frame corner' }],
+        additionalParameters: [
+          aiParam({ title: 'Screen condition', category: 'physical', verificationType: 'visual', instructions: ['Look for micro-scratches under raking light'] }),
+          aiParam({ title: 'MagSafe magnet alignment', instructions: ['Attach a MagSafe charger and confirm it snaps into place'], weight: 5, claimedValue: '256GB' }),
+          aiParam({ title: 'Keyboard backlight', instructions: ['Toggle the backlight'] }),
+          aiParam({ title: 'Battery connector', instructions: ['Open the back cover and inspect the battery connector'] }),
+        ],
+      }),
+    }],
+  };
+  const inspWithAi = await generateInspectionProtocol(DEMO_CASES[1].input, { ai: { client: mockClient(aiReply) } });
+  const inspMagsafe = inspWithAi.parameters.find((p) => p.title === 'MagSafe magnet alignment');
+  check('AI additions are used when available', inspWithAi.generation.mode === 'baseline_plus_ai' && inspMagsafe?.generationSource === 'ai_generated');
+  check(
+    'an AI duplicate of a baseline check is merged, not repeated ("Screen condition" → Display Condition)',
+    inspWithAi.parameters.find((p) => p.id === 'display_condition')?.generationSource === 'baseline_plus_ai' &&
+      !inspWithAi.parameters.some((p) => p.title === 'Screen condition')
+  );
+  check(
+    'AI weight is capped and an unsupported AI claim is dropped',
+    inspMagsafe.weight === 4 && inspMagsafe.claimedValue === undefined
+  );
+  check(
+    'irrelevant and unsafe AI checks are rejected with reasons',
+    inspWithAi.validation.rejectedAiParameters.some((r) => r.title === 'Keyboard backlight' && /irrelevant/.test(r.reason)) &&
+      inspWithAi.validation.rejectedAiParameters.some((r) => r.title === 'Battery connector' && /safety/.test(r.reason)) &&
+      inspWithAi.validation.removedUnsafeInstructions.length >= 1
+  );
+  check('image observations are kept as hints, never as evidence', inspWithAi.imageHints.length === 1 && /not evidence/.test(inspWithAi.imageHints[0].note));
+
+  const inspFailures = [
+    ['network error', mockClient(() => { throw new Error('ECONNRESET'); })],
+    ['refusal', mockClient({ ...aiReply, stop_reason: 'refusal' })],
+    ['truncation', mockClient({ ...aiReply, stop_reason: 'max_tokens' })],
+    ['invalid JSON', mockClient({ ...aiReply, content: [{ type: 'text', text: '{not json' }] })],
+    ['schema mismatch', mockClient({ ...aiReply, content: [{ type: 'text', text: '{"additionalParameters": "nope"}' }] })],
+  ];
+  for (const [label, client] of inspFailures) {
+    const p = await generateInspectionProtocol(DEMO_CASES[1].input, { ai: { client } });
+    check(
+      `AI failure (${label}) falls back to the full baseline protocol`,
+      p.generation.mode === 'baseline_only' && p.generation.ai.status === 'failed' && p.parameters.length === inspIphone.parameters.length,
+      p.generation.ai.reason
+    );
+  }
+
+  const inspLedWall = await generateForResource((await Resource.findOne({ title: /LED Wall/ }).lean()), { ai: false });
+  check(
+    'an Indulge listing is inspected through the adapter (LED wall → module uniformity check)',
+    inspLedWall.productCategory === 'television' && inspLedWall.parameters.some((p) => p.id === 'led_module_uniformity')
+  );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);
 

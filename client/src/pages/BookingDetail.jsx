@@ -14,6 +14,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { Panel, StatusBadge, Spinner, Stars, Alert } from '../components/ui';
 import MatchBreakdown from '../components/MatchBreakdown';
+import DeliveryConditions from '../components/DeliveryConditions';
+import ConditionChecks from '../components/ConditionChecks';
 import { resourceImage } from '../lib/constants';
 import { inr, dateRange, dateTime, relative, toLocalInput } from '../lib/format';
 
@@ -1121,6 +1123,35 @@ export default function BookingDetail() {
               isProvider={isProvider}
             />
           </div>
+
+          {/* ═══ Delivery & handling plan — same for both sides ═══ */}
+          {booking.deliveryPlan && (
+            <DeliveryConditions
+              assessment={booking.deliveryPlan}
+              title="Delivery & handling plan"
+              wide
+              note={
+                booking.deliveryPlan.computedNow
+                  ? 'computed now — this request predates the delivery model'
+                  : 'fixed when the request was made'
+              }
+            />
+          )}
+
+          {/* ═══ Before/after condition checks ═══ */}
+          {booking.deliveryPlan?.requiresDelivery && (
+            <Section
+              title="Condition checks"
+              defaultOpen={['accepted', 'confirmed', 'completed'].includes(booking.status)}
+              badge={
+                <span className="text-xs text-ink-mute">
+                  {(booking.conditionChecks || []).length} of {booking.deliveryPlan.checkpoints.length} recorded
+                </span>
+              }
+            >
+              <ConditionChecks booking={booking} user={user} />
+            </Section>
+          )}
 
           {/* ═══ Dedicated Logistics & Transport Section (shown when logistics job exists) ═══ */}
           {logisticsJob && (

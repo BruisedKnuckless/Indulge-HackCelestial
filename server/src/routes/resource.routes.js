@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import Resource from '../models/Resource.js';
+import Resource, { RESOURCE_CATEGORIES } from '../models/Resource.js';
+import { assessDelivery } from '../ml/delivery/predict.js';
 import Booking, { HARD_RESERVED_STATUSES } from '../models/Booking.js';
 import Review from '../models/Review.js';
 import { requireAuth, optionalAuth, requireBusinessUser } from '../middleware/auth.middleware.js';
@@ -14,6 +15,52 @@ import {
 } from '../services/media.service.js';
 
 const router = Router();
+
+/**
+ * POST /api/resources/delivery-preview
+ * Delivery conditions for a listing that is still being written, so the
+ * lister sees how it will have to be moved while filling in the form.
+ */
+router.post(
+  '/delivery-preview',
+  requireAuth,
+  requireBusinessUser,
+  asyncHandler(async (req, res) => {
+    const { title, description, category, totalQuantity, unit, capacity, pricing, requiresLogistics, highlights, tags } =
+      req.body || {};
+    if (!RESOURCE_CATEGORIES.includes(category)) throw new HttpError(400, 'A valid category is required.');
+    const draft = {
+      title: String(title || ''),
+      description: String(description || ''),
+      category,
+      unit,
+      capacity: Number(capacity) || undefined,
+      requiresLogistics: Boolean(requiresLogistics),
+      highlights: Array.isArray(highlights) ? highlights.map(String) : [],
+      tags: Array.isArray(tags) ? tags.map(String) : [],
+      pricing: { basePrice: Number(pricing?.basePrice) || 0, priceUnit: pricing?.priceUnit },
+      totalQuantity: Math.max(1, Number(totalQuantity) || 1),
+    };
+    res.json({ assessment: assessDelivery(draft, draft.totalQuantity) });
+  })
+);
+
+/**
+ * GET /api/resources/:id/delivery?quantity=N
+ * How moving N units of this listing has to be handled — shown to seekers
+ * before they book and to the lister. N is clamped to the listing's stock.
+ */
+router.get(
+  '/:id/delivery',
+  optionalAuth,
+  asyncHandler(async (req, res) => {
+    const resource = await Resource.findById(req.params.id).lean();
+    if (!resource) throw new HttpError(404, 'Listing not found.');
+    const stock = resource.totalQuantity || 1;
+    const quantity = Math.min(stock, Math.max(1, Math.round(Number(req.query.quantity) || stock)));
+    res.json({ assessment: assessDelivery(resource, quantity) });
+  })
+);
 
 router.get(
   '/mine',
