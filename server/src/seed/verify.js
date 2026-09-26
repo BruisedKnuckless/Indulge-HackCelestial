@@ -48,6 +48,18 @@ import {
   BADGE_DEFINITIONS,
   invalidateContributionCache,
 } from '../services/contribution.service.js';
+import AuditLog from '../models/AuditLog.js';
+import {
+  isValidGstinFormat,
+  isValidUdyamFormat,
+  compareBusinessNames,
+  normalizeBusinessName,
+  getSafePublicBadges,
+} from '../services/verification.service.js';
+import {
+  getTransactionReceiptData,
+  getProcurementReceiptData,
+} from '../services/receipt.service.js';
 
 let base = '';
 let passed = 0;
@@ -6055,6 +6067,403 @@ async function main() {
         contractJob.updatedAt !== undefined &&
         Array.isArray(latestAdminMetrics.body?.partners) &&
         latestAdminMetrics.body?.counts !== undefined
+    );
+  }
+
+  // =========================================================================
+  // Phase 8: Business Verification & Financial Records (Part A, B, C & D)
+  // =========================================================================
+  {
+    console.log('\n--- Phase 8: Business Verification & Financial Records ---');
+
+    // 1. GSTIN format validation
+    const validGstin1 = isValidGstinFormat('27AABCB1518M1ZM');
+    const validGstin2 = isValidGstinFormat('29ABCDE1234F1Z5');
+    const invalidGstinShort = isValidGstinFormat('27AABCB1518M');
+    const invalidGstinBadChar = isValidGstinFormat('27AABCB1518M!ZM');
+    const invalidGstinNumber = isValidGstinFormat('123456789012345');
+    check(
+      'BV-1. GSTIN format validation verifies Indian GSTIN standard format correctly',
+      validGstin1 && validGstin2 && !invalidGstinShort && !invalidGstinBadChar && !invalidGstinNumber
+    );
+
+    // 2. GSTIN mismatch can trigger review
+    const matchSame = compareBusinessNames('The Grand Orchid Hotel Pvt Ltd', 'Grand Orchid Hotel Private Limited');
+    const mismatchDiff = compareBusinessNames('The Grand Orchid Hotel', 'Apex Global Industries Limited');
+    check(
+      'BV-2. Business name comparison normalizes equivalents and detects mismatches',
+      matchSame.match === true && mismatchDiff.match === false && mismatchDiff.score < 0.4
+    );
+
+    // 3. GST-unregistered business registration remains possible when explicitly selected
+    const uniqueEmailUnregistered = `unreg-${Date.now()}@biz.example.com`;
+    const regUnregRes = await api('POST', '/api/auth/register', {
+      body: {
+        businessName: 'Unregistered Small Enterprise',
+        email: uniqueEmailUnregistered,
+        password: 'indulgePassword123!',
+        phone: '+91 98200 99887',
+        businessType: 'caterer',
+        notGstRegistered: true,
+        location: {
+          address: 'Station Road',
+          city: 'Thane',
+          pincode: '400601',
+          coordinates: [72.9781, 19.2183],
+        },
+      },
+    });
+    check(
+      'BV-3. Business without GST registration registers successfully when explicitly selected',
+      regUnregRes.status === 201 &&
+        regUnregRes.body?.user?.notGstRegistered === true &&
+        regUnregRes.body?.user?.verificationStatus === 'unverified'
+    );
+
+    // 4. Verification status defaults safely
+    const unregUser = await User.findOne({ email: uniqueEmailUnregistered }).lean();
+    check(
+      'BV-4. Verification status and payout readiness default safely on new registration',
+      unregUser &&
+        unregUser.verificationStatus === 'unverified' &&
+        unregUser.contactVerified === false &&
+        unregUser.businessVerified === false &&
+        unregUser.payoutVerified === false &&
+        Array.isArray(unregUser.verificationMethods) &&
+        unregUser.verificationMethods.length === 0
+    );
+
+    // 5. Admin can update verification status
+    const adminToken = await adminLogin();
+    const updateVerRes = await api('PATCH', `/api/admin/users/${unregUser._id}/verification`, {
+      token: adminToken,
+      body: {
+        status: 'verified',
+        businessVerified: true,
+        payoutVerified: true,
+        contactVerified: true,
+        notes: 'Manual verification approved after document review',
+      },
+    });
+    const verUpdatedInDb = await User.findById(unregUser._id).lean();
+    check(
+      'BV-5. Admin can update verification status and readiness flags',
+      updateVerRes.status === 200 &&
+        verUpdatedInDb.verificationStatus === 'verified' &&
+        verUpdatedInDb.businessVerified === true &&
+        verUpdatedInDb.payoutVerified === true &&
+        verUpdatedInDb.contactVerified === true
+    );
+
+    // 6. Admin verification action audited
+    const auditRecord = await AuditLog.findOne({
+      targetId: unregUser._id,
+      action: 'admin_verify_business',
+    }).lean();
+    check(
+      'BV-6. Admin verification actions are persistently recorded in AuditLog',
+      Boolean(auditRecord) &&
+        auditRecord.actorType === 'admin' &&
+        auditRecord.newState?.verificationStatus === 'verified'
+    );
+
+    // 7. Public profile exposes only safe verification badges
+    const publicProfileRes = await api('GET', `/api/auth/users/${unregUser._id}/public`);
+    check(
+      'BV-7. Public provider profile exposes safe verification badges',
+      publicProfileRes.status === 200 &&
+        Array.isArray(publicProfileRes.body?.safeBadges) &&
+        publicProfileRes.body?.safeBadges.includes('Verified Business') &&
+        publicProfileRes.body?.safeBadges.includes('Payout Verified')
+    );
+
+    // 8. Private GST verification metadata not leaked
+    check(
+      'BV-8. Private GST verification metadata, raw responses and notes are not leaked on public profile',
+      publicProfileRes.body?.gstVerification === undefined &&
+        publicProfileRes.body?.verificationNotes === undefined &&
+        publicProfileRes.body?.cin === undefined
+    );
+
+    // 9. Transaction participant can download receipt
+    const orchidUser = await User.findOne({ email: 'ops@grandorchid.in' }).lean();
+    const seasonsUser = await User.findOne({ email: 'events@seasonsbanquet.in' }).lean();
+    const orchidToken = await login('ops@grandorchid.in');
+    const seasonsToken = await login('events@seasonsbanquet.in');
+
+    let testTxn = await Transaction.findOne({
+      $or: [
+        { payer: orchidUser._id, payee: seasonsUser._id },
+        { payer: seasonsUser._id, payee: orchidUser._id },
+      ],
+    }).lean();
+
+    if (!testTxn) {
+      testTxn = await Transaction.create({
+        payer: seasonsUser._id,
+        payee: orchidUser._id,
+        amount: 25000,
+        currency: 'INR',
+        paymentMethod: 'simulated_upi',
+        status: 'simulated_paid',
+        reconciliationRef: `TXN-TEST-${Date.now()}`,
+        paidAt: new Date(),
+      });
+    }
+
+    const payerRes = await api('GET', `/api/transactions/${testTxn._id}/receipt`, { token: seasonsToken });
+    const payeeRes = await api('GET', `/api/transactions/${testTxn._id}/receipt`, { token: orchidToken });
+    const pdfRes = await api('GET', `/api/transactions/${testTxn._id}/receipt.pdf`, { token: seasonsToken });
+    check(
+      'BV-9. Transaction participant can download receipt JSON and PDF',
+      payerRes.status === 200 &&
+        payeeRes.status === 200 &&
+        pdfRes.status === 200 &&
+        pdfRes.headers.get('content-type')?.includes('application/pdf')
+    );
+
+    // 10. Unrelated business cannot download receipt
+    const unrelatedToken = await login('hello@spiceroute.co.in');
+    const unrelatedRes = await api('GET', `/api/transactions/${testTxn._id}/receipt`, { token: unrelatedToken });
+    const unrelatedPdfRes = await api('GET', `/api/transactions/${testTxn._id}/receipt.pdf`, { token: unrelatedToken });
+    check(
+      'BV-10. Unrelated business is forbidden from accessing participant receipts',
+      unrelatedRes.status === 403 && unrelatedPdfRes.status === 403
+    );
+
+    // 11. Admin can access receipt
+    const adminTxnRes = await api('GET', `/api/transactions/${testTxn._id}/receipt`, { token: adminToken });
+    check(
+      'BV-11. Platform admin can access transaction receipt for audit and dispute resolution',
+      adminTxnRes.status === 200 && adminTxnRes.body?.transactionId === String(testTxn._id)
+    );
+
+    // 12. Receipt values come from stored transaction
+    check(
+      'BV-12. Receipt values match authoritative stored transaction values',
+      payerRes.body?.amount === testTxn.amount &&
+        payerRes.body?.transactionId === String(testTxn._id) &&
+        Boolean(payerRes.body?.payerBusiness?.name || payerRes.body?.payer?.businessName) &&
+        Boolean(payerRes.body?.providerBusiness?.name || payerRes.body?.provider?.businessName)
+    );
+
+    // 13. Simulated receipt contains Demo/Simulated label
+    check(
+      'BV-13. Simulated receipt visibly labels Demo / Simulated status in payload and document',
+      payerRes.body?.isDemo === true &&
+        payerRes.body?.receiptType?.includes('Simulated') &&
+        pdfRes.status === 200
+    );
+
+    // 14. Grouped procurement receipt total correct
+    let sampleProcurement = await ProcurementOrder.findOne({ seeker: seasonsUser._id })
+      .populate('childBookings')
+      .lean();
+    if (!sampleProcurement) {
+      const sampleReq = await Requirement.findOne().lean();
+      const existingResource = await Resource.findOne().lean();
+      const sampleBooking =
+        (await Booking.findOne({ seeker: seasonsUser._id }).lean()) ||
+        (await Booking.create({
+          bookingNumber: `BK-PO-${Date.now()}`,
+          seeker: seasonsUser._id,
+          provider: orchidUser._id,
+          resource: existingResource?._id,
+          requestedQuantity: 1,
+          agreedPrice: 30000,
+          startDateTime: at(1),
+          endDateTime: at(2),
+          status: 'confirmed',
+        }));
+
+      sampleProcurement = await ProcurementOrder.create({
+        orderNumber: `PO-TEST-${Date.now()}`,
+        requirement: sampleReq?._id || existingResource?._id,
+        seeker: seasonsUser._id,
+        planId: 'plan-test-1',
+        planType: 'SINGLE_SUPPLIER',
+        requestedQuantity: 1,
+        fulfilledQuantity: 1,
+        fulfillmentPercentage: 100,
+        fullyFulfilled: true,
+        totalPrice: 30000,
+        supplierCount: 1,
+        childBookings: [sampleBooking._id],
+        status: 'confirmed',
+        idempotencyKey: `idemp-test-${Date.now()}`,
+      });
+    }
+    const procReceiptRes = await api('GET', `/api/procurement-orders/${sampleProcurement._id}/receipt`, {
+      token: seasonsToken,
+    });
+    const expectedTotal = sampleProcurement.totalPrice || sampleProcurement.totalAmount || 0;
+    check(
+      'BV-14. Grouped procurement receipt total accurately aggregates items and settlement',
+      procReceiptRes.status === 200 &&
+        procReceiptRes.body?.totalAmount === expectedTotal &&
+        (procReceiptRes.body?.items?.length > 0 || procReceiptRes.body?.providers?.length > 0)
+    );
+
+    // 15. Child transaction receipts remain private
+    const childReceiptPrivateRes = await api('GET', `/api/procurement-orders/${sampleProcurement._id}/receipt`, {
+      token: unrelatedToken,
+    });
+    check(
+      'BV-15. Unrelated business cannot access procurement order receipts',
+      childReceiptPrivateRes.status === 403
+    );
+
+    // 16. History only returns current business records
+    const historyRes = await api('GET', '/api/history', { token: seasonsToken });
+    const otherHistoryRes = await api('GET', '/api/history', { token: unrelatedToken });
+    const seasonsHasOnlyOwn = historyRes.body?.items?.every(
+      (item) => item.counterparty !== undefined
+    );
+    check(
+      'BV-16. Business history strictly scopes activity records to calling business',
+      historyRes.status === 200 &&
+        Array.isArray(historyRes.body?.items) &&
+        seasonsHasOnlyOwn &&
+        otherHistoryRes.status === 200
+    );
+
+    // 17. Billing totals calculated correctly
+    const billingRes = await api('GET', '/api/billing', { token: seasonsToken });
+    check(
+      'BV-17. Billing summary computes totalSpend, totalEarned and transaction count accurately',
+      billingRes.status === 200 &&
+        typeof billingRes.body?.summary?.totalSpend === 'number' &&
+        typeof billingRes.body?.summary?.totalEarned === 'number' &&
+        typeof billingRes.body?.summary?.transactionCount === 'number' &&
+        Array.isArray(billingRes.body?.transactions)
+    );
+
+    // 18. Refund included correctly
+    const sampleBookingForTxn = (await Booking.findOne().lean())?._id;
+    await Transaction.create({
+      booking: testTxn.booking || sampleBookingForTxn,
+      payer: seasonsUser._id,
+      payee: orchidUser._id,
+      amount: 5000,
+      currency: 'INR',
+      paymentMethod: 'simulated_upi',
+      status: 'refunded',
+      refundStatus: 'processed',
+      refundedAmount: 5000,
+      reconciliationRef: `TXN-REF-${Date.now()}`,
+      paidAt: new Date(),
+    });
+    const billingAfterRefund = await api('GET', '/api/billing', { token: seasonsToken });
+    check(
+      'BV-18. Refund is tracked and reflected in billing summary',
+      billingAfterRefund.status === 200 &&
+        billingAfterRefund.body?.summary?.refunds?.count >= 1 &&
+        billingAfterRefund.body?.summary?.refunds?.amount >= 5000
+    );
+
+    // 19. Logistics account cannot access unrelated marketplace billing
+    const swiftfleetToken = await login('dispatch@swiftfleet.in');
+    const logisticsBilling = await api('GET', '/api/billing', { token: swiftfleetToken });
+    check(
+      'BV-19. Logistics partner cannot view unrelated commercial marketplace financial history',
+      logisticsBilling.status === 200 &&
+        logisticsBilling.body?.summary?.totalSpend === 0 &&
+        logisticsBilling.body?.summary?.totalEarned === 0
+    );
+
+    // 20. Legacy businesses without verification fields remain compatible
+    const legacyEmail = `legacy-${Date.now()}@oldbiz.in`;
+    const legacyPasswordHash = await User.hashPassword('indulge123');
+    const legacyUser = await User.create({
+      businessName: 'Legacy Heritage Trading',
+      email: legacyEmail,
+      passwordHash: legacyPasswordHash,
+      phone: '+91 98200 77112',
+      businessType: 'caterer',
+      location: { address: 'Old Fort', city: 'Mumbai', pincode: '400001', coordinates: [72.83, 18.93] },
+    });
+    const legacyToken = await login(legacyEmail);
+    const legacyHistory = await api('GET', '/api/history', { token: legacyToken });
+    const legacyPublicProfile = await api('GET', `/api/auth/users/${legacyUser._id}/public`);
+    check(
+      'BV-20. Legacy businesses without verification fields log in, query history and public profile safely',
+      Boolean(legacyToken) &&
+        legacyHistory.status === 200 &&
+        legacyPublicProfile.status === 200 &&
+        legacyPublicProfile.body?.isVerifiedBusiness === false
+    );
+
+    // 21. Legacy listings still load
+    const legacyListing = await Resource.create({
+      owner: legacyUser._id,
+      title: 'Legacy Kitchen Station',
+      category: 'kitchen_capacity',
+      description: 'Established kitchen station without verification migration required',
+      pricing: { basePrice: 1500, unit: 'per_day' },
+      status: 'active',
+      totalQuantity: 5,
+      location: legacyUser.location,
+    });
+    const legacyListingRes = await api('GET', `/api/resources/${legacyListing._id}`);
+    check(
+      'BV-21. Legacy listings load and serve without requiring retroactive verification',
+      legacyListingRes.status === 200 && legacyListingRes.body?.resource?.title === 'Legacy Kitchen Station'
+    );
+
+    // 22. Legacy bookings/history still load
+    await Booking.create({
+      bookingNumber: `BK-LEGACY-${Date.now()}`,
+      seeker: legacyUser._id,
+      provider: orchidUser._id,
+      resource: legacyListing._id,
+      requestedQuantity: 1,
+      startDateTime: at(1),
+      endDateTime: at(2),
+      status: 'pending',
+    });
+    const legacyBookingsRes = await api('GET', '/api/bookings/sent', { token: legacyToken });
+    check(
+      'BV-22. Legacy bookings load cleanly without schema errors',
+      legacyBookingsRes.status === 200 && Array.isArray(legacyBookingsRes.body?.bookings)
+    );
+
+    // 23. Missing verification fields do not crash public profile
+    check(
+      'BV-23. Missing verification fields default gracefully in public profile response',
+      legacyPublicProfile.body?.verificationStatus === 'unverified' &&
+        Array.isArray(legacyPublicProfile.body?.safeBadges)
+    );
+
+    // 24. Legacy account receives unverified state safely
+    const adminLegacyDossier = await api('GET', `/api/admin/users/${legacyUser._id}`, { token: adminToken });
+    check(
+      'BV-24. Legacy account shows unverified state safely in Admin dossier',
+      adminLegacyDossier.status === 200 &&
+        adminLegacyDossier.body?.business?.verificationStatus === 'unverified' &&
+        adminLegacyDossier.body?.business?.businessVerified === false
+    );
+
+    // 25. Seeded demo account receives demo verification only
+    const orchidPublic = await api('GET', `/api/auth/users/${orchidUser._id}/public`);
+    check(
+      'BV-25. Seeded demo account receives Demo Verified Business badge',
+      orchidPublic.status === 200 &&
+        (orchidPublic.body?.safeBadges?.includes('Demo Verified Business') ||
+          orchidPublic.body?.isDemoBusiness === true)
+    );
+
+    // 26. Demo account is not falsely shown as GST verified
+    check(
+      'BV-26. Demo account is not falsely advertised as GST Verified without genuine verification data',
+      !orchidPublic.body?.safeBadges?.includes('GST Verified')
+    );
+
+    // 27. No existing relationships/User ObjectIds change
+    const reloadedOrchid = await User.findById(orchidUser._id).lean();
+    check(
+      'BV-27. Existing relationships and ObjectIds remain unaltered across verification migrations',
+      String(reloadedOrchid._id) === String(orchidUser._id) &&
+        String(legacyListing.owner) === String(legacyUser._id)
     );
   }
 

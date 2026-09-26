@@ -69,7 +69,16 @@ export async function runSeed({ quiet = false } = {}) {
   const users = {};
   for (const b of BUSINESSES) {
     const { key, ...rest } = b;
-    users[key] = await User.create({ ...rest, passwordHash });
+    users[key] = await User.create({
+      ...rest,
+      passwordHash,
+      isDemoBusiness: true,
+      verificationStatus: 'verified',
+      verificationSource: 'demo',
+      contactVerified: true,
+      businessVerified: true,
+      payoutVerified: true,
+    });
   }
   log(`  ✓ ${Object.keys(users).length} businesses`);
 

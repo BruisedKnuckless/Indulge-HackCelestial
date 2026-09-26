@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { RESOURCE_CATEGORIES, PRICE_UNITS } from '../models/Resource.js';
 import { LOGISTICS_STATUSES } from '../models/LogisticsJob.js';
+import { isValidGstinFormat, isValidUdyamFormat } from '../services/verification.service.js';
 
 /**
  * Reusable express middleware that validates req[source] (default 'body')
@@ -108,6 +109,11 @@ export const registerSchema = z
     customBusinessType: z.string().trim().optional(),
     location: z.any().optional(),
     gstNumber: z.string().optional(),
+    gstin: z.string().optional(),
+    notGstRegistered: z.boolean().optional(),
+    udyamNumber: z.string().optional(),
+    constitution: z.string().optional(),
+    cin: z.string().optional(),
     userType: z.enum(['business', 'logistics_partner']).optional(),
     logisticsProfile: z.any().optional(),
   })
@@ -121,6 +127,29 @@ export const registerSchema = z
         });
       }
     }
+
+    const gstinValue = (data.gstin || data.gstNumber || '').trim();
+    if (gstinValue) {
+      if (!isValidGstinFormat(gstinValue)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Invalid GSTIN format. Expected 15-character Indian GST format (e.g. 27AABCU9603R1ZM).',
+          path: ['gstin'],
+        });
+      }
+    }
+
+    const udyamValue = (data.udyamNumber || '').trim();
+    if (udyamValue) {
+      if (!isValidUdyamFormat(udyamValue)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Invalid Udyam registration number format (e.g. UDYAM-MH-01-0012345).',
+          path: ['udyamNumber'],
+        });
+      }
+    }
+
     if (data.location) {
       validateLocationObject(data.location, ctx, ['location']);
     }

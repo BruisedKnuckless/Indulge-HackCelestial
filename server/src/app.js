@@ -26,6 +26,9 @@ import procurementOrderRoutes from './routes/procurement-order.routes.js';
 import capacityRecoveryRoutes from './routes/capacity-recovery.routes.js';
 import contributionRoutes from './routes/contribution.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
+import transactionRoutes from './routes/transaction.routes.js';
+import historyRoutes from './routes/history.routes.js';
+import billingRoutes from './routes/billing.routes.js';
 
 export function createApp() {
   const app = express();
@@ -152,6 +155,9 @@ export function createApp() {
   app.use('/api/admin', adminRoutes);
   app.use('/api/logistics', logisticsRoutes);
   app.use('/api/payments', paymentRoutes);
+  app.use('/api/transactions', transactionRoutes);
+  app.use('/api/history', historyRoutes);
+  app.use('/api/billing', billingRoutes);
 
   // 9. Error Handling
   app.use(notFound);

@@ -43,6 +43,9 @@ const ListingForm = lazy(() => import('./pages/ListingForm'));
 const PostRequirement = lazy(() => import('./pages/PostRequirement'));
 const RequirementDetail = lazy(() => import('./pages/RequirementDetail'));
 const ProcurementOrderDetail = lazy(() => import('./pages/ProcurementOrderDetail'));
+const HistoryRecords = lazy(() => import('./pages/HistoryRecords'));
+const BillingTransactions = lazy(() => import('./pages/BillingTransactions'));
+import VerificationBanner from './components/layout/VerificationBanner';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -142,6 +145,7 @@ function Shell({ children }) {
   return (
     <div className="min-h-screen flex flex-col bg-surface">
       <Header />
+      <VerificationBanner />
       <main className="flex-1">
         <ErrorBoundary>
           <Suspense
@@ -333,6 +337,22 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <Account />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/history"
+                  element={
+                    <RequireAuth>
+                      <HistoryRecords />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/billing"
+                  element={
+                    <RequireAuth>
+                      <BillingTransactions />
                     </RequireAuth>
                   }
                 />

@@ -224,6 +224,22 @@ export default function ProviderProfile() {
                   {biz.label}
                 </span>
 
+                {/* Safe Public Verification Badges */}
+                {Array.isArray(profile.verificationBadges) &&
+                  profile.verificationBadges.map((badge) => (
+                    <span
+                      key={badge}
+                      className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-xs font-semibold ${
+                        badge.includes('Demo')
+                          ? 'bg-indigo/10 text-indigo border-indigo/25'
+                          : 'bg-green-500/10 text-green-700 border-green-500/25 dark:text-green-400'
+                      }`}
+                    >
+                      <ShieldCheck size={12} className="shrink-0" />
+                      {badge}
+                    </span>
+                  ))}
+
                 {/* City */}
                 {profile.city && (
                   <span className="flex items-center gap-1 text-ink-soft text-xs">

@@ -97,6 +97,8 @@ const EXPLORE_OPTIONS = [
 
 const ACCOUNT_LINKS = [
   { to: "/account", label: "Account" },
+  { to: "/history", label: "History & Records" },
+  { to: "/billing", label: "Billing & Transactions" },
   { to: "/nearby", label: "Nearby Map" },
   { to: "/bookings/sent", label: "Requests you sent" },
   { to: "/bookings/received", label: "Requests received" },
@@ -118,6 +120,7 @@ const LOGISTICS_NAV = [
 const LOGISTICS_ACCOUNT_LINKS = [
   { to: "/account/profile", label: "Partner Profile" },
   { to: "/logistics", label: "Logistics Dashboard" },
+  { to: "/history", label: "History & Records" },
   { to: "/notifications", label: "Notifications" },
   { to: "/how-it-works", label: "How Indulge Logistics Works" },
 ];

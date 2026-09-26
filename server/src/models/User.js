@@ -20,6 +20,88 @@ const userSchema = new mongoose.Schema(
     businessType: { type: String, enum: BUSINESS_TYPES, default: 'other' },
     customBusinessType: { type: String, trim: true },
     gstNumber: { type: String, trim: true },
+    gstin: { type: String, trim: true, uppercase: true },
+    notGstRegistered: { type: Boolean, default: false },
+
+    // Structured Business Verification Foundation
+    verificationStatus: {
+      type: String,
+      enum: ['unverified', 'pending', 'verified', 'needs_review', 'rejected', 'suspended'],
+      default: 'unverified',
+      index: true,
+    },
+    verificationMethods: {
+      type: [String],
+      default: [],
+    },
+    verificationSource: {
+      type: String,
+      default: null,
+    },
+    isDemoBusiness: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    contactVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    phoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+    businessVerified: {
+      type: Boolean,
+      default: false,
+    },
+    payoutVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    gstVerification: {
+      gstin: String,
+      legalName: String,
+      tradeName: String,
+      status: String,
+      constitution: String,
+      state: String,
+      verifiedAt: Date,
+      source: String,
+      mismatchFlag: Boolean,
+      mismatchReason: String,
+    },
+
+    udyamNumber: {
+      type: String,
+      trim: true,
+      uppercase: true,
+    },
+    udyamVerification: {
+      udyamNumber: String,
+      enterpriseName: String,
+      status: String,
+      verifiedAt: Date,
+      source: String,
+    },
+
+    constitution: {
+      type: String,
+      trim: true,
+    },
+    cin: {
+      type: String,
+      trim: true,
+    },
+    verificationNotes: {
+      type: String,
+      trim: true,
+    },
     location: {
       type: {
         type: String,

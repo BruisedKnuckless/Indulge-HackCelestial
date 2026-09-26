@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Check, Truck, Phone, AlertCircle, MapPin, Clock } from 'lucide-react';
+import { Check, Truck, Phone, AlertCircle, MapPin, Clock, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { errorMessage } from '../api/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -1238,34 +1238,63 @@ export default function BookingDetail() {
               </div>
             </dl>
 
-            {transaction && (
+            {/* ═══ Payment & Receipt Section ═══ */}
+            {(transaction || isConfirmed || isCompleted) && (
               <>
                 <hr className="rule my-3" />
-                <h3 className="text-sm font-semibold mb-2">Transaction</h3>
-                <dl className="text-sm space-y-1.5">
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-ink-soft">Ref</dt>
-                    <dd className="font-mono text-xs">
-                      {String(transaction._id).slice(-10).toUpperCase()}
-                    </dd>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-ink">Payment</h3>
+                  <span className="badge badge-success text-[10px] uppercase font-bold tracking-wider">
+                    {transaction?.status === 'simulated_paid' || isConfirmed || isCompleted
+                      ? 'PAID'
+                      : transaction?.status || 'PENDING'}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-surface-sunk/60 border border-line space-y-2 mb-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs text-ink-mute">Amount</span>
+                    <span className="text-lg font-bold text-ink">
+                      {inr(transaction?.amount ?? booking.agreedPrice ?? booking.quotedPrice ?? 0)}
+                    </span>
                   </div>
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-ink-soft">Amount</dt>
-                    <dd>{inr(transaction.amount)}</dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-ink-soft">Status</dt>
-                    <dd className={transaction.status === 'simulated_paid' ? 'text-success' : 'text-ink-soft'}>
-                      {transaction.status === 'simulated_paid' ? 'Paid (demo)' : transaction.status}
-                    </dd>
-                  </div>
-                  {transaction.paidAt && (
-                    <div className="flex justify-between gap-2">
-                      <dt className="text-ink-soft">Settled</dt>
-                      <dd className="text-right">{dateTime(transaction.paidAt)}</dd>
+                  {transaction && (
+                    <div className="text-[11px] text-ink-mute flex items-center justify-between pt-1 border-t border-line/50">
+                      <span>Ref:</span>
+                      <span className="font-mono">{String(transaction._id).slice(-8).toUpperCase()}</span>
                     </div>
                   )}
-                </dl>
+                  {transaction?.paidAt && (
+                    <div className="text-[11px] text-ink-mute flex items-center justify-between">
+                      <span>Settled:</span>
+                      <span>{dateTime(transaction.paidAt)}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {transaction && (
+                    <a
+                      href={`/api/transactions/${transaction._id}/receipt.pdf`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={`receipt-${String(transaction._id).slice(-6)}.pdf`}
+                      className="btn-secondary btn-sm w-full justify-center text-xs inline-flex items-center gap-1.5"
+                    >
+                      <Download size={13} /> Download Receipt
+                    </a>
+                  )}
+                  {transaction && (
+                    <a
+                      href={`/api/transactions/${transaction._id}/receipt`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-outline btn-sm w-full justify-center text-[11px] text-ink-soft hover:text-ink"
+                    >
+                      View Payment
+                    </a>
+                  )}
+                </div>
               </>
             )}
 

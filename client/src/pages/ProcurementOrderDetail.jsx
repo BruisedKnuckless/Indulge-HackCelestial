@@ -14,6 +14,7 @@ import {
   ExternalLink,
   ShieldCheck,
   ChevronLeft,
+  Download,
 } from 'lucide-react';
 
 export default function ProcurementOrderDetail() {
@@ -198,19 +199,47 @@ export default function ProcurementOrderDetail() {
 
       {/* Payment Summary Box */}
       <div className="card p-6 border-line bg-surface-sunk/30">
-        <h3 className="font-bold text-sm text-ink mb-4 flex items-center gap-2">
-          <ShieldCheck size={16} className="text-success" /> Payment Settlement Summary
-        </h3>
-        <div className="space-y-2.5 text-xs border-b border-line pb-4 mb-4">
-          {childBookings.map((b, idx) => (
-            <div key={b._id} className="flex items-center justify-between text-ink-soft">
-              <span>
-                Provider #{idx + 1} ({b.provider?.businessName}) — {b.requestedQuantity} units
-              </span>
-              <span className="font-medium text-ink">{inr(b.agreedPrice || b.quotedPrice)}</span>
-            </div>
-          ))}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h3 className="font-bold text-sm text-ink flex items-center gap-2">
+            <ShieldCheck size={16} className="text-success" /> Payment Settlement Summary
+          </h3>
+          <a
+            href={`/api/procurement-orders/${order._id}/receipt.pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={`procurement-receipt-${order.orderNumber || String(order._id).slice(-6)}.pdf`}
+            className="btn-primary btn-sm text-xs inline-flex items-center gap-1.5 self-start sm:self-auto"
+          >
+            <Download size={13} /> Download Overall Receipt
+          </a>
         </div>
+
+        <div className="space-y-2.5 text-xs border-b border-line pb-4 mb-4">
+          {childBookings.map((b, idx) => {
+            const childTxn = (order.childTransactions || []).find((t) => String(t.booking) === String(b._id));
+            return (
+              <div key={b._id} className="flex items-center justify-between text-ink-soft flex-wrap gap-2">
+                <span>
+                  Provider #{idx + 1} ({b.provider?.businessName}) — {b.requestedQuantity} units
+                </span>
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-ink">{inr(b.agreedPrice || b.quotedPrice)}</span>
+                  {childTxn && (
+                    <a
+                      href={`/api/transactions/${childTxn._id || childTxn}/receipt.pdf`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-brand hover:underline inline-flex items-center gap-0.5"
+                    >
+                      <Download size={11} /> Child Receipt
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         <div className="flex items-center justify-between text-sm font-bold text-ink">
           <span>Total Grouped Settlement</span>
           <span className="text-brand text-base">{inr(order.totalPrice)}</span>

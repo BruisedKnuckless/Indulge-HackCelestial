@@ -21,6 +21,8 @@ import { getAdminRecoveryMetrics } from '../services/capacity-recovery.service.j
 import { calculateContributionProfile } from '../services/contribution.service.js';
 import { getLiveTimeline } from '../services/live-timeline.service.js';
 import { validate, adminAssignLogisticsSchema, adminSuspendUserSchema } from '../middleware/validate.middleware.js';
+import { compareBusinessNames, adminUpdateVerification } from '../services/verification.service.js';
+import { createAuditLog } from '../models/AuditLog.js';
 
 /**
  * Platform administration — the eagle-eye console.
@@ -906,10 +908,30 @@ router.get(
       ]),
     ]);
 
+    let mismatchFlag = Boolean(user.gstVerification?.mismatchFlag);
+    let mismatchReason = user.gstVerification?.mismatchReason || null;
+    if (user.gstVerification?.legalName || user.gstVerification?.tradeName) {
+      const comp = compareBusinessNames(
+        user.businessName,
+        user.gstVerification.legalName || user.gstVerification.tradeName
+      );
+      if (!comp.match) {
+        mismatchFlag = true;
+        mismatchReason = comp.reason;
+      }
+    }
+
     res.json({
       business: {
         ...user,
         passwordHash: undefined,
+        verificationStatus: user.verificationStatus || 'unverified',
+        verificationMethods: user.verificationMethods || [],
+        contactVerified: Boolean(user.contactVerified),
+        businessVerified: Boolean(user.businessVerified),
+        payoutVerified: Boolean(user.payoutVerified),
+        mismatchFlag,
+        mismatchReason,
       },
       listings,
       bookings: { provided, sought },
@@ -936,11 +958,29 @@ router.patch(
     const user = await User.findById(req.params.id);
     if (!user) throw new HttpError(404, 'Business not found.');
 
+    const prevSuspended = user.suspended;
     const suspended = Boolean(req.body.suspended);
     user.suspended = suspended;
     user.suspendedAt = suspended ? new Date() : undefined;
     user.suspensionReason = suspended ? req.body.reason || 'No reason given' : undefined;
+    if (suspended) {
+      user.verificationStatus = 'suspended';
+    } else if (user.verificationStatus === 'suspended') {
+      user.verificationStatus = user.businessVerified ? 'verified' : 'unverified';
+    }
     await user.save();
+
+    await createAuditLog({
+      action: suspended ? 'admin_suspend_business' : 'admin_restore_business',
+      actorType: 'admin',
+      actorId: req.admin?._id,
+      actorEmail: req.admin?.email,
+      targetType: 'user',
+      targetId: user._id,
+      previousState: { suspended: prevSuspended },
+      newState: { suspended, verificationStatus: user.verificationStatus },
+      reason: req.body.reason || 'Admin action',
+    });
 
     // Told on restore, not on suspension — a suspended account cannot sign in
     // to read it, and the notification would sit unread forever.
@@ -955,6 +995,47 @@ router.patch(
 
     res.json({
       business: user.toJSON(),
+    });
+  })
+);
+
+/**
+ * Admin review and verification status transition.
+ * Actions: verify, request review, reject, suspend
+ * Every action records in AuditLog.
+ */
+router.patch(
+  '/users/:id/verification',
+  asyncHandler(async (req, res) => {
+    const {
+      status,
+      notes,
+      businessVerified,
+      payoutVerified,
+      contactVerified,
+      methods,
+      gstVerification,
+      udyamVerification,
+    } = req.body;
+
+    const updatedUser = await adminUpdateVerification({
+      targetUserId: req.params.id,
+      adminUser: req.admin,
+      status,
+      notes,
+      methods,
+      businessVerified,
+      payoutVerified,
+      contactVerified,
+      gstVerification,
+      udyamVerification,
+    });
+
+    res.json({
+      business: updatedUser.toJSON(),
+      verificationStatus: updatedUser.verificationStatus,
+      businessVerified: updatedUser.businessVerified,
+      payoutVerified: updatedUser.payoutVerified,
     });
   })
 );

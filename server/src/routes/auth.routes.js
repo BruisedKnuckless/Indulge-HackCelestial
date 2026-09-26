@@ -6,6 +6,7 @@ import Requirement from '../models/Requirement.js';
 import { signToken, requireAuth } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { validate, registerSchema, loginSchema } from '../middleware/validate.middleware.js';
+import { getSafePublicBadges } from '../services/verification.service.js';
 
 const router = Router();
 
@@ -22,6 +23,11 @@ router.post(
       customBusinessType,
       location,
       gstNumber,
+      gstin,
+      notGstRegistered,
+      udyamNumber,
+      constitution,
+      cin,
       userType,
       logisticsProfile,
     } = req.body;
@@ -35,6 +41,33 @@ router.post(
 
     const existing = await User.findOne({ email: email.toLowerCase() });
     if (existing) throw new HttpError(409, 'An account already exists with that email.');
+
+    const resolvedGstin = (gstin || gstNumber || '').trim().toUpperCase() || undefined;
+    const isNotGst = Boolean(notGstRegistered);
+    const resolvedUdyam = (udyamNumber || '').trim().toUpperCase() || undefined;
+
+    let initialVerificationStatus = 'unverified';
+    const initialMethods = [];
+    let initialGstVerification = undefined;
+    let initialUdyamVerification = undefined;
+
+    if (resolvedGstin) {
+      initialVerificationStatus = 'pending';
+      initialGstVerification = {
+        gstin: resolvedGstin,
+        status: 'pending',
+        source: 'manual',
+      };
+    }
+
+    if (resolvedUdyam) {
+      if (initialVerificationStatus === 'unverified') initialVerificationStatus = 'pending';
+      initialUdyamVerification = {
+        udyamNumber: resolvedUdyam,
+        status: 'pending',
+        source: 'manual',
+      };
+    }
 
     let normalizedLocation = undefined;
     if (location && typeof location === 'object') {
@@ -106,7 +139,21 @@ router.post(
       phone,
       businessType: resolvedBusinessType,
       customBusinessType: resolvedBusinessType === 'other' ? customBusinessType : undefined,
-      gstNumber,
+      gstNumber: resolvedGstin,
+      gstin: resolvedGstin,
+      notGstRegistered: isNotGst,
+      udyamNumber: resolvedUdyam,
+      constitution,
+      cin,
+      verificationStatus: initialVerificationStatus,
+      verificationMethods: initialMethods,
+      verificationSource: null,
+      isDemoBusiness: false,
+      contactVerified: false,
+      businessVerified: false,
+      payoutVerified: false,
+      gstVerification: initialGstVerification,
+      udyamVerification: initialUdyamVerification,
       location: normalizedLocation,
       userType: userType === 'logistics_partner' ? 'logistics_partner' : 'business',
       logisticsProfile: normalizedLogisticsProfile,
@@ -205,13 +252,14 @@ router.patch(
 
 /**
  * Public business profile — safe for unauthenticated access.
- * Never exposes: email, phone, passwordHash, gstNumber, preferences.
+ * Only exposes verified public badges.
+ * Never exposes: email, phone, passwordHash, gstNumber, gstin, gstVerification, udyamNumber, preferences, internal notes.
  */
 router.get(
   '/users/:id/public',
   asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id)
-      .select('businessName businessType location ratingAvg ratingCount createdAt')
+      .select('businessName businessType location ratingAvg ratingCount createdAt verificationStatus verificationMethods businessVerified payoutVerified isDemoBusiness gstVerification.status udyamVerification.status')
       .lean();
 
     if (!user) throw new HttpError(404, 'Business not found.');
@@ -225,6 +273,13 @@ router.get(
         Requirement.countDocuments({ seeker: user._id, status: { $in: ['open', 'fulfilled'] } }),
       ]);
 
+    const safeBadges = getSafePublicBadges(user);
+    const isDemoVerified = Boolean(user.isDemoBusiness && (user.verificationStatus === 'verified' || user.businessVerified));
+    const isVerified = Boolean(user.businessVerified || user.verificationStatus === 'verified');
+    const isGstVerified = Boolean(user.verificationMethods?.includes('gst') && user.gstVerification?.status === 'verified');
+    const isUdyamVerified = Boolean(user.verificationMethods?.includes('udyam') && user.udyamVerification?.status === 'verified');
+    const isPayoutVerified = Boolean(user.payoutVerified);
+
     res.json({
       profile: {
         _id: user._id,
@@ -233,12 +288,22 @@ router.get(
         city: user.location?.city || null,
         ratingAvg: user.ratingAvg || 0,
         ratingCount: user.ratingCount || 0,
+        isVerified,
+        isDemoVerified,
+        isGstVerified,
+        isUdyamVerified,
+        isPayoutVerified,
+        verificationBadges: safeBadges,
         completedOrders,
         seekerCompletedOrders,
         activeListings,
         postedRequirements,
         memberSince: user.createdAt,
       },
+      safeBadges,
+      isVerifiedBusiness: isVerified,
+      isDemoBusiness: isDemoVerified,
+      verificationStatus: user.verificationStatus || 'unverified',
     });
   })
 );

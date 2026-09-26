@@ -481,6 +481,20 @@ export function useAdminActions() {
         (await adminApi.patch(`/admin/logistics/${id}/assign`, { partnerId, notes })).data
       )
     ),
+    updateVerification: useMutation(
+      mutate(async ({ id, status, notes, businessVerified, payoutVerified, contactVerified, methods }) =>
+        (
+          await adminApi.patch(`/admin/users/${id}/verification`, {
+            status,
+            notes,
+            businessVerified,
+            payoutVerified,
+            contactVerified,
+            methods,
+          })
+        ).data
+      )
+    ),
   };
 }
 
@@ -507,6 +521,26 @@ export function useAdminContribution(params) {
   return useQuery({
     queryKey: ['admin', 'contribution', params],
     queryFn: async () => (await adminApi.get('/admin/contribution', { params })).data,
+  });
+}
+
+/* ----------------------------------------------------- Business History & Billing */
+
+export function useBusinessHistory(tab = 'all', page = 1) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['business-history', tab, page],
+    queryFn: async () => (await api.get('/history', { params: { tab, page } })).data,
+    enabled: Boolean(user),
+  });
+}
+
+export function useBusinessBilling() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['business-billing'],
+    queryFn: async () => (await api.get('/billing')).data,
+    enabled: Boolean(user),
   });
 }
 

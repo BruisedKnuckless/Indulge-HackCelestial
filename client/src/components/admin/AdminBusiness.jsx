@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   Ban, Play, KeyRound, Archive, Star, MapPin, Phone, Mail, Copy,
+  ShieldCheck, AlertTriangle, CheckCircle, XCircle, FileCheck,
 } from 'lucide-react';
 import { useAdminBusiness, useAdminActions } from '../../hooks/queries';
 import { errorMessage } from '../../api/client';
@@ -59,6 +60,22 @@ export default function AdminBusiness({ id, onClose }) {
             ) : (
               <span className="badge-green">Active</span>
             )}
+            {b.verificationStatus === 'verified' ? (
+              <span className="badge-green">
+                <ShieldCheck size={11} /> {b.isDemoBusiness ? 'Demo Verified Business' : 'Verified Business'}
+              </span>
+            ) : b.verificationStatus === 'needs_review' ? (
+              <span className="badge-amber">
+                <AlertTriangle size={11} /> Verification Needs Review
+              </span>
+            ) : (
+              <span className="badge-muted">
+                {(b.verificationStatus || 'unverified').replace('_', ' ')}
+              </span>
+            )}
+            {b.payoutVerified && (
+              <span className="badge-green">Payout Ready</span>
+            )}
             {b.ratingCount > 0 && (
               <span className="badge-amber">
                 <Star size={11} /> {b.ratingAvg} from {b.ratingCount}
@@ -74,6 +91,141 @@ export default function AdminBusiness({ id, onClose }) {
               <span className="font-medium">Suspension reason:</span> {b.suspensionReason}
             </p>
           )}
+
+          {/* ── Business Verification Dossier ────────────────────────────── */}
+          <section className="border border-line rounded-lg p-4 bg-surface-alt">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="h-card flex items-center gap-1.5 text-sm font-semibold">
+                <ShieldCheck size={15} className="text-indigo" />
+                Business Verification Dossier
+              </h3>
+              <span className={
+                b.verificationStatus === 'verified'
+                  ? 'badge-green'
+                  : b.verificationStatus === 'needs_review'
+                  ? 'badge-amber'
+                  : b.verificationStatus === 'rejected' || b.verificationStatus === 'suspended'
+                  ? 'badge-red'
+                  : 'badge-muted'
+              }>
+                {b.isDemoBusiness ? 'Demo Verified' : (b.verificationStatus || 'unverified').replace('_', ' ')}
+              </span>
+            </div>
+
+            {b.mismatchFlag && (
+              <div className="mb-3.5 flex items-start gap-2 text-xs border border-amber-accent/30 bg-amber-accent/10 rounded-md p-2.5 text-amber-accent">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold">Review Flag: Potential Name Mismatch.</span>
+                  <p className="mt-0.5 text-ink-mute">{b.mismatchReason || 'Submitted name differs from official records.'}</p>
+                </div>
+              </div>
+            )}
+
+            <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-xs">
+              <Field label="Submitted Business Name" value={b.businessName} />
+              <Field
+                label="GSTIN"
+                value={b.gstin || b.gstNumber || (b.notGstRegistered ? 'Not GST registered' : null)}
+                mono
+              />
+              <Field
+                label="GST Legal / Trade Name"
+                value={b.gstVerification?.legalName || b.gstVerification?.tradeName || (b.notGstRegistered ? 'Exempt' : 'Unverified')}
+              />
+              <Field label="Udyam Number" value={b.udyamNumber} mono />
+              <Field label="Business Constitution" value={b.constitution || 'Not specified'} />
+              <Field
+                label="Contact Verification"
+                value={b.contactVerified ? 'Verified (Phone/Email)' : 'Unverified'}
+              />
+              <Field
+                label="Business Verification"
+                value={b.businessVerified ? 'Verified' : 'Unverified'}
+              />
+              <Field
+                label="Payout Readiness"
+                value={b.payoutVerified ? 'Ready for Payouts' : 'Pending Verification'}
+              />
+            </dl>
+
+            <div className="mt-3.5 pt-3 border-t border-line flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-primary btn-sm text-xs py-1"
+                onClick={() =>
+                  run(
+                    () =>
+                      actions.updateVerification.mutateAsync({
+                        id: b._id,
+                        status: 'verified',
+                        businessVerified: true,
+                        notes: 'Verified by admin',
+                      }),
+                    'Business verified successfully'
+                  )
+                }
+                disabled={actions.updateVerification.isPending}
+              >
+                <CheckCircle size={12} /> Verify Business
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-sm text-xs py-1"
+                onClick={() =>
+                  run(
+                    () =>
+                      actions.updateVerification.mutateAsync({
+                        id: b._id,
+                        status: 'needs_review',
+                        notes: 'Review requested by admin',
+                      }),
+                    'Marked as Needs Review'
+                  )
+                }
+                disabled={actions.updateVerification.isPending}
+              >
+                <AlertTriangle size={12} /> Request Review
+              </button>
+              <button
+                type="button"
+                className="btn-danger btn-sm text-xs py-1"
+                onClick={() =>
+                  run(
+                    () =>
+                      actions.updateVerification.mutateAsync({
+                        id: b._id,
+                        status: 'rejected',
+                        businessVerified: false,
+                        notes: 'Rejected by admin',
+                      }),
+                    'Verification rejected'
+                  )
+                }
+                disabled={actions.updateVerification.isPending}
+              >
+                <XCircle size={12} /> Reject
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-sm text-xs py-1 ml-auto"
+                onClick={() =>
+                  run(
+                    () =>
+                      actions.updateVerification.mutateAsync({
+                        id: b._id,
+                        payoutVerified: !b.payoutVerified,
+                        notes: b.payoutVerified ? 'Payout disabled' : 'Payout enabled',
+                      }),
+                    b.payoutVerified ? 'Payout disabled' : 'Payout enabled'
+                  )
+                }
+                disabled={actions.updateVerification.isPending}
+              >
+                {b.payoutVerified ? 'Revoke Payout Readiness' : 'Grant Payout Readiness'}
+              </button>
+            </div>
+          </section>
 
           {/* ── Contact & identity ────────────────────────────────────────── */}
           <section>
