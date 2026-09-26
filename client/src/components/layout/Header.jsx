@@ -99,8 +99,8 @@ const EXPLORE_OPTIONS = [
 
 const ACCOUNT_LINKS = [
   { to: "/account", label: "Account" },
+  { to: "/billing", label: "Wallet & Lister Earnings" },
   { to: "/history", label: "History & Records" },
-  { to: "/billing", label: "Billing & Transactions" },
   { to: "/inspector", label: "Field Inspector Station" },
   { to: "/nearby", label: "Nearby Map" },
   { to: "/bookings/sent", label: "Requests you sent" },

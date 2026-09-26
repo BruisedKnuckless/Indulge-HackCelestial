@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Check, Truck, Phone, AlertCircle, MapPin, Clock, Download } from 'lucide-react';
+import { Check, Truck, Phone, AlertCircle, MapPin, Clock, Download, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { errorMessage } from '../api/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import {
   useSendNegotiation,
   useBookingActions,
   useBookingLogistics,
+  useBookingSettlement,
 } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
 import { Panel, StatusBadge, Spinner, Stars, Alert } from '../components/ui';
@@ -916,6 +917,133 @@ function Section({ title, badge, defaultOpen = true, children }) {
   );
 }
 
+function ListerSettlementTimelineCard({ bookingId, booking }) {
+  const { data, isLoading } = useBookingSettlement(bookingId);
+  const settlement = data?.settlement;
+
+  if (isLoading || !settlement) return null;
+
+  const isDelivered = booking.fulfillment?.status === 'delivered';
+  const rentalEnded = booking.endDateTime && Date.now() > new Date(booking.endDateTime).getTime();
+  const returnDone = booking.return?.status === 'return_completed' || booking.status === 'completed';
+  const isDispute = settlement.status === 'dispute_hold';
+  const isAvailable = settlement.status === 'available' || settlement.status === 'settled';
+
+  return (
+    <Panel className="p-4 border border-indigo-500/25 bg-surface shadow-xs space-y-3">
+      <div className="flex items-center justify-between pb-2 border-b border-line">
+        <div className="flex items-center gap-1.5">
+          <Wallet size={15} className="text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-ink">
+            Lister Earnings & Settlement
+          </h3>
+        </div>
+        <span
+          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+            isDispute
+              ? 'bg-rose-500/10 text-rose-600 border-rose-500/30'
+              : isAvailable
+              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
+              : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+          }`}
+        >
+          {isDispute ? 'Dispute Hold' : settlement.status.replace(/_/g, ' ').toUpperCase()}
+        </span>
+      </div>
+
+      {/* Payout calculation */}
+      <div className="bg-surface-sunk p-2.5 rounded-lg border border-line text-xs space-y-1.5">
+        <div className="flex justify-between text-ink-mute">
+          <span>Gross Rental Value:</span>
+          <span className="font-semibold text-ink">{inr(settlement.grossAmountRupees)}</span>
+        </div>
+        <div className="flex justify-between text-ink-mute">
+          <span>Lister Commission (3%):</span>
+          <span>−{inr(settlement.commissionAmountRupees)}</span>
+        </div>
+        <div className="flex justify-between text-ink-mute">
+          <span>GST on Commission (18%):</span>
+          <span>−{inr(settlement.commissionGSTRupees)}</span>
+        </div>
+        <div className="flex justify-between border-t border-line pt-1.5 font-bold text-sm">
+          <span className="text-ink">Net Payout:</span>
+          <span className="text-emerald-600 dark:text-emerald-400">{inr(settlement.netAmountRupees)}</span>
+        </div>
+      </div>
+
+      {/* Settlement Timeline */}
+      <div className="space-y-1.5 text-xs pt-1">
+        <span className="text-[11px] font-semibold text-ink-mute uppercase tracking-wider block mb-2">
+          Settlement Timeline
+        </span>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-ink-soft">Payment Received</span>
+          <span className="text-emerald-600 font-bold">✓</span>
+        </div>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-ink-soft">Pending Settlement</span>
+          <span className="text-emerald-600 font-bold">✓</span>
+        </div>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-ink-soft">Rental Completed</span>
+          <span className={rentalEnded || isDelivered ? 'text-emerald-600 font-bold' : 'text-ink-mute'}>
+            {rentalEnded || isDelivered ? '✓' : '○'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-ink-soft">Return Verified</span>
+          <span
+            className={
+              isDispute
+                ? 'text-rose-600 font-bold'
+                : returnDone
+                ? 'text-emerald-600 font-bold'
+                : 'text-ink-mute'
+            }
+          >
+            {isDispute ? '⚠ Issue' : returnDone ? '✓' : '○'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-ink-soft">Settlement Eligible</span>
+          <span
+            className={
+              isAvailable || settlement.status === 'eligible'
+                ? 'text-emerald-600 font-bold'
+                : 'text-ink-mute'
+            }
+          >
+            {isAvailable || settlement.status === 'eligible' ? '●' : '○'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-ink-soft">Available to Withdraw</span>
+          <span className={isAvailable ? 'text-emerald-600 font-bold' : 'text-ink-mute'}>
+            {isAvailable ? '✓ Ready' : '○'}
+          </span>
+        </div>
+      </div>
+
+      {isDispute ? (
+        <div className="p-2 rounded bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-700 dark:text-rose-300">
+          Settlement temporarily held while the return condition issue is reviewed.
+        </div>
+      ) : isAvailable ? (
+        <Link
+          to="/billing"
+          className="btn-primary btn-sm w-full justify-center text-xs inline-flex"
+        >
+          Withdraw in Financial Center
+        </Link>
+      ) : (
+        <p className="text-[11px] text-ink-mute text-center pt-1">
+          Funds become withdrawable after return verification and clearance.
+        </p>
+      )}
+    </Panel>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════════════════════════════════ */
@@ -1314,6 +1442,11 @@ export default function BookingDetail() {
               {counterparty?.phone ? ` · ${counterparty.phone}` : ''}
             </p>
           </Panel>
+
+          {/* Provider: Lister Settlement & Earnings Timeline */}
+          {isProvider && (isConfirmed || isCompleted) && (
+            <ListerSettlementTimelineCard bookingId={booking._id} booking={booking} />
+          )}
 
           {/* Actions panel */}
           <Panel className="p-4 space-y-2">

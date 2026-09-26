@@ -115,11 +115,10 @@ export default function Login() {
                 <button
                   key={a.email}
                   onClick={() => useDemo(a.email)}
-                  className={`w-full text-left border rounded px-3 py-2 transition-all ${
-                    isLogistics
+                  className={`w-full text-left border rounded px-3 py-2 transition-all ${isLogistics
                       ? 'border-indigo/40 bg-indigo/5 hover:bg-indigo/10'
                       : 'border-line hover:bg-surface-sunk'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold block text-ink">{a.label}</span>

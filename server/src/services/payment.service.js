@@ -7,8 +7,11 @@ import WebhookEvent from '../models/WebhookEvent.js';
 import { ensureLogisticsJobForBooking } from './logistics.service.js';
 import { notify } from './notification.service.js';
 import { logger } from '../utils/logger.js';
+import { WalletService } from './wallet.service.js';
+import { SettlementService } from './settlement.service.js';
+import { rupeesToPaise } from './fee-calculation.service.js';
 
-export const ALLOWED_PAYMENT_METHODS = ['upi', 'card', 'netbanking', 'wallet', 'simulated_instant'];
+export const ALLOWED_PAYMENT_METHODS = ['upi', 'card', 'netbanking', 'wallet', 'indulge_balance', 'simulated_instant'];
 
 /**
  * Timing-safe string comparison to prevent side-channel timing attacks on signatures.
@@ -210,6 +213,7 @@ export const PaymentService = {
     gatewayPaymentId,
     gatewaySignature,
     user,
+    feeBreakdown,
   }) {
     const booking = await Booking.findById(bookingId).populate('resource');
     if (!booking) throw new HttpError(404, 'Request not found.');
@@ -247,8 +251,8 @@ export const PaymentService = {
     booking.status = 'confirmed';
     await booking.save();
 
-    // Settle transaction record
-    const amount = booking.agreedPrice || booking.quotedPrice || 0;
+    // Settle transaction record with full feeBreakdown and metadata
+    const amount = feeBreakdown?.total ?? (booking.agreedPrice || booking.quotedPrice || 0);
     const finalTx = await Transaction.findOneAndUpdate(
       { booking: booking._id },
       {
@@ -260,6 +264,10 @@ export const PaymentService = {
         paidAt: new Date(),
         gatewayPaymentId: verifyResult.gatewayPaymentId,
         reconciliationRef: verifyResult.reconciliationRef,
+        metadata: {
+          feeBreakdown,
+          environment: 'sandbox_demo',
+        },
         ...(idempotencyKey ? { idempotencyKey } : {}),
       },
       { new: true, upsert: true }
@@ -425,6 +433,30 @@ export const PaymentService = {
     transaction.refundReason = reason || 'Refund issued';
     transaction.refundedAt = refundResult.refundedAt || new Date();
     await transaction.save();
+
+    // Release/refund held funds back to seeker's Indulge Balance
+    if (transaction.payer && transaction.booking) {
+      try {
+        const refundPaise = rupeesToPaise(transaction.amount);
+        await WalletService.refundBooking({
+          userId: transaction.payer,
+          bookingId: transaction.booking,
+          refundPaise,
+          reason,
+        });
+      } catch (err) {
+        logger.error('Failed to refund wallet balance during transaction refund', { error: err.message });
+      }
+
+      try {
+        await SettlementService.handleBookingRefund({
+          bookingId: transaction.booking,
+          reason,
+        });
+      } catch (err) {
+        logger.error('Failed to update settlement during transaction refund', { error: err.message });
+      }
+    }
 
     return {
       transaction,
