@@ -30,6 +30,7 @@ import { ADMINS } from './seedData.js';
 import { ensureBootstrapAdmin, readBootstrapAdmin, adminPasswordAllowed } from '../config/admin.js';
 import LogisticsJob from '../models/LogisticsJob.js';
 import Requirement from '../models/Requirement.js';
+import { FeeCalculationService } from '../services/fee-calculation.service.js';
 import Transaction from '../models/Transaction.js';
 import ProcurementOrder from '../models/ProcurementOrder.js';
 import Proposal from '../models/Proposal.js';
@@ -5595,12 +5596,21 @@ async function main() {
     token: kalpataru,
     body: { paymentMethod: 'upi', idempotencyKey: `idem_${Date.now()}` },
   });
+  // The transaction amount is the fee-inclusive total (resource price + GST +
+  // platform fee), not the raw agreedPrice — compute it the same way the
+  // /pay route does rather than assuming a category-independent flat number.
+  const expectedPaymentTotal = FeeCalculationService.calculateBookingFees({
+    resourcePrice: 5000,
+    quantity: 1,
+    category: testListing.category,
+  }).total;
   check(
     '7A-6. Simulated payment succeeds and confirms booking',
     resPayment.status === 200 &&
       resPayment.body.booking.status === 'confirmed' &&
       resPayment.body.transaction.status === 'simulated_paid' &&
-      resPayment.body.transaction.amount === 5000
+      resPayment.body.transaction.amount === expectedPaymentTotal,
+    `got ${resPayment.body?.transaction?.amount}, expected ${expectedPaymentTotal}`
   );
 
   // 7. Duplicate payment execution idempotent
