@@ -44,10 +44,10 @@ Cue words: budget, under, max, within, around, up to, can spend.
 
 ## Cities and areas
 
-- Mumbai: Mumbai, Bombay, Andheri, Bandra, Powai
+- Mumbai: Mumbai, Bombay, Andheri, Bandra, Powai, Juhu, BKC, Worli, Lower Parel
 - Navi Mumbai: Navi Mumbai, Vashi, Belapur, Kharghar, Panvel
 - Thane: Thane
-- Pune: Pune
+- Pune: Pune, Hinjewadi, Kharadi
 - Bengaluru: Bengaluru, Bangalore
 - Delhi NCR: Delhi, New Delhi, Gurgaon, Noida
 - Hyderabad: Hyderabad
