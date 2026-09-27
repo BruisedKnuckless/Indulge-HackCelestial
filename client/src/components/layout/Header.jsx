@@ -94,6 +94,7 @@ const SEEKER_NAV = [
   { to: "/nearby", label: "Nearby" },
   { to: "/requirements", label: "Requirements" },
   { to: "/bookings/sent", label: "Requests" },
+  { to: "/digital-twin", label: "Digital Twin" },
 ];
 
 const LISTER_NAV = [
@@ -101,6 +102,7 @@ const LISTER_NAV = [
   { to: "/bookings/received", label: "Requests" },
   { to: "/requirements/feed", label: "RFQ Feed" },
   { to: "/analytics", label: "Analytics" },
+  { to: "/digital-twin", label: "Digital Twin" },
 ];
 
 const EXPLORE_OPTIONS = [
@@ -117,6 +119,7 @@ const getBusinessNavGroups = (exploreMode) => [
             { to: "/bookings/sent", label: "Bookings & Orders", icon: CalendarCheck },
             { to: "/requirements", label: "My Requirements", icon: FileText },
             { to: "/requirements/new", label: "Post a Requirement", icon: Sparkles },
+            { to: "/digital-twin", label: "Digital Twin Simulator", icon: Sparkles },
             { to: "/history", label: "History & Records", icon: Clock },
             { to: "/listings", label: "Switch to Listings", icon: Layers },
           ]
@@ -125,6 +128,7 @@ const getBusinessNavGroups = (exploreMode) => [
             { to: "/bookings/received", label: "Incoming Requests", icon: CalendarCheck },
             { to: "/requirements/feed", label: "Supplier RFQ Feed", icon: FileText },
             { to: "/analytics", label: "Analytics & Trust", icon: BarChart3 },
+            { to: "/digital-twin", label: "Digital Twin Simulator", icon: Sparkles },
             { to: "/history", label: "History & Records", icon: Clock },
           ],
   },
@@ -144,6 +148,7 @@ const LOGISTICS_NAV_GROUPS = [
       { to: "/logistics", label: "Logistics Dashboard", icon: BarChart3 },
       { to: "/logistics/jobs", label: "Delivery Jobs", icon: Truck },
       { to: "/logistics/schedule", label: "Fleet Schedule", icon: CalendarCheck },
+      { to: "/digital-twin", label: "Digital Twin Simulator", icon: Sparkles },
       { to: "/history", label: "Trip History", icon: Clock },
     ],
   },

@@ -24,6 +24,8 @@ import {
   Filter,
   RefreshCw,
   Trash2,
+  Sparkles,
+  Compass,
 } from 'lucide-react';
 import api, { errorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -710,6 +712,35 @@ export default function LogisticsDashboard({ view: viewProp }) {
                 })}
               </div>
             </div>
+          </div>
+
+          {/* Digital Twin — Operational Weather Monitoring Banner */}
+          <div className="mb-6 p-4 rounded-2xl border border-indigo-500/20 bg-gradient-to-r from-indigo-500/5 via-surface-alt to-indigo-500/5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0">
+                <Sparkles size={22} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-sm text-ink">
+                    Indulge Digital Twin — Operational Weather Monitoring
+                  </h3>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    Standard Radius: 30 km
+                  </span>
+                </div>
+                <p className="text-xs text-ink-soft mt-0.5">
+                  Simulate severe monsoon impacts, effective service radius contraction (30 km → 15 km), and delivery delay predictions across MMR corridors.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/digital-twin"
+              className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5 shrink-0 self-start md:self-auto shadow-sm"
+            >
+              <Compass size={14} />
+              <span>Launch Digital Twin Simulator</span>
+            </Link>
           </div>
 
           {/* Operational KPIs (4 Cards) */}

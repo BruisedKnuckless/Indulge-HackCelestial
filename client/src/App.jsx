@@ -49,6 +49,9 @@ const TechnicianDashboard = lazy(() => import('./pages/technician/TechnicianDash
 const InspectionDetails = lazy(() => import('./pages/technician/InspectionDetails'));
 const InspectionExecution = lazy(() => import('./pages/technician/InspectionExecution'));
 const InspectionReport = lazy(() => import('./pages/technician/InspectionReport'));
+// Dev-only — weather pipeline test console
+const WeatherTest = lazy(() => import('./pages/WeatherTest'));
+const DigitalTwin = lazy(() => import('./pages/DigitalTwin'));
 import TechnicianLogin from './pages/technician/TechnicianLogin';
 import TechnicianRegister from './pages/technician/TechnicianRegister';
 import TechnicianShell from './components/technician/TechnicianShell';
@@ -212,6 +215,9 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
+        {/* Weather API test console — dev / QA only */}
+        <Route path="/weather-test" element={<Suspense fallback={<Spinner />}><WeatherTest /></Suspense>} />
+
         {/* Platform admin — its own sign-in, session and chrome. */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route
@@ -360,6 +366,10 @@ export default function App() {
                       <Analytics />
                     </RequireBusinessAuth>
                   }
+                />
+                <Route
+                  path="/digital-twin"
+                  element={<DigitalTwin />}
                 />
                 <Route
                   path="/logistics"
