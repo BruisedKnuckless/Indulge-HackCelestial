@@ -7631,6 +7631,40 @@ async function main() {
       g4.status === 200 && g4.body.ai.provider === 'nugen' && geminiInvoked === false
     );
 
+    // Real Gemini quirks, learned the hard way: a model that rejects a thinking
+    // level (400) must be retried without it, and Google's frequent 503
+    // "high demand" gets one retry.
+    let thinkingCalls = [];
+    setIntakeModelForTests(null);
+    setGeminiClientForTests({
+      models: {
+        generateContent: async ({ config }) => {
+          thinkingCalls.push(Boolean(config.thinkingConfig));
+          if (config.thinkingConfig) throw Object.assign(new Error('Thinking level LOW is not supported for this model'), { status: 400 });
+          return { text: JSON.stringify(GOOD) };
+        },
+      },
+    });
+    const g5 = await parse(TEXT, orchidT);
+    check(
+      'RFQ-13. A Gemini model that rejects a thinking level is retried without it',
+      g5.body?.ai?.provider === 'gemini' && thinkingCalls.join() === 'true,false',
+      thinkingCalls.join()
+    );
+
+    let calls503 = 0;
+    setGeminiClientForTests({
+      models: {
+        generateContent: async () => {
+          calls503 += 1;
+          if (calls503 === 1) throw Object.assign(new Error('high demand'), { status: 503 });
+          return { text: JSON.stringify(GOOD) };
+        },
+      },
+    });
+    const g6 = await parse(TEXT, orchidT);
+    check('RFQ-14. A transient Gemini 503 is retried once and then succeeds', g6.body?.ai?.provider === 'gemini' && calls503 === 2, `calls ${calls503}`);
+
     setIntakeModelForTests(null);
     setGeminiClientForTests(null);
     if (savedEnv.key !== undefined) process.env.NUGEN_API_KEY = savedEnv.key;
