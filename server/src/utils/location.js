@@ -10,16 +10,17 @@ export function resolveDefaultCoordinates(loc) {
     return [Number(loc.longitude), Number(loc.latitude)];
   }
   const text = `${loc?.city || ''} ${loc?.address || ''} ${loc?.formattedAddress || ''} ${loc?.state || ''}`.toLowerCase();
-  if (text.includes('mumbai') || text.includes('bombay') || text.includes('andheri') || text.includes('bkc') || text.includes('bandra') || text.includes('juhu') || text.includes('powai')) {
-    return [72.8777, 19.0760];
-  }
-  if (text.includes('navi mumbai') || text.includes('vashi') || text.includes('belapur') || text.includes('mahape')) {
+  // Navi Mumbai first: "navi mumbai" also contains "mumbai".
+  if (text.includes('navi mumbai') || text.includes('vashi') || text.includes('belapur') || text.includes('mahape') || text.includes('kharghar') || text.includes('panvel')) {
     return [73.0297, 19.0330];
+  }
+  if (text.includes('mumbai') || text.includes('bombay') || text.includes('andheri') || text.includes('bkc') || text.includes('bandra') || text.includes('juhu') || text.includes('powai') || text.includes('worli') || text.includes('lower parel')) {
+    return [72.8777, 19.0760];
   }
   if (text.includes('kalyan')) return [73.1355, 19.2437];
   if (text.includes('dombivli')) return [73.0970, 19.2144];
   if (text.includes('bhiwandi')) return [73.0631, 19.2967];
-  if (text.includes('pune')) return [73.8567, 18.5204];
+  if (text.includes('pune') || text.includes('hinjewadi') || text.includes('kharadi')) return [73.8567, 18.5204];
   if (text.includes('bengaluru') || text.includes('bangalore')) return [77.5946, 12.9716];
   if (text.includes('delhi') || text.includes('gurgaon') || text.includes('noida')) return [77.2090, 28.6139];
   if (text.includes('hyderabad')) return [78.4867, 17.3850];

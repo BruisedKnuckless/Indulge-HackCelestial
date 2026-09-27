@@ -1,0 +1,25 @@
+{
+  "promptVersion": "rfq-intake-1.0",
+  "datasetHash": "ceebc35c12d24887",
+  "sizes": {
+    "train": 900,
+    "benchmark": 40,
+    "test": 150
+  },
+  "seeds": {
+    "train": 7,
+    "benchmark": 1001,
+    "test": 2002
+  },
+  "templates": {
+    "train": 28,
+    "heldout": 12
+  },
+  "files": {
+    "train": "rfq-intake-train.jsonl",
+    "guide": "rfq-intake-guide.md",
+    "benchmark": "rfq-intake-benchmark.json",
+    "test": "rfq-intake-test.jsonl",
+    "manifest": "manifest.json"
+  }
+}

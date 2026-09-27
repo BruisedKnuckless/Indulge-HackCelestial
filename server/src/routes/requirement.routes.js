@@ -14,7 +14,9 @@ import { solveRequirementProcurement } from '../services/procurement-solver.serv
 import { executeProcurementPlan } from '../services/procurement-execution.service.js';
 import { ensureLogisticsJobForBooking } from '../services/logistics.service.js';
 import CapacityRecoveryOpportunity from '../models/CapacityRecoveryOpportunity.js';
-import { validate, createRequirementSchema, executeProcurementPlanSchema } from '../middleware/validate.middleware.js';
+import { validate, createRequirementSchema, executeProcurementPlanSchema, parseRequirementTextSchema } from '../middleware/validate.middleware.js';
+import RfqIntake from '../models/RfqIntake.js';
+import { parseRequirementText } from '../ml/rfq/intake.js';
 
 const router = Router();
 
@@ -27,6 +29,60 @@ const POPULATE = [
   { path: 'resultingBooking' },
   { path: 'fulfilledBooking' },
 ];
+
+/**
+ * POST /api/requirements/parse { text, today? }
+ * Smart intake: the Nugen-aligned model (via LangChain) plus grounding and the
+ * rule parser turn a free-text request into a draft for the Post Requirement
+ * form. Creates nothing but the RfqIntake log; the seeker reviews the draft
+ * and posts it through POST /api/requirements, which validates everything again.
+ */
+router.post(
+  '/parse',
+  requireAuth,
+  requireBusinessUser,
+  validate(parseRequirementTextSchema),
+  asyncHandler(async (req, res) => {
+    const { text, today } = req.body;
+    const result = await parseRequirementText(text, { today });
+    const intake = await RfqIntake.create({
+      user: req.user._id,
+      text,
+      today: result.today,
+      output: result.output,
+      draft: result.draft,
+      fieldSources: result.fieldSources,
+      check: result.check,
+      dropped: result.dropped,
+      ai: result.ai,
+    });
+    res.json({
+      intakeId: intake._id,
+      draft: result.draft,
+      fieldSources: result.fieldSources,
+      check: result.check,
+      dropped: result.dropped,
+      ai: result.ai,
+    });
+  })
+);
+
+/** The seeker's own, not-yet-used intake → provenance for the new requirement. */
+async function intakeProvenance(intakeId, userId) {
+  if (!intakeId || !/^[a-f\d]{24}$/i.test(String(intakeId))) return null;
+  const intake = await RfqIntake.findOne({ _id: intakeId, user: userId, requirement: null }).lean();
+  if (!intake) return null;
+  const usedModel = intake.ai?.status === 'ok' && Object.values(intake.fieldSources || {}).includes('nugen');
+  return {
+    intake: intake._id,
+    intakeSummary: {
+      source: usedModel ? 'nugen' : 'rules',
+      model: usedModel ? intake.ai.model : null,
+      aligned: usedModel ? Boolean(intake.ai.aligned) : false,
+      confidenceScore: usedModel ? intake.ai.confidenceScore ?? null : null,
+    },
+  };
+}
 
 /**
  * POST /api/requirements
@@ -82,7 +138,10 @@ router.post(
       throw new HttpError(400, 'Set your business location before posting a requirement.');
     }
 
+    const provenance = await intakeProvenance(req.body.intakeId, req.user._id);
+
     const requirement = await Requirement.create({
+      ...(provenance || {}),
       seeker: req.user._id,
       title: title.trim(),
       category,
@@ -95,19 +154,33 @@ router.post(
       maxPrice: budget,
       startDateTime: start,
       endDateTime: end,
-      location: {
-        address: location?.address || req.user.location?.address,
-        city: location?.city || req.user.location?.city,
-        pincode: location?.pincode || req.user.location?.pincode,
-        coordinates: coords,
-        radiusKm: Number(radiusKm) || 25,
-      },
+      // A location sent with its own coordinates (e.g. a city named in the
+      // smart intake) does not borrow the seeker's street address.
+      location: location?.coordinates?.length
+        ? {
+            address: location.address || location.city,
+            city: location.city,
+            pincode: location.pincode,
+            coordinates: coords,
+            radiusKm: Number(radiusKm) || 25,
+          }
+        : {
+            address: location?.address || req.user.location?.address,
+            city: location?.city || req.user.location?.city,
+            pincode: location?.pincode || req.user.location?.pincode,
+            coordinates: coords,
+            radiusKm: Number(radiusKm) || 25,
+          },
       radiusKm: Number(radiusKm) || 25,
       additionalConstraints: req.body.additionalConstraints || undefined,
       urgency,
       offers: [],
       status: 'open',
     });
+
+    if (provenance) {
+      await RfqIntake.updateOne({ _id: provenance.intake, requirement: null }, { $set: { requirement: requirement._id } });
+    }
 
     // Asynchronously identify matching providers nearby and notify them
     try {

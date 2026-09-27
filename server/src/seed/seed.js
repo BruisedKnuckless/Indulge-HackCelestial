@@ -15,6 +15,7 @@ import RequestEvent from '../models/RequestEvent.js';
 import VerificationRequest from '../models/VerificationRequest.js';
 import InspectionProtocol from '../models/InspectionProtocol.js';
 import CustodyEvent from '../models/CustodyEvent.js';
+import RfqIntake from '../models/RfqIntake.js';
 import { seedInspections, TECHNICIANS } from './seedVerification.js';
 import { ADMINS, BUSINESSES, RESOURCES } from './seedData.js';
 import { estimatePrice } from '../utils/pricing.js';
@@ -69,6 +70,7 @@ export async function runSeed({ quiet = false } = {}) {
     VerificationRequest.deleteMany({}),
     InspectionProtocol.deleteMany({}),
     CustodyEvent.deleteMany({}),
+    RfqIntake.deleteMany({}),
   ]);
 
   const passwordHash = await User.hashPassword(DEMO_PASSWORD);

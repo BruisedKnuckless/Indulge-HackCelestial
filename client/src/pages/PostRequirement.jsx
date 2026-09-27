@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Check, Info, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Check, Info, AlertTriangle, ArrowLeft, MapPin, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSearch, useRequirement, useRequirementActions } from '../hooks/queries';
 import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../api/client';
 import ResourceCard from '../components/ResourceCard';
+import SmartIntake from '../components/requirements/SmartIntake';
 import { Alert, Spinner } from '../components/ui';
 import { CATEGORIES } from '../lib/constants';
 import { toLocalInput, defaultWindow } from '../lib/format';
@@ -41,6 +42,9 @@ export default function PostRequirement() {
   });
 
   const [initialData, setInitialData] = useState(null);
+  // Smart intake: which fields the model / rules filled, and the city it read.
+  const [intake, setIntake] = useState(null);
+  const [intakeLocation, setIntakeLocation] = useState(null);
   const [previewed, setPreviewed] = useState(false);
   const [posting, setPosting] = useState(false);
 
@@ -67,7 +71,41 @@ export default function PostRequirement() {
     }
   }, [editing, reqData, initial]);
 
-  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const set = (key) => (e) => {
+    setForm((f) => ({ ...f, [key]: e.target.value }));
+    // Once the seeker edits a field it is theirs, not the model's.
+    const tagKey = key === 'start' || key === 'end' ? 'dates' : key;
+    setIntake((i) => (i?.fieldSources?.[tagKey] || i?.check?.includes(tagKey)
+      ? { ...i, fieldSources: { ...i.fieldSources, [tagKey]: undefined }, check: i.check.filter((c) => c !== tagKey) }
+      : i));
+  };
+
+  const applyDraft = ({ intakeId, draft, fieldSources, check }) => {
+    setForm((f) => ({
+      ...f,
+      ...(draft.title && { title: draft.title }),
+      ...(draft.category && { category: draft.category }),
+      ...(draft.description && { description: draft.description }),
+      ...(draft.quantity && { quantity: draft.quantity }),
+      ...(draft.unit && { unit: draft.unit }),
+      ...(draft.minCapacity && { minCapacity: draft.minCapacity }),
+      ...(draft.maxPrice && { maxPrice: draft.maxPrice }),
+      ...(draft.urgency && { urgency: draft.urgency }),
+      ...(draft.start && { start: draft.start, end: draft.end }),
+    }));
+    setIntakeLocation(draft.location || null);
+    setIntake({ intakeId, fieldSources: fieldSources || {}, check: check || [] });
+    setPreviewed(false);
+  };
+
+  // "AI" / "Rules" / "Check" next to a label the smart intake touched.
+  const IntakeTag = ({ field }) => {
+    if (intake?.check?.includes(field)) return <span className="badge-amber ml-1.5">Check</span>;
+    const source = intake?.fieldSources?.[field];
+    if (source === 'nugen') return <span className="badge-indigo ml-1.5">AI</span>;
+    if (source === 'rules') return <span className="badge-muted ml-1.5">Rules</span>;
+    return null;
+  };
 
   const currentReq = reqData?.requirement;
   const isOwner = currentReq && user ? String(currentReq.seeker?._id || currentReq.seeker) === String(user._id) : true;
@@ -150,6 +188,8 @@ export default function PostRequirement() {
         startDateTime: new Date(form.start).toISOString(),
         endDateTime: new Date(form.end).toISOString(),
         urgency: form.urgency,
+        ...(!editing && intakeLocation && { location: intakeLocation }),
+        ...(!editing && intake?.intakeId && { intakeId: intake.intakeId }),
       };
 
       if (editing) {
@@ -238,8 +278,28 @@ export default function PostRequirement() {
         )}
       </header>
 
+      {!editing && <SmartIntake onApply={applyDraft} />}
+
       <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-12">
         <div>
+          {!editing && intakeLocation && (
+            <div className="flex items-center gap-2 mb-5 text-sm">
+              <MapPin size={14} className="text-ink-soft" />
+              <span className="text-ink-soft">
+                Posting for <strong className="text-ink">{intakeLocation.city}</strong>, from your description
+              </span>
+              <IntakeTag field="location" />
+              <button
+                type="button"
+                onClick={() => setIntakeLocation(null)}
+                className="text-ink-mute hover:text-ink"
+                aria-label="Use my business location instead"
+                title="Use my business location instead"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -248,7 +308,7 @@ export default function PostRequirement() {
             className="space-y-5"
           >
             <div>
-              <label className="label">Title</label>
+              <label className="label">Title<IntakeTag field="title" /></label>
               <input
                 value={form.title}
                 onChange={set('title')}
@@ -258,7 +318,7 @@ export default function PostRequirement() {
             </div>
 
             <div>
-              <label className="label">Category</label>
+              <label className="label">Category<IntakeTag field="category" /></label>
               <select value={form.category} onChange={set('category')} className="field-select w-full">
                 {CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -269,7 +329,7 @@ export default function PostRequirement() {
             </div>
 
             <div>
-              <label className="label">Details / Specifications</label>
+              <label className="label">Details / Specifications<IntakeTag field="description" /></label>
               <textarea
                 rows={3}
                 value={form.description}
@@ -281,7 +341,7 @@ export default function PostRequirement() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Quantity</label>
+                <label className="label">Quantity<IntakeTag field="quantity" /></label>
                 <input
                   type="number"
                   min="1"
@@ -292,7 +352,7 @@ export default function PostRequirement() {
                 />
               </div>
               <div>
-                <label className="label">Min. Capacity</label>
+                <label className="label">Min. Capacity<IntakeTag field="minCapacity" /></label>
                 <input
                   type="number"
                   min="0"
@@ -306,7 +366,7 @@ export default function PostRequirement() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">From</label>
+                <label className="label">From<IntakeTag field="dates" /></label>
                 <input
                   type="datetime-local"
                   value={form.start}
@@ -329,7 +389,7 @@ export default function PostRequirement() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Budget Cap (₹)</label>
+                <label className="label">Budget Cap (₹)<IntakeTag field="maxPrice" /></label>
                 <input
                   type="number"
                   min="0"
@@ -364,7 +424,7 @@ export default function PostRequirement() {
             </div>
 
             <div>
-              <label className="label">Urgency</label>
+              <label className="label">Urgency<IntakeTag field="urgency" /></label>
               <select value={form.urgency} onChange={set('urgency')} className="field-select w-full">
                 <option value="low">Planning ahead</option>
                 <option value="medium">Normal urgency</option>

@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-09-26T22:48:10.891Z",
+  "promptVersion": "rfq-intake-1.0",
+  "datasetHash": null,
+  "models": {
+    "base": null,
+    "aligned": null
+  },
+  "sets": {
+    "test": {
+      "rules": {
+        "n": 150,
+        "fieldAccuracy": {
+          "category": 100,
+          "quantity": 100,
+          "unit": 100,
+          "minCapacity": 100,
+          "budget": 100,
+          "city": 100,
+          "dateText": 100,
+          "startTime": 100,
+          "endTime": 100,
+          "urgency": 100
+        },
+        "meanFieldAccuracy": 100,
+        "allFieldsCorrect": 100,
+        "jsonValid": 100,
+        "meanConfidence": null,
+        "p50LatencyMs": null
+      }
+    },
+    "handwritten": {
+      "rules": {
+        "n": 30,
+        "fieldAccuracy": {
+          "category": 56.7,
+          "quantity": 43.3,
+          "unit": 63.3,
+          "minCapacity": 90,
+          "budget": 93.3,
+          "city": 100,
+          "dateText": 96.7,
+          "startTime": 96.7,
+          "endTime": 96.7,
+          "urgency": 100
+        },
+        "meanFieldAccuracy": 83.7,
+        "allFieldsCorrect": 26.7,
+        "jsonValid": 100,
+        "meanConfidence": null,
+        "p50LatencyMs": null
+      }
+    }
+  }
+}

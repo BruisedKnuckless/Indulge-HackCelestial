@@ -5,3 +5,6 @@ dist/
 *.log
 server/public/uploads/*
 !server/public/uploads/.gitkeep
+
+# Nugen alignment progress (ids only; per machine)
+server/src/ml/rfq/data/.align-state.json

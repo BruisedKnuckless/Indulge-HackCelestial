@@ -255,6 +255,15 @@ export const createRequirementSchema = z.object({
   urgency: z.enum(['low', 'medium', 'high']).optional(),
 }).passthrough();
 
+// Smart intake: free text in, a draft out (nothing is created).
+export const parseRequirementTextSchema = z.object({
+  text: z.string().trim().min(3, 'Describe what you need.').max(1000, 'Keep it under 1000 characters.'),
+  today: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'today must be YYYY-MM-DD.')
+    .optional(),
+});
+
 /* ── 4. Procurement Execution Schema ─────────────────────────────────────── */
 
 export const executeProcurementPlanSchema = z
