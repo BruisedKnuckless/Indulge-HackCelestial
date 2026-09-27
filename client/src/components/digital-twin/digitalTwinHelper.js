@@ -9,13 +9,35 @@
  * - Standard logistics service radius = 30 km.
  */
 
-// Well-known Indulge cities with coordinates
+// Well-known Indulge metropolitan hubs with coordinates
 export const CITIES = [
-  { name: 'Thane', lat: 19.2183, lon: 72.9781 },
-  { name: 'Mumbai', lat: 19.0760, lon: 72.8777 },
-  { name: 'Navi Mumbai', lat: 19.0330, lon: 73.0297 },
-  { name: 'Pune', lat: 18.5204, lon: 73.8567 },
-  { name: 'Nashik', lat: 19.9975, lon: 73.7898 },
+  // Mumbai Metropolitan Region (MMR) & Maharashtra Core
+  { name: 'Thane', lat: 19.2183, lon: 72.9781, state: 'Maharashtra', region: 'MMR' },
+  { name: 'Mumbai', lat: 19.0760, lon: 72.8777, state: 'Maharashtra', region: 'MMR' },
+  { name: 'Navi Mumbai', lat: 19.0330, lon: 73.0297, state: 'Maharashtra', region: 'MMR' },
+  { name: 'Kalyan-Dombivli', lat: 19.2437, lon: 73.1355, state: 'Maharashtra', region: 'MMR' },
+  { name: 'Bhiwandi', lat: 19.2967, lon: 73.0631, state: 'Maharashtra', region: 'MMR' },
+  { name: 'Mira-Bhayandar', lat: 19.2952, lon: 72.8544, state: 'Maharashtra', region: 'MMR' },
+  { name: 'Vasai-Virar', lat: 19.3919, lon: 72.8397, state: 'Maharashtra', region: 'MMR' },
+  { name: 'Pune', lat: 18.5204, lon: 73.8567, state: 'Maharashtra', region: 'Western India' },
+  { name: 'Nashik', lat: 19.9975, lon: 73.7898, state: 'Maharashtra', region: 'Northern Maharashtra' },
+  { name: 'Nagpur', lat: 21.1458, lon: 79.0882, state: 'Maharashtra', region: 'Vidarbha' },
+  { name: 'Chhatrapati Sambhajinagar', lat: 19.8762, lon: 75.3433, state: 'Maharashtra', region: 'Marathwada' },
+
+  // Pan-India Metros & Economic Hubs
+  { name: 'Bengaluru', lat: 12.9716, lon: 77.5946, state: 'Karnataka', region: 'South India' },
+  { name: 'Delhi NCR', lat: 28.6139, lon: 77.2090, state: 'Delhi NCR', region: 'North India' },
+  { name: 'Hyderabad', lat: 17.3850, lon: 78.4867, state: 'Telangana', region: 'South India' },
+  { name: 'Chennai', lat: 13.0827, lon: 80.2707, state: 'Tamil Nadu', region: 'South India' },
+  { name: 'Kolkata', lat: 22.5726, lon: 88.3639, state: 'West Bengal', region: 'East India' },
+  { name: 'Ahmedabad', lat: 23.0225, lon: 72.5714, state: 'Gujarat', region: 'West India' },
+  { name: 'Surat', lat: 21.1702, lon: 72.8311, state: 'Gujarat', region: 'West India' },
+  { name: 'Jaipur', lat: 26.9124, lon: 75.7873, state: 'Rajasthan', region: 'North India' },
+  { name: 'Lucknow', lat: 26.8467, lon: 80.9462, state: 'Uttar Pradesh', region: 'North India' },
+  { name: 'Chandigarh', lat: 30.7333, lon: 76.7794, state: 'Punjab/Haryana', region: 'North India' },
+  { name: 'Indore', lat: 22.7196, lon: 75.8577, state: 'Madhya Pradesh', region: 'Central India' },
+  { name: 'Goa (Panaji)', lat: 15.4909, lon: 73.8278, state: 'Goa', region: 'West India' },
+  { name: 'Kochi', lat: 9.9312, lon: 76.2673, state: 'Kerala', region: 'South India' },
 ];
 
 // Default standard logistics radius in kilometers
@@ -46,7 +68,7 @@ export const PRESET_SCENARIOS = [
     description: 'Monsoon showers · ~25 km effective radius · Slight transport delay',
     scenario: {
       rainfallMmPerHour: 40,
-      temperature: 26,
+      temperature: 28,
       windSpeedMps: 8,
       durationHours: 2,
     },
@@ -117,29 +139,32 @@ export function getDistanceZone(distanceKm) {
 }
 
 /**
- * Weather-Aware Simulated Effective Radius
- * NORMAL: Effective radius = 30 km
- * MODERATE WEATHER: Effective radius = 25 km
- * HEAVY RAIN / HIGH IMPACT: Effective radius = 20 km
- * SEVERE STORM: Effective radius = 10–15 km
+ * Weather-Aware Simulated Effective Radius (30 KM LOGISTICS RULE)
+ * - Normal = 30 km
+ * - Moderate = 25 km
+ * - Heavy = 20 km
+ * - Severe / Extreme = 15 km
  */
 export function getEffectiveRadius(weatherClass, score = 0) {
   if (!weatherClass) return STANDARD_LOGISTICS_RADIUS_KM;
 
   const s = Number(score) || 0;
-  const isStorm = weatherClass.isStorm || s >= 65;
   const severity = weatherClass.severity || 'mild';
+  const isStorm = weatherClass.isStorm || s >= 50;
 
-  if (isStorm || s >= 75) {
-    // Severe storm window: 10–15 km
-    return Math.max(10, Math.min(15, Math.round(30 - (s / 100) * 20)));
-  }
-  if (severity === 'severe' || s >= 50) {
+  // Severe: 15 km
+  if (severity === 'extreme' || severity === 'severe' || isStorm || s >= 50) {
     return 15;
   }
+  // Heavy: 20 km
+  if (weatherClass.rainfallBand === 'rainfall_heavy' || s >= 40) {
+    return 20;
+  }
+  // Moderate: 25 km
   if (severity === 'moderate' || s >= 25) {
     return 25;
   }
+  // Normal: 30 km
   return STANDARD_LOGISTICS_RADIUS_KM;
 }
 
@@ -201,18 +226,18 @@ export function getLogisticsRiskStatus(disruptionProbability = 0, distanceKm = 1
 
   if (dp >= 0.8 || (dp >= 0.6 && exceedsRadius)) {
     return {
-      statusText: 'RESCHEDULE RECOMMENDED',
-      badgeLabel: '🚨 RESCHEDULE RECOMMENDED',
+      statusText: 'AT RISK',
+      badgeLabel: '⚠ AT RISK',
       tone: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30',
       level: 'critical',
       dotColor: '#EF4444',
-      recommendation: 'Assign a closer logistics partner or reschedule delivery.',
+      recommendation: 'Delivery distance exceeds simulated radius — reschedule or assign closer partner.',
     };
   }
-  if (dp >= 0.55 || (dp >= 0.4 && exceedsRadius)) {
+  if (dp >= 0.55 || (dp >= 0.4 && exceedsRadius) || exceedsRadius) {
     return {
       statusText: 'AT RISK',
-      badgeLabel: '🚨 AT RISK',
+      badgeLabel: '⚠ AT RISK',
       tone: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30',
       level: 'severe',
       dotColor: '#F43F5E',

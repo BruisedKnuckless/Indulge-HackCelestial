@@ -61,8 +61,11 @@ const capture = RunnableLambda.from((message) => ({
 
 const jsonParser = new JsonOutputParser();
 
-/** JsonOutputParser handles code fences; small models also wrap JSON in prose. */
-async function parseJson(text) {
+/**
+ * JsonOutputParser handles code fences; small models also wrap JSON in prose.
+ * Shared with gemini.js, so every provider's reply is parsed the same way.
+ */
+export async function parseModelJson(text) {
   try {
     const out = await jsonParser.parse(text);
     if (out && typeof out === 'object' && !Array.isArray(out)) return out;
@@ -78,7 +81,7 @@ async function parseJson(text) {
   throw new SyntaxError('The model reply was not a JSON object');
 }
 
-const parse = RunnableLambda.from(async (captured) => ({ ...captured, output: await parseJson(captured.text) }));
+const parse = RunnableLambda.from(async (captured) => ({ ...captured, output: await parseModelJson(captured.text) }));
 
 /**
  * Build the chain around a chat model — the Nugen ChatOpenAI in production, a

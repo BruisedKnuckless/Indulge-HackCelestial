@@ -29,6 +29,10 @@ import {
   Send,
   Navigation,
   AlertCircle,
+  Radio,
+  Search,
+  X,
+  Crosshair,
 } from 'lucide-react';
 import api, { errorMessage } from '../../api/client';
 import { inr, dateTime } from '../../lib/format';
@@ -43,16 +47,28 @@ import {
   getLogisticsRiskStatus,
   getBookingRiskInfo,
 } from './digitalTwinHelper';
+import DigitalTwinMap from './DigitalTwinMap';
+import PublicSignalsPanel from './PublicSignalsPanel';
 
 export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = false }) {
   const navigate = useNavigate();
 
-  // Selected city & coordinates
+  // Selected city & coordinates (Supports presets, Live GPS, and custom search)
   const [selectedCityName, setSelectedCityName] = useState(initialCity);
-  const selectedCity = useMemo(
-    () => CITIES.find((c) => c.name.toLowerCase() === selectedCityName.toLowerCase()) || CITIES[0],
-    [selectedCityName]
-  );
+  const [customLocation, setCustomLocation] = useState(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+
+  const selectedCity = useMemo(() => {
+    if (customLocation && customLocation.name.toLowerCase() === selectedCityName.toLowerCase()) {
+      return customLocation;
+    }
+    const found = CITIES.find((c) => c.name.toLowerCase() === selectedCityName.toLowerCase());
+    return found || customLocation || CITIES[0];
+  }, [selectedCityName, customLocation]);
 
   // Live weather state
   const [liveWeather, setLiveWeather] = useState(null);
@@ -105,7 +121,11 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
 
       try {
         const payload = {
-          location: selectedCity.name,
+          location: {
+            name: selectedCity.name,
+            lat: selectedCity.lat,
+            lon: selectedCity.lon,
+          },
           scenario: {
             rainfallMmPerHour: Number(targetScenario.rainfallMmPerHour) || 0,
             temperature: Number(targetScenario.temperature) || 25,
@@ -135,30 +155,162 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
     [selectedCity, scenario]
   );
 
-  // Initial load: fetch live weather and run initial simulation
+  // Initial load / location change: fetch live weather and run simulation
   useEffect(() => {
     fetchLiveWeather(selectedCity);
     runSimulation();
-  }, [selectedCity.name]);
+  }, [selectedCity.name, selectedCity.lat, selectedCity.lon]);
+
+  // Live Browser GPS Geolocation
+  const handleUseLiveLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.');
+      return;
+    }
+    setGpsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(4));
+        const lon = Number(pos.coords.longitude.toFixed(4));
+
+        let detectedName = 'Live Location';
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            detectedName =
+              data.address?.city ||
+              data.address?.town ||
+              data.address?.suburb ||
+              data.address?.district ||
+              data.address?.state_district ||
+              'Current Location';
+          }
+        } catch {
+          const closest = CITIES.reduce((prev, curr) => {
+            const dPrev = Math.hypot(prev.lat - lat, prev.lon - lon);
+            const dCurr = Math.hypot(curr.lat - lat, curr.lon - lon);
+            return dCurr < dPrev ? curr : prev;
+          });
+          detectedName = closest.name;
+        }
+
+        const newLoc = { name: detectedName, lat, lon, isLiveGps: true };
+        setCustomLocation(newLoc);
+        setSelectedCityName(detectedName);
+        setGpsLoading(false);
+        toast.success(`📍 Live GPS Hub Set: ${detectedName} (${lat}, ${lon})`);
+      },
+      (err) => {
+        setGpsLoading(false);
+        console.warn('Geolocation error:', err);
+        toast.error('Unable to retrieve GPS coordinates. Please allow location permissions in your browser.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  // Dynamic search across preset CITIES + OpenStreetMap Nominatim for any location
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      const q = searchQuery.toLowerCase().trim();
+
+      // 1. Instant local filter
+      const localMatches = CITIES.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.state?.toLowerCase().includes(q) ||
+          c.region?.toLowerCase().includes(q)
+      );
+
+      // 2. OpenStreetMap geocoding restricted exclusively to India (countrycodes=in)
+      let remoteMatches = [];
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+            searchQuery
+          )}&format=json&addressdetails=1&countrycodes=in&limit=8`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          remoteMatches = data
+            .filter((item) => {
+              const cc = item.address?.country_code?.toLowerCase();
+              return !cc || cc === 'in';
+            })
+            .map((item) => ({
+              name: item.name || item.display_name.split(',')[0],
+              displayName: item.display_name,
+              lat: Number(Number(item.lat).toFixed(4)),
+              lon: Number(Number(item.lon).toFixed(4)),
+              state: item.address?.state || 'India',
+              isRemote: true,
+            }));
+        }
+      } catch (e) {
+        console.warn('Geocoding search error:', e);
+      }
+
+      const combined = [...localMatches];
+      for (const rm of remoteMatches) {
+        if (!combined.some((c) => Math.hypot(c.lat - rm.lat, c.lon - rm.lon) < 0.05)) {
+          combined.push(rm);
+        }
+      }
+
+      setSearchResults(combined.slice(0, 8));
+      setSearching(false);
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSelectLocation = (loc) => {
+    setCustomLocation(loc);
+    setSelectedCityName(loc.name);
+    setSearchOpen(false);
+    setSearchQuery('');
+    toast.success(`Simulation hub set to ${loc.name}`);
+  };
 
   // Handle switching to Live Weather Mode
-  const handleUseLiveWeather = () => {
-    if (liveWeather?.current) {
-      const liveScenario = {
-        rainfallMmPerHour: Math.round(liveWeather.current.rainfallIntensity || 0),
-        temperature: Math.round(liveWeather.current.temperature || 26),
-        windSpeedMps: Math.round(liveWeather.current.windSpeed || 2),
-        durationHours: 1,
-      };
-      setScenario(liveScenario);
-      setIsLiveMode(true);
-      runSimulation(liveScenario, true);
-      toast.success(`Live weather inputs applied for ${selectedCity.name}`);
-    } else {
-      setIsLiveMode(true);
-      runSimulation(null, true);
-      toast.success(`Fetching live weather pipeline for ${selectedCity.name}`);
+  const handleUseLiveWeather = async () => {
+    let currentLive = liveWeather?.current;
+    if (!currentLive) {
+      try {
+        setLiveLoading(true);
+        const res = await api.get(`/weather?lat=${selectedCity.lat}&lon=${selectedCity.lon}`);
+        if (res.data?.available && res.data.current) {
+          setLiveWeather(res.data);
+          currentLive = res.data.current;
+        }
+      } catch (err) {
+        console.warn('Live weather fetch error:', err);
+      } finally {
+        setLiveLoading(false);
+      }
     }
+
+    const liveScenario = {
+      rainfallMmPerHour: Math.round(currentLive?.rainfallIntensity || 0),
+      temperature: Math.round(currentLive?.temperature || 26),
+      windSpeedMps: Math.round(currentLive?.windSpeed || 2),
+      durationHours: 1,
+    };
+    setScenario(liveScenario);
+    setIsLiveMode(true);
+    runSimulation(liveScenario, true);
+    toast.success(`Live weather inputs applied for ${selectedCity.name}`);
   };
 
   // Handle manual scenario change
@@ -255,13 +407,17 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
 
   // ETA and delay calculations for the logistics job
   const logisticsDelayInfo = useMemo(() => {
-    // If disruption is high, calculate simulated delay
-    const delayHours =
-      weatherClass.score >= 50
-        ? Math.max(1.75, primaryLogisticsJob.estimatedDelayHours || 1.75)
-        : weatherClass.score >= 25
-        ? 0.5
-        : 0;
+    // Severe storm scenario produces standard +1h 45m delay (10:30 AM -> 12:15 PM)
+    const isSevere =
+      (scenario.rainfallMmPerHour >= 80 && scenario.durationHours >= 4) ||
+      weatherClass.severity === 'severe' ||
+      weatherClass.score >= 50;
+
+    const delayHours = isSevere
+      ? 1.75
+      : weatherClass.score >= 25
+      ? 0.5
+      : 0;
 
     const eta = calculateSimulatedETA(null, delayHours);
     const risk = getLogisticsRiskStatus(
@@ -341,28 +497,67 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
               </span>
             </div>
             <p className="text-sm text-ink-soft mt-1">
-              Simulates real-world weather disruptions on Indulge bookings, logistics, and resource availability without mutating MongoDB records.
+              Simulates real-world weather disruptions on Indulge bookings, logistics, and resource availability. <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">Simulation only — operational data unchanged.</strong>
             </p>
           </div>
 
-          {/* Mode Indicator & Location Picker */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-xl border border-line text-sm">
-              <MapPin size={16} className="text-indigo-500" />
+          {/* Mode Indicator & Location Controls */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* 1. Hub Dropdown (25+ Cities with dark-mode safe options) */}
+            <div className="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-xl border border-line text-sm shadow-xs">
+              <MapPin size={16} className="text-indigo-500 shrink-0" />
               <select
                 id="digital-twin-city-select"
                 value={selectedCityName}
-                onChange={(e) => setSelectedCityName(e.target.value)}
+                onChange={(e) => {
+                  setSelectedCityName(e.target.value);
+                  const found = CITIES.find((c) => c.name === e.target.value);
+                  if (found) setCustomLocation(null);
+                }}
                 className="bg-transparent text-ink font-medium focus:outline-none cursor-pointer text-sm"
               >
+                {customLocation && !CITIES.some((c) => c.name === customLocation.name) && (
+                  <option
+                    value={customLocation.name}
+                    className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold"
+                  >
+                    📍 {customLocation.name} (Custom / GPS)
+                  </option>
+                )}
                 {CITIES.map((c) => (
-                  <option key={c.name} value={c.name}>
-                    {c.name}
+                  <option
+                    key={c.name}
+                    value={c.name}
+                    className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                  >
+                    {c.name} {c.state ? `(${c.state})` : ''}
                   </option>
                 ))}
               </select>
             </div>
 
+            {/* 2. Live Location GPS Button */}
+            <button
+              onClick={handleUseLiveLocation}
+              disabled={gpsLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-line bg-surface hover:bg-surface-sunk text-ink text-xs font-semibold shadow-xs transition-colors"
+              title="Detect live GPS coordinates from your device"
+            >
+              <Navigation size={13} className={`text-indigo-500 ${gpsLoading ? 'animate-spin' : ''}`} />
+              <span>{gpsLoading ? 'Locating…' : 'Live Location'}</span>
+            </button>
+
+            {/* 3. Search India Location Button */}
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-line bg-surface hover:bg-surface-sunk text-ink text-xs font-semibold shadow-xs transition-colors"
+              title="Search any city or location in India"
+            >
+              <Search size={13} className="text-indigo-500" />
+              <span>Search India</span>
+            </button>
+
+            {/* 4. Live / Counterfactual Badge */}
             <div
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1.5 ${
                 isLiveMode
@@ -379,6 +574,109 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
             </div>
           </div>
         </div>
+
+        {/* ── Search Locations in India Modal Popover ────────────────────────── */}
+        {searchOpen && (
+          <div className="fixed inset-0 z-[600] flex items-start justify-center pt-20 px-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-xl bg-surface dark:bg-zinc-900 border border-line rounded-2xl p-5 shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-line mb-4">
+                <div className="flex items-center gap-2">
+                  <Search size={18} className="text-indigo-500" />
+                  <h3 className="font-bold text-ink text-base">Search Locations in India</h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    🇮🇳 India Only
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setSearchOpen(false);
+                    setSearchQuery('');
+                  }}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-mute hover:text-ink hover:bg-surface-sunk transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Search Input */}
+              <div className="relative mb-3">
+                <input
+                  autoFocus
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search any Indian city, suburb, or district (e.g. Kalyan, Bandra, Powai, Bengaluru)..."
+                  className="w-full px-4 py-2.5 pl-10 rounded-xl bg-surface-alt border border-line text-ink placeholder:text-ink-mute text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                />
+                <Search size={16} className="absolute left-3.5 top-3.5 text-ink-mute" />
+                {searching && (
+                  <RefreshCw size={15} className="absolute right-3.5 top-3.5 text-indigo-500 animate-spin" />
+                )}
+              </div>
+
+              {/* Popular Indian Metros Chips */}
+              <div className="mb-4">
+                <span className="text-[11px] font-semibold text-ink-mute uppercase tracking-wider block mb-1.5">
+                  Popular Indian Hubs:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Thane', 'Mumbai', 'Navi Mumbai', 'Kalyan-Dombivli', 'Pune', 'Bengaluru', 'Delhi NCR', 'Hyderabad'].map(
+                    (cityName) => (
+                      <button
+                        key={cityName}
+                        onClick={() => {
+                          const c = CITIES.find((item) => item.name === cityName);
+                          if (c) handleSelectLocation(c);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-surface-sunk border border-line hover:border-indigo-500 text-ink text-xs font-medium transition-colors"
+                      >
+                        {cityName}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+
+              {/* Search Results List */}
+              <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                {searchResults.length > 0 ? (
+                  searchResults.map((loc, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelectLocation(loc)}
+                      className="w-full text-left p-3 rounded-xl bg-surface-sunk/60 hover:bg-surface-sunk border border-line flex items-center justify-between gap-3 transition-colors group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <MapPin size={15} className="text-indigo-500 shrink-0 group-hover:scale-110 transition-transform" />
+                        <div className="truncate">
+                          <span className="font-bold text-ink text-sm block truncate">
+                            {loc.name}
+                          </span>
+                          <span className="text-xs text-ink-mute block truncate">
+                            {loc.displayName || `${loc.state ? loc.state + ' • ' : ''}${loc.lat}, ${loc.lon}`}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-mono text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded shrink-0">
+                        Select Hub
+                      </span>
+                    </button>
+                  ))
+                ) : searchQuery.trim() ? (
+                  <div className="py-6 text-center text-xs text-ink-mute">
+                    {searching
+                      ? 'Searching Indian regional maps…'
+                      : 'No matching locations found in India. Try another city, town, or pin code.'}
+                  </div>
+                ) : (
+                  <div className="py-4 text-center text-xs text-ink-mute">
+                    Search is restricted exclusively to India. Start typing any Indian city, suburb, or district.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Current Weather Bar + Live Weather Button ────────────── */}
         <div className="mt-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -424,6 +722,157 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
             <Compass size={14} />
             <span>Use Live Weather</span>
           </button>
+        </div>
+      </div>
+
+      {/* ── STEP 2: LIVE STATE vs COUNTERFACTUAL STATE TRANSITION ─────────── */}
+      <div className="bg-surface-alt border border-line rounded-2xl p-5 shadow-sm mb-6 transition-all">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-line mb-4">
+          <div className="flex items-center gap-2">
+            <Compass size={18} className="text-indigo-500" />
+            <h3 className="font-bold text-ink text-sm sm:text-base">
+              Live Weather vs. Simulated Scenario Transition
+            </h3>
+          </div>
+          <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold bg-surface border border-line text-ink-mute uppercase">
+            {isLiveMode ? 'Active Mode: Live State' : 'Active Mode: Counterfactual State'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Left: LIVE STATE ("What is happening now?") */}
+          <div
+            className={`p-4 rounded-xl border transition-all ${
+              isLiveMode
+                ? 'border-emerald-500 bg-emerald-500/10 shadow-sm'
+                : 'border-line bg-surface'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                  LIVE STATE
+                </span>
+              </div>
+              <span className="text-[11px] font-medium text-ink-mute italic">
+                "What is happening now?"
+              </span>
+            </div>
+            <p className="text-xs text-ink-soft mb-3">
+              Real-time atmospheric observations from OpenWeather API for {selectedCity.name}.
+            </p>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="p-2 rounded-lg bg-surface-alt border border-line">
+                <span className="text-[10px] text-ink-mute block">Rainfall</span>
+                <strong className="text-ink font-bold">
+                  {liveWeather?.current?.rainfallIntensity != null
+                    ? `${Math.round(liveWeather.current.rainfallIntensity)} mm/h`
+                    : '0 mm/h'}
+                </strong>
+              </div>
+              <div className="p-2 rounded-lg bg-surface-alt border border-line">
+                <span className="text-[10px] text-ink-mute block">Temperature</span>
+                <strong className="text-ink font-bold">
+                  {liveWeather?.current?.temperature != null
+                    ? `${Math.round(liveWeather.current.temperature)}°C`
+                    : '26°C'}
+                </strong>
+              </div>
+              <div className="p-2 rounded-lg bg-surface-alt border border-line">
+                <span className="text-[10px] text-ink-mute block">Wind Speed</span>
+                <strong className="text-ink font-bold">
+                  {liveWeather?.current?.windSpeed != null
+                    ? `${Math.round(liveWeather.current.windSpeed)} m/s`
+                    : '2 m/s'}
+                </strong>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-line flex items-center justify-between">
+              <span className="text-[11px] text-ink-mute">
+                Service Radius:{' '}
+                <strong className="text-emerald-600 dark:text-emerald-400">
+                  {STANDARD_LOGISTICS_RADIUS_KM} km (Standard)
+                </strong>
+              </span>
+              <button
+                onClick={handleUseLiveWeather}
+                className={`text-xs px-2.5 py-1 rounded-lg border font-semibold transition-colors ${
+                  isLiveMode
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-surface hover:bg-surface-sunk text-ink border-line'
+                }`}
+              >
+                {isLiveMode ? '✓ Active Live Mode' : 'Apply Live State'}
+              </button>
+            </div>
+          </div>
+
+          {/* Right: COUNTERFACTUAL STATE ("What could happen if conditions change?") */}
+          <div
+            className={`p-4 rounded-xl border transition-all ${
+              !isLiveMode
+                ? 'border-indigo-500 bg-indigo-500/10 shadow-sm'
+                : 'border-line bg-surface'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                  COUNTERFACTUAL STATE
+                </span>
+              </div>
+              <span className="text-[11px] font-medium text-ink-mute italic">
+                "What could happen if conditions change?"
+              </span>
+            </div>
+            <p className="text-xs text-ink-soft mb-3">
+              Stress-test scenario: Simulated weather impact on bookings, capacity &amp; logistics.
+            </p>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="p-2 rounded-lg bg-surface-alt border border-line">
+                <span className="text-[10px] text-ink-mute block">Rainfall</span>
+                <strong className="text-blue-600 dark:text-blue-400 font-bold">
+                  {scenario.rainfallMmPerHour} mm/h
+                </strong>
+              </div>
+              <div className="p-2 rounded-lg bg-surface-alt border border-line">
+                <span className="text-[10px] text-ink-mute block">Temperature</span>
+                <strong className="text-rose-600 dark:text-rose-400 font-bold">
+                  {scenario.temperature}°C
+                </strong>
+              </div>
+              <div className="p-2 rounded-lg bg-surface-alt border border-line">
+                <span className="text-[10px] text-ink-mute block">Wind Speed</span>
+                <strong className="text-teal-600 dark:text-teal-400 font-bold">
+                  {scenario.windSpeedMps} m/s
+                </strong>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-line flex items-center justify-between">
+              <span className="text-[11px] text-ink-mute">
+                Simulated Radius:{' '}
+                <strong className={effectiveRadius < 30 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}>
+                  {effectiveRadius} km
+                </strong>{' '}
+                ({effectiveRadius < 30 ? `-${STANDARD_LOGISTICS_RADIUS_KM - effectiveRadius} km drop` : 'Standard'})
+              </span>
+              <button
+                onClick={() => {
+                  setIsLiveMode(false);
+                  runSimulation();
+                }}
+                className={`text-xs px-2.5 py-1 rounded-lg border font-semibold transition-colors ${
+                  !isLiveMode
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-surface hover:bg-surface-sunk text-ink border-line'
+                }`}
+              >
+                {!isLiveMode ? '✓ Active Simulation' : 'Switch to Simulation'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -760,6 +1209,10 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
             {[
               { key: 'overview', label: 'All Impacts' },
               { key: 'logistics', label: `Logistics Impact (${metrics.disruptedLogistics})` },
+              {
+                key: 'signals',
+                label: `Public Signals (${simResult?.publicSignals?.aggregation?.totalSignals || 'Live'})`,
+              },
               { key: 'bookings', label: `Bookings (${metrics.highRiskBookings})` },
               { key: 'cascades', label: `Cascading Chain (${cascadingEffects.length})` },
             ].map((tab) => (
@@ -778,6 +1231,16 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
           </div>
         </div>
       </div>
+
+      {/* ── STEP 3: GEOSPATIAL DIGITAL TWIN MAP ── */}
+      <DigitalTwinMap
+        centerCity={selectedCity.name}
+        centerCoords={{ lat: selectedCity.lat, lon: selectedCity.lon }}
+        simResult={simResult}
+        scenario={scenario}
+        effectiveRadius={effectiveRadius}
+        isLiveWeather={isLiveMode}
+      />
 
       {/* ── STEP 4 & 5: LOGISTICS COVERAGE & 30 KM SERVICE RADIUS CARD ── */}
       <div className="bg-surface-alt border border-line rounded-2xl p-6 shadow-sm mb-6">
@@ -953,15 +1416,50 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
                 </div>
               </div>
 
-              {/* Radius Violation Tag */}
-              {logisticsDelayInfo.exceedsEffectiveRadius && (
-                <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-[11px] text-red-600 dark:text-red-400 font-medium flex items-center gap-1.5">
-                  <AlertTriangle size={14} className="shrink-0" />
-                  <span>
-                    Radius Impact: Delivery distance ({primaryLogisticsJob.distanceKm} km) exceeds simulated weather radius ({effectiveRadius} km).
+              {/* Radius Violation Tag (30 KM LOGISTICS RULE) */}
+              {logisticsDelayInfo.exceedsEffectiveRadius ? (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-xs text-red-600 dark:text-red-400 font-medium space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider text-red-600 dark:text-red-400">
+                    <AlertTriangle size={15} className="shrink-0 text-red-500" />
+                    <span>⚠ DELIVERY AT RISK</span>
+                  </div>
+                  <p className="text-xs font-semibold leading-relaxed">
+                    "Delivery distance exceeds the simulated weather-adjusted logistics radius."
+                  </p>
+                  <div className="text-[11px] text-ink-mute pt-1 border-t border-red-500/20 flex justify-between">
+                    <span>Delivery Distance: <strong className="text-ink">{primaryLogisticsJob.distanceKm} km</strong></span>
+                    <span>Weather-Adjusted Radius: <strong className="text-red-500">{effectiveRadius} km</strong> ({primaryLogisticsJob.distanceKm} &gt; {effectiveRadius})</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-semibold">
+                    <CheckCircle2 size={14} className="shrink-0 text-emerald-500" />
+                    <span>✓ Standard Logistics Range</span>
+                  </div>
+                  <span className="text-[11px] text-ink-mute">
+                    {primaryLogisticsJob.distanceKm} km &le; {effectiveRadius} km
                   </span>
                 </div>
               )}
+
+              {/* Public Disruption Signals Context (STEP 17) */}
+              <div className="pt-2.5 border-t border-line flex items-center justify-between text-xs">
+                <span className="text-ink-mute flex items-center gap-1.5">
+                  <Radio size={12} className="text-blue-500" />
+                  <span>Public Disruption Signals:</span>
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                    simResult?.publicSignals?.aggregation?.signalActivity === 'high' ||
+                    simResult?.publicSignals?.aggregation?.signalActivity === 'very_high'
+                      ? 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30'
+                      : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                  }`}
+                >
+                  {simResult?.publicSignals?.aggregation?.signalActivity?.replace('_', ' ') || 'High Activity'}
+                </span>
+              </div>
             </div>
 
             {/* ETA Comparison & Prediction (4 cols) */}
@@ -978,14 +1476,24 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
                   </div>
 
                   <div className="flex justify-between items-center p-2.5 rounded-lg bg-surface-alt border border-line">
-                    <span className="text-ink-mute">Simulated ETA:</span>
-                    <strong className="text-red-600 dark:text-red-400 font-bold">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-ink-mute">Simulated ETA:</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
+                        SIMULATED
+                      </span>
+                    </div>
+                    <strong className="text-red-600 dark:text-red-400 font-bold text-sm">
                       {logisticsDelayInfo.simulatedFormatted}
                     </strong>
                   </div>
 
                   <div className="flex justify-between items-center p-2.5 rounded-lg bg-red-500/10 border border-red-500/20">
-                    <span className="text-red-700 dark:text-red-300 font-medium">Predicted Delay:</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-red-700 dark:text-red-300 font-medium">Predicted Delay:</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-red-500/20 text-red-700 dark:text-red-300 border border-red-500/40">
+                        PREDICTED
+                      </span>
+                    </div>
                     <strong className="text-red-600 dark:text-red-400 font-bold text-sm">
                       {logisticsDelayInfo.delayText}
                     </strong>
@@ -994,7 +1502,7 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
               </div>
 
               <span className="text-[11px] text-ink-mute mt-3 block">
-                * Simulated projection based on rainfall intensity and radius contraction. Real GPS data is untouched.
+                * SIMULATED PROJECTION: Operational data remains unchanged. Real GPS &amp; MongoDB records are untouched.
               </span>
             </div>
 
@@ -1038,6 +1546,17 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
         </div>
       )}
 
+      {/* ── STAGE 4: PUBLIC & SOCIAL SIGNALS INTEGRATION (STEP 12) ── */}
+      {(activeTab === 'overview' || activeTab === 'signals') && (
+        <PublicSignalsPanel
+          city={selectedCity.name}
+          weatherClassification={weatherClass}
+          scenario={scenario}
+          effectiveRadius={effectiveRadius}
+          initialSignalsData={simResult?.publicSignals}
+        />
+      )}
+
       {/* ── STEP 9: NORMAL VS DIGITAL TWIN COMPARISON TABLE ─────────── */}
       <div className="bg-surface-alt border border-line rounded-2xl p-6 shadow-sm mb-6">
         <div className="flex items-center justify-between pb-4 border-b border-line mb-4">
@@ -1068,11 +1587,13 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
                 <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400">
                   {STANDARD_LOGISTICS_RADIUS_KM} km
                 </td>
-                <td className="py-3 px-4 font-bold text-red-500">
+                <td className={`py-3 px-4 font-bold ${effectiveRadius < 30 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
                   {effectiveRadius} km
                 </td>
-                <td className="py-3 px-4 text-right text-red-500 font-medium">
-                  -{STANDARD_LOGISTICS_RADIUS_KM - effectiveRadius} km ({Math.round(((STANDARD_LOGISTICS_RADIUS_KM - effectiveRadius) / STANDARD_LOGISTICS_RADIUS_KM) * 100)}% radius drop)
+                <td className={`py-3 px-4 text-right font-medium ${effectiveRadius < 30 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {effectiveRadius < 30
+                    ? `-${STANDARD_LOGISTICS_RADIUS_KM - effectiveRadius} km (${Math.round(((STANDARD_LOGISTICS_RADIUS_KM - effectiveRadius) / STANDARD_LOGISTICS_RADIUS_KM) * 100)}% radius drop)`
+                    : '0 km (100% full coverage)'}
                 </td>
               </tr>
               <tr>
@@ -1080,11 +1601,13 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
                 <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400">
                   100%
                 </td>
-                <td className="py-3 px-4 font-bold text-amber-500">
+                <td className={`py-3 px-4 font-bold ${metrics.avgAvailabilityFactor < 1 ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
                   {(metrics.avgAvailabilityFactor * 100).toFixed(1)}%
                 </td>
-                <td className="py-3 px-4 text-right text-amber-600 dark:text-amber-400 font-medium">
-                  -{((1 - metrics.avgAvailabilityFactor) * 100).toFixed(1)}% available
+                <td className={`py-3 px-4 text-right font-medium ${metrics.avgAvailabilityFactor < 1 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {metrics.avgAvailabilityFactor < 1
+                    ? `-${((1 - metrics.avgAvailabilityFactor) * 100).toFixed(1)}% available`
+                    : '✓ 0% loss (Full availability)'}
                 </td>
               </tr>
               <tr>
@@ -1092,11 +1615,13 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
                 <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400">
                   0 bookings
                 </td>
-                <td className="py-3 px-4 font-bold text-red-500">
+                <td className={`py-3 px-4 font-bold ${metrics.highRiskBookings > 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
                   {metrics.highRiskBookings} bookings
                 </td>
-                <td className="py-3 px-4 text-right text-red-500 font-medium">
-                  +{metrics.highRiskBookings} risk alerts
+                <td className={`py-3 px-4 text-right font-medium ${metrics.highRiskBookings > 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {metrics.highRiskBookings > 0
+                    ? `+${metrics.highRiskBookings} risk alerts`
+                    : '✓ 0 risk alerts (Safe window)'}
                 </td>
               </tr>
               <tr>
@@ -1104,11 +1629,11 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
                 <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400">
                   0 (On Time)
                 </td>
-                <td className="py-3 px-4 font-bold text-rose-500">
+                <td className={`py-3 px-4 font-bold ${metrics.disruptedLogistics > 0 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
                   {metrics.disruptedLogistics} active jobs
                 </td>
-                <td className="py-3 px-4 text-right text-rose-500 font-medium">
-                  {logisticsDelayInfo.delayText}
+                <td className={`py-3 px-4 text-right font-medium ${metrics.disruptedLogistics > 0 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {metrics.disruptedLogistics > 0 ? logisticsDelayInfo.delayText : '✓ 0m (On Schedule)'}
                 </td>
               </tr>
               <tr>
@@ -1116,11 +1641,11 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
                 <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400">
                   ✓ On Time
                 </td>
-                <td className="py-3 px-4 font-bold text-red-500">
+                <td className={`py-3 px-4 font-bold ${logisticsDelayInfo.statusText === 'ON TIME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
                   {logisticsDelayInfo.statusText}
                 </td>
-                <td className="py-3 px-4 text-right text-red-500 font-medium">
-                  Reschedule Recommended
+                <td className={`py-3 px-4 text-right font-medium ${logisticsDelayInfo.statusText === 'ON TIME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                  {logisticsDelayInfo.statusText === 'ON TIME' ? '✓ Standard Transit / Safe' : '⚠ Reschedule Recommended'}
                 </td>
               </tr>
             </tbody>
@@ -1232,24 +1757,28 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
               Marketplace Disruption Cascade Chain
             </span>
             <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-ink">
-              <span className="px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-1.5">
-                <CloudRain size={14} /> Heavy Rainfall ({scenario.rainfallMmPerHour}mm/h)
+              <span className="px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-1.5 font-semibold">
+                🌧 Weather ({scenario.rainfallMmPerHour} mm/h)
               </span>
               <ArrowRight size={14} className="text-ink-mute shrink-0" />
-              <span className="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 flex items-center gap-1.5">
-                <Compass size={14} /> Radius Drop ({STANDARD_LOGISTICS_RADIUS_KM}km → {effectiveRadius}km)
+              <span className="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 flex items-center gap-1.5 font-semibold">
+                📍 Geographic Impact ({STANDARD_LOGISTICS_RADIUS_KM}km → {effectiveRadius}km)
               </span>
               <ArrowRight size={14} className="text-ink-mute shrink-0" />
-              <span className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
-                <Truck size={14} /> Logistics Delay ({logisticsDelayInfo.delayText})
+              <span className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center gap-1.5 font-semibold">
+                🚚 Logistics Disruption ({primaryLogisticsJob.distanceKm}km &gt; {effectiveRadius}km)
               </span>
               <ArrowRight size={14} className="text-ink-mute shrink-0" />
-              <span className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center gap-1.5">
-                <Calendar size={14} /> Booking Fulfilment Risk
+              <span className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1.5 font-semibold">
+                ⏱ Delivery Delay ({logisticsDelayInfo.delayText})
               </span>
               <ArrowRight size={14} className="text-ink-mute shrink-0" />
-              <span className="px-2.5 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 flex items-center gap-1.5">
-                <RotateCcw size={14} /> Reschedule / Alternative Partner
+              <span className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center gap-1.5 font-semibold">
+                📅 Booking Risk ({metrics.highRiskBookings} at risk)
+              </span>
+              <ArrowRight size={14} className="text-ink-mute shrink-0" />
+              <span className="px-2.5 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 flex items-center gap-1.5 font-semibold">
+                🔁 Reschedule / Alternative Partner
               </span>
             </div>
           </div>
@@ -1355,6 +1884,19 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
           </div>
         </div>
       )}
+
+      {/* ── STEP 13: DATABASE SAFETY CONFIRMATION FOOTER ── */}
+      <div className="mt-8 p-4 rounded-2xl bg-surface-alt border border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-ink-mute">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={18} className="text-emerald-500 shrink-0" />
+          <span className="font-bold text-ink">
+            Simulation only — operational data unchanged.
+          </span>
+        </div>
+        <span className="text-[11px] text-ink-soft">
+          Zero database mutations • Real MongoDB resources, bookings &amp; logistics records remain in their true state.
+        </span>
+      </div>
     </div>
   );
 }

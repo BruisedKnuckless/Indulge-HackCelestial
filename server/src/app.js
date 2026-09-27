@@ -34,6 +34,7 @@ import adminInspectionRoutes from './routes/admin-inspection.routes.js';
 import walletRoutes from './routes/wallet.routes.js';
 import weatherRoutes from './routes/weather.routes.js';
 import digitalTwinRoutes from './routes/digital-twin.routes.js';
+import publicSignalsRoutes from './routes/public-signals.routes.js';
 
 export function createApp() {
   const app = express();
@@ -171,6 +172,7 @@ export function createApp() {
   // ── Weather / Digital Twin data pipeline ──────────────────────────────────
   app.use('/api/weather', weatherRoutes);
   app.use('/api/digital-twin', digitalTwinRoutes);
+  app.use('/api/public-signals', publicSignalsRoutes);
 
   // 9. Error Handling
   app.use(notFound);

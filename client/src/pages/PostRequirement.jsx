@@ -98,11 +98,14 @@ export default function PostRequirement() {
     setPreviewed(false);
   };
 
-  // "AI" / "Rules" / "Check" next to a label the smart intake touched.
+  // "AI" / "Gemini" / "Rules" / "Check" next to a label the smart intake
+  // touched. Gemini only ever fills a field when Nugen didn't answer, and
+  // gets its own tag so it is never mistaken for the Nugen-aligned model.
   const IntakeTag = ({ field }) => {
     if (intake?.check?.includes(field)) return <span className="badge-amber ml-1.5">Check</span>;
     const source = intake?.fieldSources?.[field];
     if (source === 'nugen') return <span className="badge-indigo ml-1.5">AI</span>;
+    if (source === 'gemini') return <span className="badge-teal ml-1.5">Gemini</span>;
     if (source === 'rules') return <span className="badge-muted ml-1.5">Rules</span>;
     return null;
   };

@@ -7,7 +7,7 @@
  *              ─► nugen-model.json (read by intake.js at inference)
  *
  * Needs NUGEN_API_KEY (server/.env is read). NUGEN_BASE_MODEL picks the base
- * (default qwen-v2p5-0p5b-instruct; the script lists what your account can align).
+ * (default llama-v3p2-3b-reasoning; the script lists what your account can align).
  *
  * Alignment takes minutes, so every finished step is saved to
  * data/.align-state.json and a re-run continues from there. --fresh starts over;
@@ -28,7 +28,7 @@ export const MODEL_FILE = path.join(HERE, 'nugen-model.json');
 
 const BASE_URL = (process.env.NUGEN_BASE_URL || 'https://api.nugen.in').replace(/\/+$/, '');
 const API_KEY = process.env.NUGEN_API_KEY;
-const BASE_MODEL = process.env.NUGEN_BASE_MODEL || 'qwen-v2p5-0p5b-instruct';
+const BASE_MODEL = process.env.NUGEN_BASE_MODEL || 'llama-v3p2-3b-reasoning';
 const POLL_MS = 15000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -102,21 +102,56 @@ async function main() {
   }
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const state = loadState(manifest.datasetHash);
-  state.baseModelId = state.baseModelId || BASE_MODEL;
+
+  // A saved alignment might already be FAILED/STOPPED from an earlier run
+  // (e.g. a base model this account can't align) — reconcile that up front,
+  // before the base-model check below, so a re-run doesn't keep proposing
+  // the same dead alignment (and its now-wrong base model) forever.
+  if (state.alignmentId) {
+    try {
+      const s = await nugen('GET', `/api/v3/alignment-projects/${state.alignmentId}/status`);
+      if (s.status === 'FAILED' || s.status === 'STOPPED') {
+        console.log(`Previous alignment ${state.alignmentId} ended ${s.status} — starting a new one.\n`);
+        delete state.alignmentId;
+        delete state.modelId;
+        saveState(state);
+      }
+    } catch {
+      // Can't check right now — fall through and let the normal poll below surface it.
+    }
+  }
+
+  // An alignment already under way (or done) keeps the base model it was
+  // created with; a fresh attempt (nothing saved yet, or a prior one was
+  // cleared after failing) always uses the currently configured BASE_MODEL —
+  // so fixing NUGEN_BASE_MODEL after a bad first pick takes effect without --fresh.
+  state.baseModelId = state.alignmentId ? state.baseModelId : BASE_MODEL;
   console.log(`Nugen alignment · dataset ${manifest.datasetHash} · base ${state.baseModelId}\n`);
 
-  // 1. What can this account align?
+  // 1. What can this account align? A model that isn't even in this account's
+  // catalog is a hard stop here — Nugen accepts the alignment request either
+  // way and only fails it minutes later, so catching it now saves that wait.
+  let baseModels = [];
   try {
-    const { models = [] } = await nugen('GET', '/api/v3/models/base');
+    const res = await nugen('GET', '/api/v3/models/base');
+    baseModels = res.models || [];
     console.log('Base models on this account:');
-    for (const m of models) {
+    for (const m of baseModels) {
       console.log(`  ${m.alignment_ready ? '✓' : ' '} ${m.model_id}${m.parameters ? ` (${m.parameters})` : ''}${m.available_on_request ? ' — on request' : ''}`);
     }
-    const chosen = models.find((m) => m.model_id === state.baseModelId);
-    if (chosen && !chosen.alignment_ready) console.warn(`\n  ! ${state.baseModelId} is not marked alignment_ready; set NUGEN_BASE_MODEL to a ✓ model.`);
     console.log();
   } catch (err) {
     console.warn(`Could not list base models (${err.message}); continuing with ${state.baseModelId}.\n`);
+  }
+  if (baseModels.length) {
+    const chosen = baseModels.find((m) => m.model_id === state.baseModelId);
+    if (!chosen) {
+      const alignable = baseModels.filter((m) => m.alignment_ready).map((m) => m.model_id);
+      throw new Error(
+        `${state.baseModelId} is not a model on this account. Set NUGEN_BASE_MODEL to one of: ${alignable.join(', ') || '(none marked alignment_ready)'}`
+      );
+    }
+    if (!chosen.alignment_ready) console.warn(`  ! ${state.baseModelId} is not marked alignment_ready; it may still fail once alignment starts.\n`);
   }
 
   // 2. Documents: the training pairs and the domain guide.
@@ -134,12 +169,20 @@ async function main() {
     saveState(state);
     console.log(`  documents ${ids.join(', ')}`);
   }
-  for (const id of state.documentIds) {
-    await poll(`document ${id}`, () => nugen('GET', `/api/v3/documents/${id}/status`), {
-      done: (s) => s === 'READY',
-      failed: (s) => s === 'FAILED',
-      maxMinutes: 30,
-    });
+  try {
+    for (const id of state.documentIds) {
+      await poll(`document ${id}`, () => nugen('GET', `/api/v3/documents/${id}/status`), {
+        done: (s) => s === 'READY',
+        failed: (s) => s === 'FAILED',
+        maxMinutes: 30,
+      });
+    }
+  } catch (err) {
+    // A terminally failed upload can't be retried by its own id — drop it so
+    // a re-run uploads fresh documents instead of polling a dead one forever.
+    delete state.documentIds;
+    saveState(state);
+    throw err;
   }
 
   // 3. Our own benchmark, so alignment is scored on this task.
@@ -155,11 +198,17 @@ async function main() {
     saveState(state);
     console.log(`  benchmark ${state.benchmarkId} (${res.n_samples ?? '?'} samples)`);
   }
-  await poll(`benchmark ${state.benchmarkId}`, () => nugen('GET', `/api/v3/benchmarks/${state.benchmarkId}/status`), {
-    done: (s) => s === 'READY',
-    failed: (s) => s === 'FAILED',
-    maxMinutes: 30,
-  });
+  try {
+    await poll(`benchmark ${state.benchmarkId}`, () => nugen('GET', `/api/v3/benchmarks/${state.benchmarkId}/status`), {
+      done: (s) => s === 'READY',
+      failed: (s) => s === 'FAILED',
+      maxMinutes: 30,
+    });
+  } catch (err) {
+    delete state.benchmarkId;
+    saveState(state);
+    throw err;
+  }
 
   // 4. Alignment.
   if (!state.alignmentId) {
@@ -177,10 +226,19 @@ async function main() {
     saveState(state);
     console.log(`  alignment ${state.alignmentId}`);
   }
-  await poll(`alignment ${state.alignmentId}`, () => nugen('GET', `/api/v3/alignment-projects/${state.alignmentId}/status`), {
-    done: (s) => s === 'COMPLETED' || s === 'READY',
-    failed: (s) => s === 'FAILED' || s === 'STOPPED',
-  });
+  try {
+    await poll(`alignment ${state.alignmentId}`, () => nugen('GET', `/api/v3/alignment-projects/${state.alignmentId}/status`), {
+      done: (s) => s === 'COMPLETED' || s === 'READY',
+      failed: (s) => s === 'FAILED' || s === 'STOPPED',
+    });
+  } catch (err) {
+    // A FAILED/STOPPED alignment is terminal — re-polling the same id next
+    // run would just fail again immediately. Clear it so a re-run creates a
+    // new alignment project (picking up NUGEN_BASE_MODEL fresh, if changed).
+    delete state.alignmentId;
+    saveState(state);
+    throw err;
+  }
 
   // 5. The aligned model it produced.
   if (!state.modelId) {

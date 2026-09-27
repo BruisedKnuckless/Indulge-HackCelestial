@@ -76,6 +76,7 @@ import { RunnableLambda } from '@langchain/core/runnables';
 import { AIMessage } from '@langchain/core/messages';
 import RfqIntake from '../models/RfqIntake.js';
 import { setIntakeModelForTests } from '../ml/rfq/intake.js';
+import { setGeminiClientForTests } from '../ml/rfq/gemini.js';
 import { parseWithRules } from '../ml/rfq/rules.js';
 import { groundOutput } from '../ml/rfq/ground.js';
 import { resolveWindow } from '../ml/rfq/resolve.js';
@@ -7593,9 +7594,10 @@ async function main() {
   {
     console.log('\nRFQ smart intake: Nugen-aligned model via LangChain, grounding, rules fallback');
 
-    const savedEnv = { key: process.env.NUGEN_API_KEY, mode: process.env.RFQ_AI };
+    const savedEnv = { key: process.env.NUGEN_API_KEY, mode: process.env.RFQ_AI, geminiKey: process.env.GEMINI_API_KEY };
     delete process.env.NUGEN_API_KEY;
     delete process.env.RFQ_AI;
+    delete process.env.GEMINI_API_KEY;
 
     const orchidT = await login('ops@grandorchid.in');
     const kalpT = await login('desk@kalpataruevents.in');
@@ -7777,9 +7779,116 @@ async function main() {
       `${rulesRight}/${testSet.length}`
     );
 
+    // ---- Gemini: second-tier fallback, only when Nugen doesn't answer ----
+    const geminiStub = (reply) => ({
+      models: { generateContent: async () => ({ text: JSON.stringify(reply), usageMetadata: { totalTokenCount: 1 } }) },
+    });
+    const geminiThrows = (status = 500) => ({
+      models: {
+        generateContent: async () => {
+          throw Object.assign(new Error('gemini down'), { status });
+        },
+      },
+    });
+    setIntakeModelForTests(null); // Nugen unconfigured (no key set for this section)
+    setGeminiClientForTests(geminiStub(GOOD));
+    const g1 = await parse(TEXT, orchidT);
+    check(
+      'RFQ-9. Nugen unconfigured, Gemini fallback fills the draft and says so honestly',
+      g1.status === 200 &&
+        g1.body.ai.status === 'ok' &&
+        g1.body.ai.provider === 'gemini' &&
+        g1.body.ai.aligned === false &&
+        g1.body.ai.confidenceScore === null &&
+        g1.body.ai.nugenReason === 'NUGEN_API_KEY is not set' &&
+        g1.body.draft.category === 'furniture' &&
+        g1.body.fieldSources.category === 'gemini',
+      JSON.stringify(g1.body?.ai)
+    );
+
+    setIntakeModelForTests(stubModel(Object.assign(new Error('down'), { status: 503 })));
+    setGeminiClientForTests(geminiStub({ ...GOOD, budget: 999999 })); // an invented budget must still be dropped
+    const g2 = await parse(TEXT, orchidT);
+    check(
+      'RFQ-10. Nugen down, Gemini rescues it; Gemini output is grounded exactly like Nugen output',
+      g2.status === 200 &&
+        g2.body.ai.provider === 'gemini' &&
+        g2.body.ai.nugenReason === 'Nugen is unavailable' &&
+        g2.body.dropped.some((d) => d.field === 'budget') &&
+        g2.body.draft.maxPrice === 40000 && // rules fill the dropped budget
+        g2.body.fieldSources.maxPrice === 'rules',
+      JSON.stringify(g2.body)
+    );
+
+    setIntakeModelForTests(stubModel(Object.assign(new Error('down'), { status: 503 })));
+    setGeminiClientForTests(geminiThrows(500));
+    const g3 = await parse(TEXT, orchidT);
+    check(
+      'RFQ-11. Both Nugen and Gemini down: rules answer alone, still 200, no crash',
+      g3.status === 200 &&
+        g3.body.ai.status === 'failed' &&
+        g3.body.ai.provider === null &&
+        g3.body.ai.reason === 'Nugen is unavailable' &&
+        g3.body.draft.category === 'furniture' &&
+        Object.values(g3.body.fieldSources).every((s) => s === 'rules'),
+      JSON.stringify(g3.body?.ai)
+    );
+
+    let geminiInvoked = false;
+    setIntakeModelForTests(stubModel(GOOD, 91));
+    setGeminiClientForTests({
+      models: {
+        generateContent: async () => {
+          geminiInvoked = true;
+          throw new Error('must not be called');
+        },
+      },
+    });
+    const g4 = await parse(TEXT, orchidT);
+    check(
+      'RFQ-12. Nugen succeeding never calls the Gemini fallback',
+      g4.status === 200 && g4.body.ai.provider === 'nugen' && geminiInvoked === false
+    );
+
+    // Real Gemini quirks, learned the hard way: a model that rejects a thinking
+    // level (400) must be retried without it, and Google's frequent 503
+    // "high demand" gets one retry.
+    let thinkingCalls = [];
     setIntakeModelForTests(null);
+    setGeminiClientForTests({
+      models: {
+        generateContent: async ({ config }) => {
+          thinkingCalls.push(Boolean(config.thinkingConfig));
+          if (config.thinkingConfig) throw Object.assign(new Error('Thinking level LOW is not supported for this model'), { status: 400 });
+          return { text: JSON.stringify(GOOD) };
+        },
+      },
+    });
+    const g5 = await parse(TEXT, orchidT);
+    check(
+      'RFQ-13. A Gemini model that rejects a thinking level is retried without it',
+      g5.body?.ai?.provider === 'gemini' && thinkingCalls.join() === 'true,false',
+      thinkingCalls.join()
+    );
+
+    let calls503 = 0;
+    setGeminiClientForTests({
+      models: {
+        generateContent: async () => {
+          calls503 += 1;
+          if (calls503 === 1) throw Object.assign(new Error('high demand'), { status: 503 });
+          return { text: JSON.stringify(GOOD) };
+        },
+      },
+    });
+    const g6 = await parse(TEXT, orchidT);
+    check('RFQ-14. A transient Gemini 503 is retried once and then succeeds', g6.body?.ai?.provider === 'gemini' && calls503 === 2, `calls ${calls503}`);
+
+    setIntakeModelForTests(null);
+    setGeminiClientForTests(null);
     if (savedEnv.key !== undefined) process.env.NUGEN_API_KEY = savedEnv.key;
     if (savedEnv.mode !== undefined) process.env.RFQ_AI = savedEnv.mode;
+    if (savedEnv.geminiKey !== undefined) process.env.GEMINI_API_KEY = savedEnv.geminiKey;
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

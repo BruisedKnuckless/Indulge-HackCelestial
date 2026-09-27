@@ -151,7 +151,7 @@ const requirementSchema = new mongoose.Schema(
       default: null,
     },
     intakeSummary: {
-      source: String, // 'nugen' | 'rules'
+      source: String, // 'nugen' | 'gemini' (fallback) | 'rules'
       model: String,
       aligned: Boolean,
       confidenceScore: Number,

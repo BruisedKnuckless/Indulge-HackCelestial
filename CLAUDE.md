@@ -133,11 +133,22 @@ are in its `README.md`. This is the HackCelestial Task 2 (Nugen) integration.
 - **Never throws.** No key, timeout, non-JSON reply → rules-only draft, still 200.
   `setIntakeModelForTests()` injects a stub chat model; verify never calls Nugen (it unsets
   `NUGEN_API_KEY` for its RFQ section).
+- **Gemini is a second-tier fallback, never the primary path.** Nugen is always tried
+  first — it's the required integration. Only if Nugen doesn't produce usable fields
+  (down, unconfigured, or its reply fails grounding) *and* `GEMINI_API_KEY` is set does
+  `gemini.js` get a turn, called directly via `@google/genai` (not LangChain — there's no
+  shared abstraction to gain, unlike Nugen's OpenAI-compatible endpoint). Its output goes
+  through the exact same `ground.js` validation as Nugen's. `ai.provider` records which
+  one (if either) actually answered (`'nugen' | 'gemini' | null`); the UI must never
+  present a Gemini-filled field as the Nugen-aligned model — it always says "fallback".
+  `setGeminiClientForTests()` injects a stub client the same way; verify unsets
+  `GEMINI_API_KEY` too, for the same reason.
 - Every parse is logged as an `RfqIntake`. A requirement posted with `intakeId` gets
   `intake` + `intakeSummary` **set server-side** from the seeker's own unused intake; the
-  client cannot claim a model drafted it.
+  client cannot claim a model drafted it. `intakeSummary.source` mirrors `ai.provider`.
 - LangChain is pinned to `@langchain/openai@~1.4` / `@langchain/core@1.x`: newer releases
-  need Node 22.
+  need Node 22. Gemini uses `@google/genai` (the current SDK) — never
+  `@google/generative-ai`, which reached end-of-life August 2025.
 
 ### Inspection protocol generator (`server/src/ml/inspection/`)
 
@@ -268,7 +279,7 @@ Environment:
 
 | Service | Variables |
 |---|---|
-| server | `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES`, `CLIENT_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `NUGEN_API_KEY` (optional: RFQ intake model; see `.env.example` for the `RFQ_*` knobs) |
+| server | `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES`, `CLIENT_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `NUGEN_API_KEY` (optional: RFQ intake model; see `.env.example` for the `RFQ_*` knobs), `GEMINI_API_KEY` (optional: RFQ intake fallback if Nugen is down) |
 | client | `VITE_API_URL`, `VITE_SOCKET_URL` |
 
 Traps that have each cost real debugging time:
