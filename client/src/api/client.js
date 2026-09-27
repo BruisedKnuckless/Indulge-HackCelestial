@@ -68,7 +68,10 @@ function createClient(tokenKey, onUnauthorized) {
     (error) => {
       // A dead session should not leave a stale token behind, but let the caller
       // decide whether to redirect — some pages are browsable signed out.
-      if (error.response?.status === 401) {
+      // An old in-flight request must not sign out a newly logged-in account.
+      const rejectedToken = error.config?.headers?.Authorization;
+      const currentToken = localStorage.getItem(tokenKey);
+      if (error.response?.status === 401 && currentToken && rejectedToken === `Bearer ${currentToken}`) {
         localStorage.removeItem(tokenKey);
         onUnauthorized?.();
       }
@@ -85,7 +88,10 @@ export const ADMIN_TOKEN_KEY = 'indulge.adminToken';
  *  instead of leaving the console rendering empty tabs. */
 export const ADMIN_UNAUTHORIZED_EVENT = 'indulge:admin-unauthorized';
 
-const api = createClient(TOKEN_KEY);
+export const BUSINESS_UNAUTHORIZED_EVENT = 'indulge:business-unauthorized';
+const api = createClient(TOKEN_KEY, () =>
+  window.dispatchEvent(new Event(BUSINESS_UNAUTHORIZED_EVENT))
+);
 
 /** Platform-admin client — used only by the admin console. */
 export const adminApi = createClient(ADMIN_TOKEN_KEY, () =>

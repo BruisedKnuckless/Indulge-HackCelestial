@@ -158,6 +158,20 @@ export function getPaymentProvider() {
  * Unified Payment Service Orchestrator
  */
 export const PaymentService = {
+  async validatePaymentAttempt({ booking, user, paymentMethod }) {
+    if (String(booking.seeker) !== String(user._id)) {
+      throw new HttpError(403, 'Only the requesting business can pay.');
+    }
+    if (!ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) {
+      throw new HttpError(400, 'Invalid payment method.');
+    }
+    const transaction = await Transaction.findOne({ booking: booking._id });
+    if (transaction && ['simulated_paid', 'paid'].includes(transaction.status)) return transaction;
+    if (!['accepted', 'confirmed'].includes(booking.status)) {
+      throw new HttpError(400, `Payment is only possible for accepted requests (current: ${booking.status}).`);
+    }
+    return null;
+  },
   /**
    * Initializes a payment order for a booking.
    */

@@ -173,7 +173,7 @@ export function getEffectiveRadius(weatherClass, score = 0) {
  */
 export function formatDelay(hours) {
   const h = Number(hours) || 0;
-  if (h <= 0.05) return '0m (On Time)';
+  if (h <= 0.05) return 'No added delay';
   const totalMinutes = Math.round(h * 60);
   const hrs = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
@@ -191,8 +191,7 @@ export function calculateSimulatedETA(originalTime, delayHours = 0) {
     baseDate = new Date(originalTime);
   }
   if (!baseDate || isNaN(baseDate.getTime())) {
-    baseDate = new Date();
-    baseDate.setHours(10, 30, 0, 0); // Default demo baseline 10:30 AM
+    return { originalFormatted: 'Not scheduled', simulatedFormatted: 'Unavailable', delayText: formatDelay(delayHours) };
   }
 
   const delayMs = Math.round((Number(delayHours) || 0) * 3600 * 1000);

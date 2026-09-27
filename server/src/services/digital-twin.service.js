@@ -79,7 +79,8 @@ function resolveCoords(location) {
   if (location && typeof location === 'object') {
     const lat = Number(location.lat);
     const lon = Number(location.lon ?? location.lng);
-    if (!isNaN(lat) && !isNaN(lon) && lat !== 0) {
+    if (location.lat != null && (location.lon ?? location.lng) != null &&
+        Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
       return { lat, lon };
     }
     if (location.name && typeof location.name === 'string') {
@@ -161,6 +162,16 @@ function impactLevel(factor) {
   return 'low';
 }
 
+function routeDistanceKm(pickup, delivery) {
+  const a = pickup?.coordinates;
+  const b = delivery?.coordinates;
+  if (a?.length !== 2 || b?.length !== 2 || ![...a, ...b].every(Number.isFinite)) return null;
+  const rad = (degrees) => degrees * Math.PI / 180;
+  const h = Math.sin(rad(b[1] - a[1]) / 2) ** 2 +
+    Math.cos(rad(a[1])) * Math.cos(rad(b[1])) * Math.sin(rad(b[0] - a[0]) / 2) ** 2;
+  return Number((6371 * 2 * Math.asin(Math.sqrt(Math.min(1, h)))).toFixed(1));
+}
+
 function resourceReasons(cat, wc) {
   const r = [];
   if (wc.rainfallBand !== 'none') {
@@ -179,7 +190,7 @@ function resourceReasons(cat, wc) {
 }
 
 // ─── Read real Indulge data (READ-ONLY) ───────────────────────────────────────
-async function readSnapshot(coords) {
+async function readSnapshot(coords, userId) {
   lazyModels();
   const RADIUS_KM  = 50;
   const RADIUS_RAD = RADIUS_KM / 6371;
@@ -192,20 +203,21 @@ async function readSnapshot(coords) {
     },
   }).lean();
 
-  // Fallback for seeded/demo data without coordinates
-  if (resources.length === 0) {
-    resources = await Resource.find({ status: 'active' }).limit(200).lean();
-  }
-
   const rIds = resources.map((r) => r._id);
+  const parties = userId ? { $or: [{ provider: userId }, { seeker: userId }] } : {};
 
   const [bookings, requirements, logisticsJobs] = await Promise.all([
     Booking.find({
+      ...parties,
       resource: { $in: rIds },
       status: { $in: ['confirmed', 'accepted', 'pending'] },
     }).lean(),
-    Requirement.find({ status: 'open' }).limit(200).lean(),
+    Requirement.find({ status: 'open', ...(userId ? { seeker: userId } : {}),
+      'location.coordinates': { $geoWithin: { $centerSphere: [[coords.lon, coords.lat], RADIUS_RAD] } },
+    }).limit(200).lean(),
     LogisticsJob.find({
+      ...(userId ? { $or: [{ provider: userId }, { seeker: userId }, { logisticsPartner: userId }] } : {}),
+      resource: { $in: rIds },
       status: { $in: ['unassigned', 'assigned', 'accepted', 'picked_up', 'in_transit'] },
     }).lean(),
   ]);
@@ -264,7 +276,7 @@ function applyImpact(snapshot, wc, scenario) {
 
   // Requirements (demand shift)
   const affectedRequirements = requirements.map((req) => {
-    const surge = DEMAND_SURGE[req.category] || 1.0;
+    const surge = 1 + ((DEMAND_SURGE[req.category] || 1) - 1) * Math.min(1, wc.score / 50);
     return {
       requirementId:                String(req._id),
       title:                        req.title,
@@ -298,6 +310,7 @@ function applyImpact(snapshot, wc, scenario) {
     deliveryLocation:      j.deliveryLocation || null,
     scheduledPickupTime:   j.scheduledPickupTime || null,
     requiredDeliveryTime:  j.requiredDeliveryTime || null,
+    distanceKm:            routeDistanceKm(j.pickupLocation, j.deliveryLocation),
     quantity:              j.quantity || 1,
     disruptionProbability: parseFloat(logBase.toFixed(3)),
     estimatedDelayHours:   parseFloat((logBase * dur * 0.8).toFixed(1)),
@@ -323,7 +336,7 @@ function applyImpact(snapshot, wc, scenario) {
       totalResourcesScanned:       resources.length,
       affectedResourcesCount:      affectedResources.filter((r) => r.availabilityReductionPct > 0).length,
       criticalResources,
-      totalBookingsAtRisk:         affectedBookings.length,
+      totalBookingsAtRisk:         affectedBookings.filter((b) => b.disruptionProbability > 0).length,
       highRiskBookings,
       totalRequirementsScanned:    requirements.length,
       surgeRequirements:           affectedRequirements.filter((r) => r.demandSurgeMultiplier > 1.1).length,
@@ -434,9 +447,21 @@ export async function runWeatherSimulation(params) {
       };
     }
 
+    const limits = { rainfallMmPerHour: [0, 500], windSpeedMps: [0, 150], temperature: [-80, 65], durationHours: [0.1, 168] };
+    for (const [key, [min, max]] of Object.entries(limits)) {
+      const value = params.scenario?.[key];
+      if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max)) {
+        return { simulationId: id, success: false, statusCode: 400, error: `${key} must be a number between ${min} and ${max}.` };
+      }
+    }
+
     let liveWeather = null;
     if (params.useLiveWeather) {
       liveWeather = await getWeatherByCoords(coords.lat, coords.lon);
+      if (!liveWeather?.available || !liveWeather.current) {
+        return { simulationId: id, success: false, statusCode: 503,
+          error: 'Live weather is unavailable. Retry or choose a what-if scenario.' };
+      }
     }
 
     const scenario = {
@@ -447,14 +472,28 @@ export async function runWeatherSimulation(params) {
         ? (liveWeather?.current?.windSpeed || 0)
         : (params.scenario?.windSpeedMps ?? 0),
       temperature: params.useLiveWeather
-        ? (liveWeather?.current?.temperature || 25)
+        ? (liveWeather?.current?.temperature ?? 25)
         : (params.scenario?.temperature ?? 25),
       durationHours: params.scenario?.durationHours ?? 1,
     };
 
     const wc       = classifyWeather(scenario);
-    const snapshot = await readSnapshot(coords);
+    const snapshot = await readSnapshot(coords, params.userId);
     const impact   = applyImpact(snapshot, wc, scenario);
+    // A controlled counterfactual: both outcomes use exactly the same records.
+    const baselineScenario = { rainfallMmPerHour: 0, windSpeedMps: 0, temperature: 25, durationHours: scenario.durationHours };
+    const baseline = applyImpact(snapshot, classifyWeather(baselineScenario), baselineScenario);
+    const comparison = {
+      label: 'Clear-weather baseline vs selected scenario',
+      baselineScenario,
+      baselineMetrics: baseline.metrics,
+      delta: {
+        availabilityPercentagePoints: Number(((impact.metrics.avgAvailabilityFactor - baseline.metrics.avgAvailabilityFactor) * 100).toFixed(1)),
+        highRiskBookings: impact.metrics.highRiskBookings - baseline.metrics.highRiskBookings,
+        disruptedLogistics: impact.metrics.disruptedLogistics - baseline.metrics.disruptedLogistics,
+        indicativeRevenueExposureInr: impact.metrics.estimatedTotalRevenueLossInr - baseline.metrics.estimatedTotalRevenueLossInr,
+      },
+    };
 
     // Retrieve contextual public signals layer (non-blocking fallback)
     let publicSignals = null;
@@ -482,11 +521,14 @@ export async function runWeatherSimulation(params) {
       liveWeatherSnapshot: liveWeather,
       publicSignals,
       ...impact,
+      comparison,
       meta: {
         startedAt,
         completedAt: new Date().toISOString(),
         dataIsolation: 'READ_ONLY — real MongoDB data unchanged',
         source: 'Indulge Digital Twin v2.0 — Stage 2',
+        modelType: 'rule_based_scenario',
+        limitations: 'Fixed scenario coefficients, not a trained weather forecast. Risk scores are uncalibrated; revenue exposure uses listing base rates, not realized losses. All active bookings in the selected area are stress-tested, irrespective of their dates.',
       },
     };
   } catch (err) {

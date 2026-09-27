@@ -145,17 +145,16 @@ export default function HistoryRecords() {
                       {item.recordType === 'payment' && <CreditCard size={18} />}
                       {item.recordType === 'logistics' && <Truck size={18} />}
                     </div>
-
                     <div className="min-w-0">
                       <div className="flex items-center flex-wrap gap-2 mb-1">
                         <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full ${typeClass}`}>
-                          {item.recordType.replace(/_/g, ' ')}
+                          {String(item.recordType || 'record').replace(/_/g, ' ')}
                         </span>
                         <span className="font-mono text-xs font-semibold text-ink">
-                          {item.referenceNumber}
+                          {item.referenceNumber || '—'}
                         </span>
                         <span className={`text-[10px] capitalize px-2 py-0.5 rounded-full ${statusClass}`}>
-                          {item.status.replace(/_/g, ' ')}
+                          {String(item.status || 'unknown').replace(/_/g, ' ')}
                         </span>
                       </div>
 

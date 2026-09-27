@@ -180,8 +180,8 @@ router.get(
             : 'Indulge Logistics Network',
           role: isLogisticsPartner ? 'logistics_partner' : 'participant',
           amount: null,
-          status: j.currentStatus,
-          viewUrl: isLogisticsPartner ? '/logistics/jobs' : `/bookings/detail/${j.bookingId || j.booking}`,
+          status: j.status || j.currentStatus || 'unassigned',
+          viewUrl: isLogisticsPartner ? '/logistics/jobs' : `/bookings/detail/${j.bookingId || j.booking?._id || j.booking}`,
           receiptUrl: null,
         });
       }

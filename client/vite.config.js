@@ -6,9 +6,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:5050',
-      '/uploads': 'http://localhost:5050',
-      '/socket.io': { target: 'http://localhost:5050', ws: true },
+      '/api': process.env.VITE_DEV_API_TARGET || 'http://localhost:5050',
+      '/uploads': process.env.VITE_DEV_API_TARGET || 'http://localhost:5050',
+      '/socket.io': { target: process.env.VITE_DEV_API_TARGET || 'http://localhost:5050', ws: true },
     },
   },
   preview: {

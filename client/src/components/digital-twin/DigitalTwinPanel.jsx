@@ -1,57 +1,19 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import {
-  CloudRain,
-  Wind,
-  Thermometer,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
-  Truck,
-  Calendar,
-  MapPin,
-  RotateCcw,
-  Compass,
-  ShieldAlert,
-  ArrowRight,
-  Sparkles,
-  Sliders,
-  Eye,
-  RefreshCw,
-  TrendingDown,
-  Layers,
-  AlertOctagon,
-  Activity,
-  Info,
-  ExternalLink,
-  ShieldCheck,
-  Send,
-  Navigation,
-  AlertCircle,
-  Radio,
-  Search,
-  X,
-  Crosshair,
-} from 'lucide-react';
+import { CloudRain, Wind, Thermometer, Clock, MapPin, RefreshCw, Navigation, Search, X, ArrowRight, Download, SlidersHorizontal, Activity, ShieldCheck } from 'lucide-react';
 import api, { errorMessage } from '../../api/client';
 import { inr, dateTime } from '../../lib/format';
-import {
-  CITIES,
-  STANDARD_LOGISTICS_RADIUS_KM,
-  PRESET_SCENARIOS,
-  getDistanceZone,
-  getEffectiveRadius,
-  formatDelay,
-  calculateSimulatedETA,
-  getLogisticsRiskStatus,
-  getBookingRiskInfo,
-} from './digitalTwinHelper';
+import { CITIES, PRESET_SCENARIOS, getEffectiveRadius, formatDelay } from './digitalTwinHelper';
+import './digitalTwin.css';
 import DigitalTwinMap from './DigitalTwinMap';
 import PublicSignalsPanel from './PublicSignalsPanel';
 
-export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = false }) {
-  const navigate = useNavigate();
+export default function DigitalTwinPanel({ initialCity = 'Thane' }) {
+  const simulationRequest = useRef(0);
+  const weatherRequest = useRef(0);
+  const locationRequest = useRef(0);
+  useEffect(() => () => { locationRequest.current++; }, []);
 
   // Selected city & coordinates (Supports presets, Live GPS, and custom search)
   const [selectedCityName, setSelectedCityName] = useState(initialCity);
@@ -70,20 +32,31 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
     return found || customLocation || CITIES[0];
   }, [selectedCityName, customLocation]);
 
+const DEFAULT_SCENARIO = {
+  rainfallMmPerHour: 0,
+  temperature: 28,
+  windSpeedMps: 2,
+  durationHours: 1,
+};
+
   // Live weather state
   const [liveWeather, setLiveWeather] = useState(null);
   const [liveLoading, setLiveLoading] = useState(false);
 
-  // Scenario input state (defaults to Thane Storm Scenario)
-  const [scenario, setScenario] = useState({
-    rainfallMmPerHour: 90,
-    temperature: 28,
-    windSpeedMps: 15,
-    durationHours: 5,
-  });
+  // Scenario input state (defaults to baseline clear weather until live weather is fetched)
+  const [scenario, setScenario] = useState(DEFAULT_SCENARIO);
 
-  // Mode: counterfactual vs live
-  const [isLiveMode, setIsLiveMode] = useState(false);
+  // Mode: counterfactual vs live (defaults to Live Current Weather)
+  const [isLiveMode, setIsLiveMode] = useState(true);
+  const isLiveModeRef = useRef(true);
+  useEffect(() => {
+    isLiveModeRef.current = isLiveMode;
+  }, [isLiveMode]);
+
+  const scenarioRef = useRef(scenario);
+  useEffect(() => {
+    scenarioRef.current = scenario;
+  }, [scenario]);
 
   // Simulation execution state
   const [simResult, setSimResult] = useState(null);
@@ -91,33 +64,40 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
   const [simError, setSimError] = useState(null);
 
   // Modal / interactive states
-  const [rescheduleModalBooking, setRescheduleModalBooking] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'logistics' | 'bookings' | 'cascades'
+  const [activeTab, setActiveTab] = useState('resources');
 
   // Fetch live weather for the selected city
-  const fetchLiveWeather = useCallback(async (city) => {
-    setLiveLoading(true);
+  const fetchLiveWeather = useCallback(async (city, background = false) => {
+    const requestId = ++weatherRequest.current;
+    if (!background) setLiveLoading(true);
     try {
       const res = await api.get(`/weather?lat=${city.lat}&lon=${city.lon}`);
+      if (requestId !== weatherRequest.current) return null;
       if (res.data?.available) {
         setLiveWeather(res.data);
+        return res.data;
       } else {
         setLiveWeather(null);
+        return null;
       }
     } catch {
-      setLiveWeather(null);
+      if (requestId === weatherRequest.current) setLiveWeather(null);
+      return null;
     } finally {
-      setLiveLoading(false);
+      if (requestId === weatherRequest.current && !background) setLiveLoading(false);
     }
   }, []);
 
   // Run simulation against backend POST /api/digital-twin/simulate
   const runSimulation = useCallback(
-    async (overrideScenario = null, useLive = false) => {
+    async (overrideScenario = null, useLive = null) => {
+      const requestId = ++simulationRequest.current;
+      setSimResult(null);
       setSimulating(true);
       setSimError(null);
 
-      const targetScenario = overrideScenario || scenario;
+      const targetScenario = overrideScenario || scenarioRef.current;
+      const liveFlag = typeof useLive === 'boolean' ? useLive : isLiveModeRef.current;
 
       try {
         const payload = {
@@ -128,20 +108,31 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
           },
           scenario: {
             rainfallMmPerHour: Number(targetScenario.rainfallMmPerHour) || 0,
-            temperature: Number(targetScenario.temperature) || 25,
+            temperature: Number(targetScenario.temperature ?? 25),
             windSpeedMps: Number(targetScenario.windSpeedMps) || 0,
             durationHours: Number(targetScenario.durationHours) || 1,
           },
-          useLiveWeather: useLive,
+          useLiveWeather: liveFlag,
         };
 
         const res = await api.post('/digital-twin/simulate', payload);
+        if (requestId !== simulationRequest.current) return;
         if (res.data?.success) {
           setSimResult(res.data);
+          setIsLiveMode(liveFlag);
+          if (liveFlag && res.data.scenario) {
+            setScenario({
+              rainfallMmPerHour: Math.round(Number(res.data.scenario.rainfallMmPerHour) || 0),
+              temperature: Math.round(Number(res.data.scenario.temperature) ?? 25),
+              windSpeedMps: Math.round(Number(res.data.scenario.windSpeedMps) || 0),
+              durationHours: Number(res.data.scenario.durationHours) || 1,
+            });
+          }
         } else {
           setSimError(res.data?.error || 'Simulation returned unsuccessful status.');
         }
       } catch (err) {
+        if (requestId !== simulationRequest.current) return;
         setSimError(
           errorMessage(
             err,
@@ -149,17 +140,73 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
           )
         );
       } finally {
-        setSimulating(false);
+        if (requestId === simulationRequest.current) setSimulating(false);
       }
     },
-    [selectedCity, scenario]
+    [selectedCity]
   );
 
-  // Initial load / location change: fetch live weather and run simulation
+  // Initial load / location change: default to live weather and run simulation
   useEffect(() => {
-    fetchLiveWeather(selectedCity);
-    runSimulation();
-  }, [selectedCity.name, selectedCity.lat, selectedCity.lon]);
+    let active = true;
+
+    const loadLiveWeatherAndSimulate = async () => {
+      setIsLiveMode(true);
+      const data = await fetchLiveWeather(selectedCity, false);
+      if (!active) return;
+
+      if (data?.available && data.current) {
+        const liveScenario = {
+          rainfallMmPerHour: Math.round(data.current.rainfallIntensity || 0),
+          temperature: Math.round(data.current.temperature ?? 25),
+          windSpeedMps: Math.round(data.current.windSpeed ?? 0),
+          durationHours: 1,
+        };
+        setScenario(liveScenario);
+        if (active) {
+          runSimulation(liveScenario, true);
+        }
+      } else {
+        // If live weather feed is unavailable, fall back cleanly to clear weather
+        setIsLiveMode(false);
+        setScenario(DEFAULT_SCENARIO);
+        if (active) {
+          runSimulation(DEFAULT_SCENARIO, false);
+        }
+      }
+    };
+
+    loadLiveWeatherAndSimulate();
+
+    return () => {
+      active = false;
+      simulationRequest.current++;
+      weatherRequest.current++;
+    };
+  }, [selectedCity.name, selectedCity.lat, selectedCity.lon, fetchLiveWeather, runSimulation]);
+
+  // Periodic background auto-refresh (every 5 minutes) so user does not need to manually tap
+  useEffect(() => {
+    const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+    const interval = setInterval(async () => {
+      if (document.hidden) return;
+
+      const data = await fetchLiveWeather(selectedCity, true);
+      // If user is currently in live mode, automatically sync the simulation with updated conditions
+      if (isLiveModeRef.current && data?.available && data?.current) {
+        const liveScenario = {
+          rainfallMmPerHour: Math.round(data.current.rainfallIntensity || 0),
+          temperature: Math.round(data.current.temperature ?? 25),
+          windSpeedMps: Math.round(data.current.windSpeed ?? 0),
+          durationHours: 1,
+        };
+        setScenario(liveScenario);
+        runSimulation(liveScenario, true);
+      }
+    }, AUTO_REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [selectedCity, fetchLiveWeather, runSimulation]);
 
   // Live Browser GPS Geolocation
   const handleUseLiveLocation = () => {
@@ -167,9 +214,11 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
       toast.error('Geolocation is not supported by your browser.');
       return;
     }
+    const request = ++locationRequest.current;
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        if (request !== locationRequest.current) return;
         const lat = Number(pos.coords.latitude.toFixed(4));
         const lon = Number(pos.coords.longitude.toFixed(4));
 
@@ -177,7 +226,7 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-            { headers: { 'Accept-Language': 'en' } }
+            { headers: { 'Accept-Language': 'en' }, signal: AbortSignal.timeout(8000) }
           );
           if (res.ok) {
             const data = await res.json();
@@ -190,21 +239,18 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
               'Current Location';
           }
         } catch {
-          const closest = CITIES.reduce((prev, curr) => {
-            const dPrev = Math.hypot(prev.lat - lat, prev.lon - lon);
-            const dCurr = Math.hypot(curr.lat - lat, curr.lon - lon);
-            return dCurr < dPrev ? curr : prev;
-          });
-          detectedName = closest.name;
+          detectedName = `Current location (${lat}, ${lon})`;
         }
 
+        if (request !== locationRequest.current) return;
         const newLoc = { name: detectedName, lat, lon, isLiveGps: true };
         setCustomLocation(newLoc);
         setSelectedCityName(detectedName);
         setGpsLoading(false);
-        toast.success(`📍 Live GPS Hub Set: ${detectedName} (${lat}, ${lon})`);
+        toast.success(`Location set to ${detectedName}`);
       },
       (err) => {
+        if (request !== locationRequest.current) return;
         setGpsLoading(false);
         console.warn('Geolocation error:', err);
         toast.error('Unable to retrieve GPS coordinates. Please allow location permissions in your browser.');
@@ -213,69 +259,39 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
     );
   };
 
-  // Dynamic search across preset CITIES + OpenStreetMap Nominatim for any location
+  const searchSequence = useRef(0);
+  const [searchError, setSearchError] = useState('');
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      const q = searchQuery.toLowerCase().trim();
-
-      // 1. Instant local filter
-      const localMatches = CITIES.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.state?.toLowerCase().includes(q) ||
-          c.region?.toLowerCase().includes(q)
-      );
-
-      // 2. OpenStreetMap geocoding restricted exclusively to India (countrycodes=in)
-      let remoteMatches = [];
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-            searchQuery
-          )}&format=json&addressdetails=1&countrycodes=in&limit=8`,
-          { headers: { 'Accept-Language': 'en' } }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          remoteMatches = data
-            .filter((item) => {
-              const cc = item.address?.country_code?.toLowerCase();
-              return !cc || cc === 'in';
-            })
-            .map((item) => ({
-              name: item.name || item.display_name.split(',')[0],
-              displayName: item.display_name,
-              lat: Number(Number(item.lat).toFixed(4)),
-              lon: Number(Number(item.lon).toFixed(4)),
-              state: item.address?.state || 'India',
-              isRemote: true,
-            }));
-        }
-      } catch (e) {
-        console.warn('Geocoding search error:', e);
-      }
-
-      const combined = [...localMatches];
-      for (const rm of remoteMatches) {
-        if (!combined.some((c) => Math.hypot(c.lat - rm.lat, c.lon - rm.lon) < 0.05)) {
-          combined.push(rm);
-        }
-      }
-
-      setSearchResults(combined.slice(0, 8));
-      setSearching(false);
-    }, 280);
-
-    return () => clearTimeout(timer);
+    searchSequence.current++;
+    setSearching(false);
+    setSearchError('');
+    const q = searchQuery.trim().toLowerCase();
+    setSearchResults(q ? CITIES.filter(c => `${c.name} ${c.state}`.toLowerCase().includes(q)) : []);
   }, [searchQuery]);
+  const searchLocations = async (event) => {
+    event.preventDefault();
+    if (!searchQuery.trim()) return;
+    const request = ++searchSequence.current;
+    setSearching(true);
+    setSearchError('');
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery.trim())}&format=json&addressdetails=1&countrycodes=in&limit=8`, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error('Search unavailable');
+      const data = await response.json();
+      if (request !== searchSequence.current) return;
+      setSearchResults(data.map(item => ({ name: item.name || item.display_name.split(',')[0], displayName: item.display_name, lat: Number(item.lat), lon: Number(item.lon) })));
+      if (!data.length) setSearchError('No locations found. Try a city or district in India.');
+    } catch {
+      if (request === searchSequence.current) setSearchError('Location search is unavailable. Choose a city from the list.');
+    } finally {
+      if (request === searchSequence.current) setSearching(false);
+    }
+  };
+  useEffect(() => () => { searchSequence.current++; }, []);
 
   const handleSelectLocation = (loc) => {
+    locationRequest.current++;
+    setGpsLoading(false);
     setCustomLocation(loc);
     setSelectedCityName(loc.name);
     setSearchOpen(false);
@@ -287,34 +303,49 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
   const handleUseLiveWeather = async () => {
     let currentLive = liveWeather?.current;
     if (!currentLive) {
-      try {
-        setLiveLoading(true);
-        const res = await api.get(`/weather?lat=${selectedCity.lat}&lon=${selectedCity.lon}`);
-        if (res.data?.available && res.data.current) {
-          setLiveWeather(res.data);
-          currentLive = res.data.current;
-        }
-      } catch (err) {
-        console.warn('Live weather fetch error:', err);
-      } finally {
-        setLiveLoading(false);
-      }
+      const fresh = await fetchLiveWeather(selectedCity, false);
+      currentLive = fresh?.current;
+    }
+    if (!currentLive) {
+      toast.error('Live weather is unavailable. Refresh conditions or use a what-if preset.');
+      return;
     }
 
     const liveScenario = {
       rainfallMmPerHour: Math.round(currentLive?.rainfallIntensity || 0),
-      temperature: Math.round(currentLive?.temperature || 26),
-      windSpeedMps: Math.round(currentLive?.windSpeed || 2),
+      temperature: Math.round(currentLive?.temperature ?? 25),
+      windSpeedMps: Math.round(currentLive?.windSpeed ?? 0),
       durationHours: 1,
     };
-    setScenario(liveScenario);
     setIsLiveMode(true);
+    setScenario(liveScenario);
     runSimulation(liveScenario, true);
-    toast.success(`Live weather inputs applied for ${selectedCity.name}`);
+  };
+
+  // Handle manual refresh button click
+  const handleRefreshWeather = async () => {
+    const data = await fetchLiveWeather(selectedCity, false);
+    if (isLiveModeRef.current && data?.available && data?.current) {
+      const liveScenario = {
+        rainfallMmPerHour: Math.round(data.current.rainfallIntensity || 0),
+        temperature: Math.round(data.current.temperature ?? 25),
+        windSpeedMps: Math.round(data.current.windSpeed ?? 0),
+        durationHours: 1,
+      };
+      setScenario(liveScenario);
+      runSimulation(liveScenario, true);
+      toast.success('Live weather and assessment refreshed');
+    } else if (data?.available) {
+      toast.success('Current weather updated');
+    }
   };
 
   // Handle manual scenario change
   const handleScenarioChange = (key, value) => {
+    simulationRequest.current++;
+    setSimulating(false);
+    setSimResult(null);
+    setSimError(null);
     setIsLiveMode(false);
     setScenario((prev) => ({
       ...prev,
@@ -327,1576 +358,138 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
     setIsLiveMode(false);
     setScenario(preset.scenario);
     runSimulation(preset.scenario, false);
-    toast.success(`Applied preset: ${preset.label}`);
+
   };
 
-  // ── Derived Simulation Metrics ──────────────────────────────────────────
-  const metrics = simResult?.metrics || {
-    totalResourcesScanned: 22,
-    affectedResourcesCount: 13,
-    criticalResources: 13,
-    totalBookingsAtRisk: 8,
-    highRiskBookings: 7,
-    totalRequirementsScanned: 6,
-    surgeRequirements: 2,
-    activeLogisticsJobs: 1,
-    disruptedLogistics: 1,
-    estimatedTotalRevenueLossInr: 222189,
-    avgAvailabilityFactor: 0.272,
-  };
-
-  const weatherClass = simResult?.weatherClassification || {
-    severity: 'severe',
-    score: 68,
-    rainfallBand: 'rainfall_heavy',
-    isStorm: true,
-    isHighWind: true,
-  };
-
-  // Weather-Aware Simulated Effective Radius
-  const effectiveRadius = useMemo(
-    () => getEffectiveRadius(weatherClass, weatherClass.score),
-    [weatherClass]
-  );
-
-  // Map resources for fast lookup in bookings/logistics
-  const resourceMap = useMemo(() => {
-    const map = {};
-    if (simResult?.affectedResources) {
-      for (const r of simResult.affectedResources) {
-        map[r.resourceId] = r;
-      }
-    }
-    return map;
-  }, [simResult]);
-
-  // Primary Demo Logistics Job
-  const primaryLogisticsJob = useMemo(() => {
-    if (simResult?.affectedLogisticsJobs && simResult.affectedLogisticsJobs.length > 0) {
-      const job = simResult.affectedLogisticsJobs[0];
-      const res = resourceMap[job.resourceId];
-      return {
-        jobId: job.jobId,
-        shortId: `LG-${job.jobId.slice(-4).toUpperCase()}`,
-        resourceTitle: res?.title || 'Chiavari Banquet Chairs (gold)',
-        category: res?.category || 'furniture',
-        pickupLocation: 'Wagle Estate Industrial Area, Thane',
-        destinationLocation: 'Hotel Grand Renaissance, Powai (Mumbai)',
-        distanceKm: 18.4,
-        currentStatus: job.currentStatus || 'accepted',
-        disruptionProbability: job.disruptionProbability ?? 0.98,
-        estimatedDelayHours: job.estimatedDelayHours ?? 3.9,
-        recommendation: job.recommendation,
-      };
-    }
-    // Fallback demo job when simulation list is empty
-    return {
-      jobId: 'sim_job_default',
-      shortId: 'LG-1024',
-      resourceTitle: 'Chiavari Banquet Chairs (gold)',
-      category: 'furniture',
-      pickupLocation: 'Wagle Estate, Thane',
-      destinationLocation: 'Hotel Imperial Ballroom, Powai',
-      distanceKm: 18.4,
-      currentStatus: 'accepted',
-      disruptionProbability: 0.98,
-      estimatedDelayHours: 3.9,
-      recommendation: 'Reschedule — high disruption risk',
+  const metrics = simResult?.metrics;
+  const weatherClass = simResult?.weatherClassification;
+  const effectiveRadius = weatherClass ? getEffectiveRadius(weatherClass, weatherClass.score) : null;
+  const resources = simResult?.affectedResources || [];
+  const bookings = simResult?.affectedBookings || [];
+  const jobs = simResult?.affectedLogisticsJobs || [];
+  const requirements = simResult?.affectedRequirements || [];
+  const effects = simResult?.cascadingEffects || [];
+  const resourceTitle = (id) => resources.find(r => r.resourceId === id)?.title || 'Resource';
+  const current = liveWeather?.current;
+  const delta = simResult?.comparison?.delta;
+  const activePreset = PRESET_SCENARIOS.find(p => Object.keys(p.scenario).every(k => p.scenario[k] === scenario[k]));
+  const controls = [
+    { key: 'rainfallMmPerHour', label: 'Rainfall', unit: 'mm/h', min: 0, max: 120, step: 1, icon: CloudRain },
+    { key: 'windSpeedMps', label: 'Wind speed', unit: 'm/s', min: 0, max: 30, step: 1, icon: Wind },
+    { key: 'temperature', label: 'Temperature', unit: '°C', min: 10, max: 45, step: 1, icon: Thermometer },
+    { key: 'durationHours', label: 'Duration', unit: 'hours', min: 1, max: 24, step: 1, icon: Clock },
+  ];
+  const exportSummary = () => {
+    if (!simResult) return;
+    const report = {
+      location: selectedCity, generatedAt: simResult.meta?.completedAt || new Date().toISOString(),
+      mode: isLiveMode ? 'Current weather' : 'What-if scenario', scenario: simResult.scenario,
+      metrics, comparison: simResult.comparison,
+      bookings, logistics: jobs, resources, requirements,
+      notes: 'Rule-based planning estimates, not calibrated probabilities or guaranteed outcomes. Price exposure uses listing rates, not revenue loss. Active bookings are assessed across their dates. No operational records changed.',
     };
-  }, [simResult, resourceMap]);
+    const url = `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(report, null, 2))}`;
+    const link = document.createElement('a');
+    link.href = url; link.download = `weather-plan-${selectedCity.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`;
+    document.body.appendChild(link); link.click(); link.remove();
 
-  // ETA and delay calculations for the logistics job
-  const logisticsDelayInfo = useMemo(() => {
-    // Severe storm scenario produces standard +1h 45m delay (10:30 AM -> 12:15 PM)
-    const isSevere =
-      (scenario.rainfallMmPerHour >= 80 && scenario.durationHours >= 4) ||
-      weatherClass.severity === 'severe' ||
-      weatherClass.score >= 50;
-
-    const delayHours = isSevere
-      ? 1.75
-      : weatherClass.score >= 25
-      ? 0.5
-      : 0;
-
-    const eta = calculateSimulatedETA(null, delayHours);
-    const risk = getLogisticsRiskStatus(
-      primaryLogisticsJob.disruptionProbability,
-      primaryLogisticsJob.distanceKm,
-      effectiveRadius
-    );
-    const distanceZone = getDistanceZone(primaryLogisticsJob.distanceKm);
-
-    return {
-      ...eta,
-      ...risk,
-      distanceZone,
-      delayHours,
-      exceedsEffectiveRadius: primaryLogisticsJob.distanceKm > effectiveRadius,
-    };
-  }, [primaryLogisticsJob, weatherClass, effectiveRadius]);
-
-  // Affected bookings list with enriched titles
-  const displayBookings = useMemo(() => {
-    if (!simResult?.affectedBookings || simResult.affectedBookings.length === 0) {
-      return [
-        {
-          bookingId: 'bk_sample_1',
-          resourceTitle: 'Crystal Grand Ballroom — 500 guests',
-          startDateTime: '2026-10-18T18:00:00.000Z',
-          disruptionProbability: 0.8,
-          riskLevel: 'critical',
-          recommendation: 'Consider rescheduling or sourcing alternative resource',
-        },
-        {
-          bookingId: 'bk_sample_2',
-          resourceTitle: 'Chiavari Banquet Chairs (gold)',
-          startDateTime: '2026-10-11T12:00:00.000Z',
-          disruptionProbability: 0.55,
-          riskLevel: 'high',
-          recommendation: 'Monitor situation — delivery delay anticipated',
-        },
-      ];
-    }
-    return simResult.affectedBookings.map((b) => ({
-      ...b,
-      resourceTitle: resourceMap[b.resourceId]?.title || `Resource #${b.resourceId?.slice(-6)}`,
-    }));
-  }, [simResult, resourceMap]);
-
-  // Cascading effects from simulation
-  const cascadingEffects = useMemo(() => {
-    return simResult?.cascadingEffects || [];
-  }, [simResult]);
-
-  // Safe action handlers
-  const handleNotifySeeker = (jobId) => {
-    toast.success(`Seeker notified: Weather warning & potential delivery delay for Job #${jobId}`);
   };
-
-  const handleOpenRescheduleModal = (booking) => {
-    setRescheduleModalBooking(booking);
-  };
+  const signed = (value, suffix = '') => `${value > 0 ? '+' : ''}${value}${suffix}`;
+  const tabs = [ ['resources', 'Resources', resources.length], ['bookings', 'Bookings', bookings.length], ['logistics', 'Deliveries', jobs.length], ['requirements', 'Requirements', requirements.length], ['effects', 'Knock-on effects', effects.length] ];
 
   return (
-    <div className={`digital-twin-panel ${embedded ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 py-6'}`}>
-      {/* ── Top Header & Mode Banner ─────────────────────────────────── */}
-      <div className="bg-surface-alt border border-line rounded-2xl p-6 shadow-sm mb-6 transition-all">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-line">
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-                <Sparkles size={20} />
-              </span>
-              <h2 className="text-xl font-bold tracking-tight text-ink">
-                Digital Twin — Weather Impact Engine
-              </h2>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                <ShieldCheck size={13} />
-                READ-ONLY SIMULATION
-              </span>
-            </div>
-            <p className="text-sm text-ink-soft mt-1">
-              Simulates real-world weather disruptions on Indulge bookings, logistics, and resource availability. <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">Simulation only — operational data unchanged.</strong>
-            </p>
-          </div>
-
-          {/* Mode Indicator & Location Controls */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* 1. Hub Dropdown (25+ Cities with dark-mode safe options) */}
-            <div className="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-xl border border-line text-sm shadow-xs">
-              <MapPin size={16} className="text-indigo-500 shrink-0" />
-              <select
-                id="digital-twin-city-select"
-                value={selectedCityName}
-                onChange={(e) => {
-                  setSelectedCityName(e.target.value);
-                  const found = CITIES.find((c) => c.name === e.target.value);
-                  if (found) setCustomLocation(null);
-                }}
-                className="bg-transparent text-ink font-medium focus:outline-none cursor-pointer text-sm"
-              >
-                {customLocation && !CITIES.some((c) => c.name === customLocation.name) && (
-                  <option
-                    value={customLocation.name}
-                    className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold"
-                  >
-                    📍 {customLocation.name} (Custom / GPS)
-                  </option>
-                )}
-                {CITIES.map((c) => (
-                  <option
-                    key={c.name}
-                    value={c.name}
-                    className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
-                  >
-                    {c.name} {c.state ? `(${c.state})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* 2. Live Location GPS Button */}
-            <button
-              onClick={handleUseLiveLocation}
-              disabled={gpsLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-line bg-surface hover:bg-surface-sunk text-ink text-xs font-semibold shadow-xs transition-colors"
-              title="Detect live GPS coordinates from your device"
-            >
-              <Navigation size={13} className={`text-indigo-500 ${gpsLoading ? 'animate-spin' : ''}`} />
-              <span>{gpsLoading ? 'Locating…' : 'Live Location'}</span>
-            </button>
-
-            {/* 3. Search India Location Button */}
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-line bg-surface hover:bg-surface-sunk text-ink text-xs font-semibold shadow-xs transition-colors"
-              title="Search any city or location in India"
-            >
-              <Search size={13} className="text-indigo-500" />
-              <span>Search India</span>
-            </button>
-
-            {/* 4. Live / Counterfactual Badge */}
-            <div
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1.5 ${
-                isLiveMode
-                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                  : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-              }`}
-            >
-              <span
-                className={`w-2 h-2 rounded-full animate-pulse ${
-                  isLiveMode ? 'bg-emerald-500' : 'bg-amber-500'
-                }`}
-              />
-              {isLiveMode ? 'LIVE WEATHER INPUT' : 'COUNTERFACTUAL SCENARIO'}
-            </div>
-          </div>
+    <div className="digital-twin-panel twin-workspace">
+      <section className="twin-card twin-location" aria-label="Planning location">
+        <div className="twin-location-title"><MapPin size={19} /><div><span className="twin-eyebrow">PLANNING AREA</span><strong>{selectedCity.name}</strong></div></div>
+        <div className="twin-actions">
+          <select aria-label="Simulation location" value={selectedCityName} onChange={e => { locationRequest.current++; setGpsLoading(false); setCustomLocation(null); setSelectedCityName(e.target.value); }}>
+            {customLocation && !CITIES.some(c => c.name === customLocation.name) && <option value={customLocation.name}>{customLocation.name}</option>}
+            {CITIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+          </select>
+          <button className="twin-button" onClick={handleUseLiveLocation} disabled={gpsLoading}><Navigation size={15}/>{gpsLoading ? 'Locating…' : 'Use my location'}</button>
+          <button className="twin-button" aria-expanded={searchOpen} onClick={() => setSearchOpen(!searchOpen)}><Search size={15}/>Find a location</button>
         </div>
+      </section>
+      {searchOpen && <section className="twin-card twin-search" aria-label="Location search">
+        <form onSubmit={searchLocations} className="twin-actions">
+          <label className="sr-only" htmlFor="twin-location-search">City or district in India</label>
+          <input id="twin-location-search" autoFocus value={searchQuery} placeholder="Search a city or district in India" onChange={e => setSearchQuery(e.target.value)} />
+          <button className="twin-button twin-primary" disabled={searching || !searchQuery.trim()}>{searching ? 'Searching…' : 'Search'}</button>
+          <button type="button" className="twin-button" aria-label="Close location search" onClick={() => setSearchOpen(false)}><X size={16}/></button>
+        </form>
+        {searchError && <p role="status">{searchError}</p>}
+        <div className="twin-search-results">{searchResults.map(loc => <button key={`${loc.lat}-${loc.lon}`} onClick={() => handleSelectLocation(loc)}><MapPin size={15}/><span>{loc.name}<small>{loc.displayName || loc.state}</small></span><ArrowRight size={14}/></button>)}</div>
+      </section>}
 
-        {/* ── Search Locations in India Modal Popover ────────────────────────── */}
-        {searchOpen && (
-          <div className="fixed inset-0 z-[600] flex items-start justify-center pt-20 px-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <div className="w-full max-w-xl bg-surface dark:bg-zinc-900 border border-line rounded-2xl p-5 shadow-2xl">
-              <div className="flex items-center justify-between pb-3 border-b border-line mb-4">
-                <div className="flex items-center gap-2">
-                  <Search size={18} className="text-indigo-500" />
-                  <h3 className="font-bold text-ink text-base">Search Locations in India</h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    🇮🇳 India Only
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    setSearchOpen(false);
-                    setSearchQuery('');
-                  }}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-mute hover:text-ink hover:bg-surface-sunk transition-colors"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Search Input */}
-              <div className="relative mb-3">
-                <input
-                  autoFocus
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search any Indian city, suburb, or district (e.g. Kalyan, Bandra, Powai, Bengaluru)..."
-                  className="w-full px-4 py-2.5 pl-10 rounded-xl bg-surface-alt border border-line text-ink placeholder:text-ink-mute text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                />
-                <Search size={16} className="absolute left-3.5 top-3.5 text-ink-mute" />
-                {searching && (
-                  <RefreshCw size={15} className="absolute right-3.5 top-3.5 text-indigo-500 animate-spin" />
-                )}
-              </div>
-
-              {/* Popular Indian Metros Chips */}
-              <div className="mb-4">
-                <span className="text-[11px] font-semibold text-ink-mute uppercase tracking-wider block mb-1.5">
-                  Popular Indian Hubs:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {['Thane', 'Mumbai', 'Navi Mumbai', 'Kalyan-Dombivli', 'Pune', 'Bengaluru', 'Delhi NCR', 'Hyderabad'].map(
-                    (cityName) => (
-                      <button
-                        key={cityName}
-                        onClick={() => {
-                          const c = CITIES.find((item) => item.name === cityName);
-                          if (c) handleSelectLocation(c);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-surface-sunk border border-line hover:border-indigo-500 text-ink text-xs font-medium transition-colors"
-                      >
-                        {cityName}
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-
-              {/* Search Results List */}
-              <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                {searchResults.length > 0 ? (
-                  searchResults.map((loc, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSelectLocation(loc)}
-                      className="w-full text-left p-3 rounded-xl bg-surface-sunk/60 hover:bg-surface-sunk border border-line flex items-center justify-between gap-3 transition-colors group"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <MapPin size={15} className="text-indigo-500 shrink-0 group-hover:scale-110 transition-transform" />
-                        <div className="truncate">
-                          <span className="font-bold text-ink text-sm block truncate">
-                            {loc.name}
-                          </span>
-                          <span className="text-xs text-ink-mute block truncate">
-                            {loc.displayName || `${loc.state ? loc.state + ' • ' : ''}${loc.lat}, ${loc.lon}`}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-mono text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded shrink-0">
-                        Select Hub
-                      </span>
-                    </button>
-                  ))
-                ) : searchQuery.trim() ? (
-                  <div className="py-6 text-center text-xs text-ink-mute">
-                    {searching
-                      ? 'Searching Indian regional maps…'
-                      : 'No matching locations found in India. Try another city, town, or pin code.'}
-                  </div>
-                ) : (
-                  <div className="py-4 text-center text-xs text-ink-mute">
-                    Search is restricted exclusively to India. Start typing any Indian city, suburb, or district.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Current Weather Bar + Live Weather Button ────────────── */}
-        <div className="mt-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-4 flex-wrap text-sm text-ink">
-            <span className="font-semibold text-ink-mute uppercase tracking-wider text-xs">
-              Current Weather ({selectedCity.name}):
-            </span>
-            {liveLoading ? (
-              <span className="text-ink-mute flex items-center gap-1.5">
-                <RefreshCw size={14} className="animate-spin" /> Fetching live conditions...
-              </span>
-            ) : liveWeather?.current ? (
+      <section className="twin-card twin-weather" aria-label="Current weather">
+        <div className="twin-weather-label"><CloudRain size={22}/><div><h2>Current weather</h2><p>{liveLoading ? 'Checking conditions…' : current ? `${liveWeather.source} · ${current.observedAt ? new Date(current.observedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest available'}` : 'Feed unavailable · What-if planning is available'}</p></div></div>
+        {current && <div className="twin-weather-values"><span><strong>{current.temperature}°C</strong>Temperature</span><span><strong>{current.rainfallIntensity} mm/h</strong>Rainfall</span><span><strong>{current.windSpeed} m/s</strong>Wind</span></div>}
+        <div className="twin-actions">
+          <button className="twin-button" aria-label="Refresh current weather" disabled={liveLoading} onClick={handleRefreshWeather}>
+            <RefreshCw size={15} className={liveLoading ? 'animate-spin' : ''}/>
+            <span>Refresh</span>
+          </button>
+          <button
+            className={`twin-button ${isLiveMode ? 'twin-primary' : ''}`}
+            disabled={!current || liveLoading || simulating}
+            title={!current ? 'Refresh weather to check whether current conditions are available' : isLiveMode ? 'Current live weather is active (auto-syncing)' : 'Assess current conditions'}
+            onClick={handleUseLiveWeather}
+          >
+            {isLiveMode ? (
               <>
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Thermometer size={16} className="text-rose-500" />
-                  {liveWeather.current.temperature?.toFixed(1)}°C
-                </span>
-                <span className="flex items-center gap-1.5 font-medium">
-                  <CloudRain size={16} className="text-blue-500" />
-                  {liveWeather.current.humidity}% humidity
-                </span>
-                <span className="capitalize font-medium text-ink-soft">
-                  {liveWeather.current.weatherDescription || 'Clear sky'}
-                </span>
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Wind size={16} className="text-teal-500" />
-                  Wind {liveWeather.current.windSpeed?.toFixed(1)} m/s
-                </span>
+                <ShieldCheck size={14} />
+                <span>Current weather active</span>
               </>
             ) : (
-              <span className="text-ink-soft">
-                26°C · 77% humidity · Cloudy · Wind 1.7 m/s (cached baseline)
-              </span>
+              'Use current weather'
             )}
-          </div>
-
-          <button
-            id="use-live-weather-btn"
-            onClick={handleUseLiveWeather}
-            disabled={liveLoading || simulating}
-            className="btn-secondary text-xs flex items-center justify-center gap-2 py-1.5 px-3 self-start lg:self-auto"
-          >
-            <Compass size={14} />
-            <span>Use Live Weather</span>
           </button>
         </div>
+      </section>
+
+      <div className="twin-planning-grid">
+        <section className="twin-card twin-scenario" aria-labelledby="scenario-heading">
+          <div className="twin-section-heading"><div><span className="twin-eyebrow">01 / CONDITIONS</span><h2 id="scenario-heading">{isLiveMode ? 'Current live conditions' : 'Plan a weather scenario'}</h2></div><SlidersHorizontal size={19}/></div>
+          <div className="twin-presets" role="group" aria-label="Weather presets">{PRESET_SCENARIOS.map(p => <button key={p.id} aria-pressed={!isLiveMode && activePreset?.id === p.id} onClick={() => handleApplyPreset(p)}>{p.id === 'normal' ? 'Clear' : p.id === 'moderate' ? 'Heavy rain' : 'Storm'}</button>)}</div>
+          <div className="twin-sliders">{controls.map(({key,label,unit,min,max,step,icon: Icon}) => <div key={key} className="twin-slider"><label htmlFor={`twin-${key}`}><span><Icon size={15}/>{label}</span><strong>{scenario[key]} <small>{unit}</small></strong></label><input id={`twin-${key}`} type="range" min={Math.min(min, scenario[key])} max={Math.max(max, scenario[key])} step={step} value={scenario[key]} aria-valuetext={`${scenario[key]} ${unit}`} onChange={e => handleScenarioChange(key, Number(e.target.value))}/><div className="twin-range-labels"><span>{Math.min(min, scenario[key])} {unit}</span><span>{Math.max(max, scenario[key])} {unit}</span></div></div>)}</div>
+          <button className="twin-button twin-primary twin-run" disabled={simulating} onClick={() => runSimulation()}>{simulating ? <RefreshCw size={16} className="animate-spin"/> : <Activity size={16}/>} {simulating ? 'Assessing impact…' : 'Run assessment'}<ArrowRight size={16}/></button>
+          <p className="twin-caption"><ShieldCheck size={13}/>Planning only. Bookings remain unchanged.</p>
+        </section>
+
+        <section className="twin-card twin-impact" aria-labelledby="impact-heading" aria-busy={simulating}>
+          <div className="twin-section-heading"><div><span className="twin-eyebrow">02 / BUSINESS IMPACT</span><h2 id="impact-heading">Your operational outlook</h2></div><span className={`twin-status ${simResult ? 'twin-status-ready' : ''}`}>{simulating ? 'Assessing' : simResult ? isLiveMode ? 'Current weather' : 'What-if scenario' : 'Not assessed'}</span></div>
+          <div className="twin-outlook" role="status" aria-live="polite">
+            {simError ? <><h3>Assessment unavailable</h3><p>{simError} Try running the assessment again.</p></> : !simResult ? <><h3>{simulating ? 'Reviewing local operations…' : 'Conditions changed'}</h3><p>{simulating ? 'Checking resources, bookings and delivery exposure in this area.' : 'Run the assessment to update your business outlook.'}</p></> : <><div className="twin-outlook-line"><h3>{metrics.highRiskBookings || metrics.disruptedLogistics ? 'Review exposed operations' : resources.length ? 'Review resource readiness' : 'No resources in this area'}</h3><span className={`twin-risk ${['severe','extreme'].includes(weatherClass.severity) ? 'twin-risk-high' : ''}`}>{weatherClass.severity} conditions</span></div><p>{resources.length ? `${resources.length} local resources assessed within ${simResult.location?.radiusKm || 50} km. ${bookings.length} active bookings and ${jobs.length} deliveries belong to your business.` : 'Choose another location to assess your network. Weather conditions alone do not establish business exposure.'}</p></>}
+          </div>
+          <div className="twin-metrics">
+            <Metric label="High-risk bookings" value={simResult ? metrics.highRiskBookings : '—'} detail={simResult ? `${bookings.length} active bookings assessed` : 'Awaiting assessment'}/>
+            <Metric label="Disrupted deliveries" value={simResult ? metrics.disruptedLogistics : '—'} detail={simResult ? `${jobs.length} active deliveries assessed` : 'Awaiting assessment'}/>
+            <Metric label="Modelled availability" value={simResult && resources.length ? `${Math.round(metrics.avgAvailabilityFactor * 100)}%` : '—'} detail="Resource capacity estimate"/>
+            <Metric label="Indicative price exposure" value={simResult && resources.length ? inr(metrics.estimatedTotalRevenueLossInr) : '—'} detail="Based on listing rates; not revenue loss"/>
+          </div>
+          <div className="twin-comparison"><h3>Compared with clear weather</h3><div><span>Availability <strong>{delta && resources.length ? signed(delta.availabilityPercentagePoints, ' pp') : '—'}</strong></span><span>High-risk bookings <strong>{delta ? signed(delta.highRiskBookings) : '—'}</strong></span><span>Disrupted deliveries <strong>{delta ? signed(delta.disruptedLogistics) : '—'}</strong></span></div></div>
+          <div className="twin-impact-footer"><span>Estimated delivery coverage <strong>{effectiveRadius ? `${effectiveRadius} km` : '—'}</strong><small>30 km clear-weather baseline</small></span><button className="twin-button" onClick={exportSummary} disabled={!simResult}><Download size={15}/>Export assessment</button></div>
+        </section>
       </div>
 
-      {/* ── STEP 2: LIVE STATE vs COUNTERFACTUAL STATE TRANSITION ─────────── */}
-      <div className="bg-surface-alt border border-line rounded-2xl p-5 shadow-sm mb-6 transition-all">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-line mb-4">
-          <div className="flex items-center gap-2">
-            <Compass size={18} className="text-indigo-500" />
-            <h3 className="font-bold text-ink text-sm sm:text-base">
-              Live Weather vs. Simulated Scenario Transition
-            </h3>
-          </div>
-          <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold bg-surface border border-line text-ink-mute uppercase">
-            {isLiveMode ? 'Active Mode: Live State' : 'Active Mode: Counterfactual State'}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Left: LIVE STATE ("What is happening now?") */}
-          <div
-            className={`p-4 rounded-xl border transition-all ${
-              isLiveMode
-                ? 'border-emerald-500 bg-emerald-500/10 shadow-sm'
-                : 'border-line bg-surface'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                  LIVE STATE
-                </span>
-              </div>
-              <span className="text-[11px] font-medium text-ink-mute italic">
-                "What is happening now?"
-              </span>
-            </div>
-            <p className="text-xs text-ink-soft mb-3">
-              Real-time atmospheric observations from OpenWeather API for {selectedCity.name}.
-            </p>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="p-2 rounded-lg bg-surface-alt border border-line">
-                <span className="text-[10px] text-ink-mute block">Rainfall</span>
-                <strong className="text-ink font-bold">
-                  {liveWeather?.current?.rainfallIntensity != null
-                    ? `${Math.round(liveWeather.current.rainfallIntensity)} mm/h`
-                    : '0 mm/h'}
-                </strong>
-              </div>
-              <div className="p-2 rounded-lg bg-surface-alt border border-line">
-                <span className="text-[10px] text-ink-mute block">Temperature</span>
-                <strong className="text-ink font-bold">
-                  {liveWeather?.current?.temperature != null
-                    ? `${Math.round(liveWeather.current.temperature)}°C`
-                    : '26°C'}
-                </strong>
-              </div>
-              <div className="p-2 rounded-lg bg-surface-alt border border-line">
-                <span className="text-[10px] text-ink-mute block">Wind Speed</span>
-                <strong className="text-ink font-bold">
-                  {liveWeather?.current?.windSpeed != null
-                    ? `${Math.round(liveWeather.current.windSpeed)} m/s`
-                    : '2 m/s'}
-                </strong>
-              </div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-line flex items-center justify-between">
-              <span className="text-[11px] text-ink-mute">
-                Service Radius:{' '}
-                <strong className="text-emerald-600 dark:text-emerald-400">
-                  {STANDARD_LOGISTICS_RADIUS_KM} km (Standard)
-                </strong>
-              </span>
-              <button
-                onClick={handleUseLiveWeather}
-                className={`text-xs px-2.5 py-1 rounded-lg border font-semibold transition-colors ${
-                  isLiveMode
-                    ? 'bg-emerald-600 text-white border-emerald-600'
-                    : 'bg-surface hover:bg-surface-sunk text-ink border-line'
-                }`}
-              >
-                {isLiveMode ? '✓ Active Live Mode' : 'Apply Live State'}
-              </button>
-            </div>
-          </div>
-
-          {/* Right: COUNTERFACTUAL STATE ("What could happen if conditions change?") */}
-          <div
-            className={`p-4 rounded-xl border transition-all ${
-              !isLiveMode
-                ? 'border-indigo-500 bg-indigo-500/10 shadow-sm'
-                : 'border-line bg-surface'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                  COUNTERFACTUAL STATE
-                </span>
-              </div>
-              <span className="text-[11px] font-medium text-ink-mute italic">
-                "What could happen if conditions change?"
-              </span>
-            </div>
-            <p className="text-xs text-ink-soft mb-3">
-              Stress-test scenario: Simulated weather impact on bookings, capacity &amp; logistics.
-            </p>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="p-2 rounded-lg bg-surface-alt border border-line">
-                <span className="text-[10px] text-ink-mute block">Rainfall</span>
-                <strong className="text-blue-600 dark:text-blue-400 font-bold">
-                  {scenario.rainfallMmPerHour} mm/h
-                </strong>
-              </div>
-              <div className="p-2 rounded-lg bg-surface-alt border border-line">
-                <span className="text-[10px] text-ink-mute block">Temperature</span>
-                <strong className="text-rose-600 dark:text-rose-400 font-bold">
-                  {scenario.temperature}°C
-                </strong>
-              </div>
-              <div className="p-2 rounded-lg bg-surface-alt border border-line">
-                <span className="text-[10px] text-ink-mute block">Wind Speed</span>
-                <strong className="text-teal-600 dark:text-teal-400 font-bold">
-                  {scenario.windSpeedMps} m/s
-                </strong>
-              </div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-line flex items-center justify-between">
-              <span className="text-[11px] text-ink-mute">
-                Simulated Radius:{' '}
-                <strong className={effectiveRadius < 30 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}>
-                  {effectiveRadius} km
-                </strong>{' '}
-                ({effectiveRadius < 30 ? `-${STANDARD_LOGISTICS_RADIUS_KM - effectiveRadius} km drop` : 'Standard'})
-              </span>
-              <button
-                onClick={() => {
-                  setIsLiveMode(false);
-                  runSimulation();
-                }}
-                className={`text-xs px-2.5 py-1 rounded-lg border font-semibold transition-colors ${
-                  !isLiveMode
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-surface hover:bg-surface-sunk text-ink border-line'
-                }`}
-              >
-                {!isLiveMode ? '✓ Active Simulation' : 'Switch to Simulation'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Main Two-Column Work Area: Controls (Left) vs Summary (Right) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
-        {/* Left: Scenario Inputs & Presets (5 cols) */}
-        <div className="lg:col-span-5 bg-surface-alt border border-line rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-ink flex items-center gap-2 text-base">
-                <Sliders size={18} className="text-indigo-500" />
-                Scenario Parameters
-              </h3>
-              <span className="text-xs text-ink-mute">What-if simulation inputs</span>
-            </div>
-
-            {/* Quick Presets */}
-            <div className="mb-5">
-              <label className="text-xs font-semibold text-ink-mute uppercase tracking-wider block mb-2">
-                Quick Scenario Presets
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {PRESET_SCENARIOS.map((p) => {
-                  const isActive =
-                    scenario.rainfallMmPerHour === p.scenario.rainfallMmPerHour &&
-                    scenario.windSpeedMps === p.scenario.windSpeedMps;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => handleApplyPreset(p)}
-                      className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
-                        isActive
-                          ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 shadow-sm'
-                          : 'border-line hover:border-line-strong bg-surface'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span className="text-base">{p.icon}</span>
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${p.badgeTone}`}>
-                          {p.badge}
-                        </span>
-                      </div>
-                      <span className="text-xs font-semibold text-ink mt-1.5 truncate">
-                        {p.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Sliders & Inputs */}
-            <div className="space-y-4">
-              {/* Rainfall */}
-              <div>
-                <div className="flex justify-between items-center mb-1 text-sm">
-                  <span className="font-medium text-ink flex items-center gap-1.5">
-                    <CloudRain size={16} className="text-blue-500" /> Rainfall Intensity
-                  </span>
-                  <span className="font-bold text-blue-600 dark:text-blue-400">
-                    {scenario.rainfallMmPerHour} mm/h
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="120"
-                  step="5"
-                  value={scenario.rainfallMmPerHour}
-                  onChange={(e) => handleScenarioChange('rainfallMmPerHour', Number(e.target.value))}
-                  className="w-full h-1.5 bg-line rounded-lg appearance-none cursor-pointer accent-blue-600"
-                />
-                <div className="flex justify-between text-[11px] text-ink-mute mt-0.5">
-                  <span>0 (Clear)</span>
-                  <span>40 (Monsoon)</span>
-                  <span>90+ (Heavy Storm)</span>
-                </div>
-              </div>
-
-              {/* Temperature */}
-              <div>
-                <div className="flex justify-between items-center mb-1 text-sm">
-                  <span className="font-medium text-ink flex items-center gap-1.5">
-                    <Thermometer size={16} className="text-rose-500" /> Temperature
-                  </span>
-                  <span className="font-bold text-rose-600 dark:text-rose-400">
-                    {scenario.temperature} °C
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="10"
-                  max="45"
-                  step="1"
-                  value={scenario.temperature}
-                  onChange={(e) => handleScenarioChange('temperature', Number(e.target.value))}
-                  className="w-full h-1.5 bg-line rounded-lg appearance-none cursor-pointer accent-rose-500"
-                />
-                <div className="flex justify-between text-[11px] text-ink-mute mt-0.5">
-                  <span>10°C (Cold)</span>
-                  <span>28°C (Normal)</span>
-                  <span>42°C+ (Extreme Heat)</span>
-                </div>
-              </div>
-
-              {/* Wind Speed */}
-              <div>
-                <div className="flex justify-between items-center mb-1 text-sm">
-                  <span className="font-medium text-ink flex items-center gap-1.5">
-                    <Wind size={16} className="text-teal-500" /> Wind Speed
-                  </span>
-                  <span className="font-bold text-teal-600 dark:text-teal-400">
-                    {scenario.windSpeedMps} m/s ({Math.round(scenario.windSpeedMps * 3.6)} km/h)
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="30"
-                  step="1"
-                  value={scenario.windSpeedMps}
-                  onChange={(e) => handleScenarioChange('windSpeedMps', Number(e.target.value))}
-                  className="w-full h-1.5 bg-line rounded-lg appearance-none cursor-pointer accent-teal-600"
-                />
-                <div className="flex justify-between text-[11px] text-ink-mute mt-0.5">
-                  <span>0 (Calm)</span>
-                  <span>14 (Gale alert)</span>
-                  <span>22+ (Cyclone force)</span>
-                </div>
-              </div>
-
-              {/* Duration */}
-              <div>
-                <div className="flex justify-between items-center mb-1 text-sm">
-                  <span className="font-medium text-ink flex items-center gap-1.5">
-                    <Clock size={16} className="text-amber-500" /> Storm Duration
-                  </span>
-                  <span className="font-bold text-amber-600 dark:text-amber-400">
-                    {scenario.durationHours} hours
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="12"
-                  step="1"
-                  value={scenario.durationHours}
-                  onChange={(e) => handleScenarioChange('durationHours', Number(e.target.value))}
-                  className="w-full h-1.5 bg-line rounded-lg appearance-none cursor-pointer accent-amber-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Trigger Button */}
-          <div className="mt-6 pt-4 border-t border-line">
-            <button
-              id="simulate-scenario-btn"
-              onClick={() => runSimulation()}
-              disabled={simulating}
-              className="w-full btn-primary py-3 px-4 rounded-xl flex items-center justify-center gap-2 font-semibold text-sm shadow-md transition-all"
-            >
-              {simulating ? (
-                <>
-                  <RefreshCw size={16} className="animate-spin" />
-                  <span>Updating Digital Twin...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} />
-                  <span>Simulate Scenario Impact</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Right: Weather Classification & Impact Summary (7 cols) */}
-        <div className="lg:col-span-7 bg-surface-alt border border-line rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            {/* Classification Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-line mb-4">
-              <div>
-                <span className="text-xs font-semibold text-ink-mute uppercase tracking-wider block">
-                  Simulated Weather Classification
-                </span>
-                <div className="flex items-center gap-2.5 mt-1">
-                  <span
-                    className={`text-lg font-black tracking-wide uppercase px-3 py-1 rounded-xl border ${
-                      weatherClass.severity === 'extreme' || weatherClass.severity === 'severe'
-                        ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30'
-                        : weatherClass.severity === 'moderate'
-                        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                        : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                    }`}
-                  >
-                    {weatherClass.severity}
-                  </span>
-                  <span className="text-sm text-ink-soft">
-                    Severity Score: <strong className="text-ink">{weatherClass.score}/100</strong>
-                  </span>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <span className="text-xs text-ink-mute block">Simulation ID</span>
-                <span className="font-mono text-xs text-ink font-semibold">
-                  {simResult?.simulationId?.slice(0, 14) || 'sim_running'}
-                </span>
-              </div>
-            </div>
-
-            {/* Error banner if any */}
-            {simError && (
-              <div className="mb-4 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm flex items-start gap-2">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold">Notice</p>
-                  <p className="text-xs">{simError}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Impact Metrics Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
-              {/* Resources at Risk */}
-              <div className="p-3.5 rounded-xl bg-surface border border-line">
-                <div className="flex items-center justify-between text-xs text-ink-mute mb-1">
-                  <span>Resources at Risk</span>
-                  <Layers size={15} className="text-indigo-500" />
-                </div>
-                <div className="text-2xl font-bold text-ink tracking-tight">
-                  {metrics.criticalResources}
-                  <span className="text-xs font-normal text-ink-mute ml-1">
-                    / {metrics.totalResourcesScanned}
-                  </span>
-                </div>
-                <span className="text-[11px] text-red-500 font-medium">
-                  {metrics.affectedResourcesCount} capacity disrupted
-                </span>
-              </div>
-
-              {/* Bookings at Risk */}
-              <div className="p-3.5 rounded-xl bg-surface border border-line">
-                <div className="flex items-center justify-between text-xs text-ink-mute mb-1">
-                  <span>Bookings at Risk</span>
-                  <Calendar size={15} className="text-amber-500" />
-                </div>
-                <div className="text-2xl font-bold text-ink tracking-tight">
-                  {metrics.highRiskBookings}
-                  <span className="text-xs font-normal text-ink-mute ml-1">
-                    / {metrics.totalBookingsAtRisk}
-                  </span>
-                </div>
-                <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                  {metrics.highRiskBookings > 0 ? 'Reschedule alert active' : 'Safe dispatch window'}
-                </span>
-              </div>
-
-              {/* Logistics Disrupted */}
-              <div className="p-3.5 rounded-xl bg-surface border border-line">
-                <div className="flex items-center justify-between text-xs text-ink-mute mb-1">
-                  <span>Logistics Disrupted</span>
-                  <Truck size={15} className="text-rose-500" />
-                </div>
-                <div className="text-2xl font-bold text-ink tracking-tight">
-                  {metrics.disruptedLogistics}
-                  <span className="text-xs font-normal text-ink-mute ml-1">
-                    / {metrics.activeLogisticsJobs}
-                  </span>
-                </div>
-                <span className="text-[11px] text-rose-500 font-medium">
-                  {metrics.disruptedLogistics > 0 ? 'Delay & bottleneck risk' : 'Operating normally'}
-                </span>
-              </div>
-
-              {/* Requirements Affected */}
-              <div className="p-3.5 rounded-xl bg-surface border border-line">
-                <div className="flex items-center justify-between text-xs text-ink-mute mb-1">
-                  <span>Requirements Affected</span>
-                  <TrendingDown size={15} className="text-teal-500" />
-                </div>
-                <div className="text-2xl font-bold text-ink tracking-tight">
-                  {metrics.surgeRequirements}
-                  <span className="text-xs font-normal text-ink-mute ml-1">
-                    / {metrics.totalRequirementsScanned}
-                  </span>
-                </div>
-                <span className="text-[11px] text-teal-600 dark:text-teal-400 font-medium">
-                  Demand surge shift
-                </span>
-              </div>
-
-              {/* Avg Availability */}
-              <div className="p-3.5 rounded-xl bg-surface border border-line">
-                <div className="flex items-center justify-between text-xs text-ink-mute mb-1">
-                  <span>Avg. Availability</span>
-                  <Activity size={15} className="text-blue-500" />
-                </div>
-                <div className="text-2xl font-bold text-ink tracking-tight">
-                  {(metrics.avgAvailabilityFactor * 100).toFixed(1)}%
-                </div>
-                <div className="w-full bg-line rounded-full h-1.5 mt-1.5 overflow-hidden">
-                  <div
-                    className={`h-1.5 rounded-full transition-all duration-500 ${
-                      metrics.avgAvailabilityFactor < 0.35
-                        ? 'bg-red-500'
-                        : metrics.avgAvailabilityFactor < 0.7
-                        ? 'bg-amber-500'
-                        : 'bg-emerald-500'
-                    }`}
-                    style={{ width: `${Math.round(metrics.avgAvailabilityFactor * 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Est. Revenue Loss */}
-              <div className="p-3.5 rounded-xl bg-surface border border-line">
-                <div className="flex items-center justify-between text-xs text-ink-mute mb-1">
-                  <span>Est. Revenue Loss</span>
-                  <AlertOctagon size={15} className="text-red-500" />
-                </div>
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400 tracking-tight">
-                  {inr(metrics.estimatedTotalRevenueLossInr)}
-                </div>
-                <span className="text-[11px] text-ink-mute">Storm period projection</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Tabs to inspect sub-areas */}
-          <div className="flex items-center gap-2 border-t border-line pt-3 overflow-x-auto text-xs font-medium">
-            <span className="text-ink-mute mr-1 shrink-0">Focus View:</span>
-            {[
-              { key: 'overview', label: 'All Impacts' },
-              { key: 'logistics', label: `Logistics Impact (${metrics.disruptedLogistics})` },
-              {
-                key: 'signals',
-                label: `Public Signals (${simResult?.publicSignals?.aggregation?.totalSignals || 'Live'})`,
-              },
-              { key: 'bookings', label: `Bookings (${metrics.highRiskBookings})` },
-              { key: 'cascades', label: `Cascading Chain (${cascadingEffects.length})` },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
-                  activeTab === tab.key
-                    ? 'bg-indigo-600 text-white font-semibold'
-                    : 'bg-surface text-ink-soft hover:text-ink hover:bg-surface-sunk'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ── STEP 3: GEOSPATIAL DIGITAL TWIN MAP ── */}
-      <DigitalTwinMap
-        centerCity={selectedCity.name}
-        centerCoords={{ lat: selectedCity.lat, lon: selectedCity.lon }}
-        simResult={simResult}
-        scenario={scenario}
-        effectiveRadius={effectiveRadius}
-        isLiveWeather={isLiveMode}
-      />
-
-      {/* ── STEP 4 & 5: LOGISTICS COVERAGE & 30 KM SERVICE RADIUS CARD ── */}
-      <div className="bg-surface-alt border border-line rounded-2xl p-6 shadow-sm mb-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-line">
-          <div>
-            <div className="flex items-center gap-2">
-              <Compass size={20} className="text-indigo-500" />
-              <h3 className="font-bold text-ink text-base">
-                Logistics Coverage & Service Radius
-              </h3>
-              <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                Default Baseline: 30 km
-              </span>
-            </div>
-            <p className="text-xs text-ink-soft mt-1">
-              Indulge Logistics Partner operates on a standard default maximum service radius of 30 km. Bad weather contracts the simulated effective operating radius.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <span className="text-xs text-ink-mute block">Weather Adjusted Radius</span>
-              <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">
-                {effectiveRadius} km
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Visual Radius Shrinkage Comparison Bar */}
-        <div className="my-5">
-          <div className="flex justify-between items-baseline mb-2 text-xs">
-            <span className="font-medium text-ink">
-              Simulated Radius Compression: <strong className="text-indigo-600">{effectiveRadius} km</strong> / Standard <span className="text-ink-mute">30 km</span>
-            </span>
-            <span className="font-semibold text-ink-soft">
-              {Math.round((effectiveRadius / STANDARD_LOGISTICS_RADIUS_KM) * 100)}% coverage remaining
-            </span>
-          </div>
-
-          <div className="w-full bg-surface border border-line rounded-xl h-4 relative overflow-hidden flex">
-            {/* Simulated Active Radius */}
-            <div
-              className={`h-full transition-all duration-500 rounded-l-xl flex items-center justify-end pr-2 text-[10px] font-bold text-white ${
-                effectiveRadius <= 15 ? 'bg-red-500' : effectiveRadius <= 25 ? 'bg-amber-500' : 'bg-emerald-500'
-              }`}
-              style={{ width: `${(effectiveRadius / STANDARD_LOGISTICS_RADIUS_KM) * 100}%` }}
-            >
-              {effectiveRadius} km
-            </div>
-            {/* Cutoff / Unsafe Radius Zone */}
-            <div
-              className="h-full bg-red-500/15 dark:bg-red-500/25 flex-1 flex items-center pl-2 text-[10px] text-red-600 dark:text-red-400 font-medium"
-            >
-              ⚠ Disrupted Zone ({STANDARD_LOGISTICS_RADIUS_KM - effectiveRadius} km loss)
-            </div>
-          </div>
-
-          {/* Standard Service Radius Zones */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 mt-4 pt-3 border-t border-line text-xs">
-            <div className="p-2.5 rounded-lg bg-surface border border-line">
-              <span className="font-bold text-emerald-600 dark:text-emerald-400 block">0–10 km</span>
-              <span className="text-ink-mute text-[11px]">Nearby / Preferred Zone</span>
-            </div>
-            <div className="p-2.5 rounded-lg bg-surface border border-line">
-              <span className="font-bold text-blue-600 dark:text-blue-400 block">10–20 km</span>
-              <span className="text-ink-mute text-[11px]">Standard Delivery Zone</span>
-            </div>
-            <div className="p-2.5 rounded-lg bg-surface border border-line">
-              <span className="font-bold text-amber-600 dark:text-amber-400 block">20–30 km</span>
-              <span className="text-ink-mute text-[11px]">Extended Delivery Zone</span>
-            </div>
-            <div className="p-2.5 rounded-lg bg-surface border border-line">
-              <span className="font-bold text-red-600 dark:text-red-400 block">&gt; 30 km</span>
-              <span className="text-ink-mute text-[11px]">Outside Default Radius</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Warning Callout when Effective Radius is Reduced */}
-        {effectiveRadius < STANDARD_LOGISTICS_RADIUS_KM && (
-          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3 text-xs text-amber-800 dark:text-amber-300">
-            <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold">
-                Weather Impact: {weatherClass.severity.toUpperCase()} ({weatherClass.score}/100)
-              </p>
-              <p className="mt-0.5">
-                ⚠ Deliveries beyond <strong>{effectiveRadius} km</strong> may be delayed, encounter waterlogged corridors, or require an alternative closer logistics partner.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── STEP 6 & 7: MAIN DEMONSTRATION — LOGISTICS DELAY EXPERIENCE ── */}
-      {(activeTab === 'overview' || activeTab === 'logistics') && (
-        <div className="bg-surface-alt border border-line rounded-2xl p-6 shadow-sm mb-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-line mb-5">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                <Truck size={22} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-ink text-lg">
-                    Logistics Impact Demonstration
-                  </h3>
-                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-surface border border-line text-ink-soft">
-                    {primaryLogisticsJob.shortId}
-                  </span>
-                </div>
-                <p className="text-xs text-ink-soft mt-0.5">
-                  Real Indulge dispatch job affected by the simulated weather conditions.
-                </p>
-              </div>
-            </div>
-
-            {/* Status Progression Badge */}
-            <div className="flex items-center gap-2">
-              <span className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 ${logisticsDelayInfo.tone}`}>
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: logisticsDelayInfo.dotColor }}
-                />
-                {logisticsDelayInfo.badgeLabel}
-              </span>
-            </div>
-          </div>
-
-          {/* Job Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 mb-5">
-            {/* Route & Distance (5 cols) */}
-            <div className="md:col-span-5 p-4 rounded-xl bg-surface border border-line space-y-3">
-              <span className="text-xs font-semibold text-ink-mute uppercase tracking-wider block">
-                Route & Distance Verification
-              </span>
-
-              {/* Pickup */}
-              <div className="flex items-start gap-2.5">
-                <MapPin size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                <div className="text-xs">
-                  <span className="text-ink-mute block">Pickup Location</span>
-                  <span className="font-semibold text-ink">{primaryLogisticsJob.pickupLocation}</span>
-                  <span className="text-ink-soft block text-[11px] mt-0.5">
-                    Resource: {primaryLogisticsJob.resourceTitle}
-                  </span>
-                </div>
-              </div>
-
-              {/* Delivery */}
-              <div className="flex items-start gap-2.5">
-                <Navigation size={16} className="text-indigo-500 shrink-0 mt-0.5" />
-                <div className="text-xs">
-                  <span className="text-ink-mute block">Destination Location</span>
-                  <span className="font-semibold text-ink">{primaryLogisticsJob.destinationLocation}</span>
-                </div>
-              </div>
-
-              {/* Distance Metrics */}
-              <div className="pt-3 border-t border-line flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-ink-mute block">Transit Distance:</span>
-                  <strong className="text-sm font-bold text-ink">{primaryLogisticsJob.distanceKm} km</strong>
-                </div>
-                <div>
-                  <span className="text-ink-mute block">Normal Radius:</span>
-                  <strong className="text-sm text-ink">{STANDARD_LOGISTICS_RADIUS_KM} km</strong>
-                </div>
-                <div>
-                  <span className="text-ink-mute block">Simulated Radius:</span>
-                  <strong className="text-sm text-red-500">{effectiveRadius} km</strong>
-                </div>
-              </div>
-
-              {/* Radius Violation Tag (30 KM LOGISTICS RULE) */}
-              {logisticsDelayInfo.exceedsEffectiveRadius ? (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-xs text-red-600 dark:text-red-400 font-medium space-y-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider text-red-600 dark:text-red-400">
-                    <AlertTriangle size={15} className="shrink-0 text-red-500" />
-                    <span>⚠ DELIVERY AT RISK</span>
-                  </div>
-                  <p className="text-xs font-semibold leading-relaxed">
-                    "Delivery distance exceeds the simulated weather-adjusted logistics radius."
-                  </p>
-                  <div className="text-[11px] text-ink-mute pt-1 border-t border-red-500/20 flex justify-between">
-                    <span>Delivery Distance: <strong className="text-ink">{primaryLogisticsJob.distanceKm} km</strong></span>
-                    <span>Weather-Adjusted Radius: <strong className="text-red-500">{effectiveRadius} km</strong> ({primaryLogisticsJob.distanceKm} &gt; {effectiveRadius})</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-semibold">
-                    <CheckCircle2 size={14} className="shrink-0 text-emerald-500" />
-                    <span>✓ Standard Logistics Range</span>
-                  </div>
-                  <span className="text-[11px] text-ink-mute">
-                    {primaryLogisticsJob.distanceKm} km &le; {effectiveRadius} km
-                  </span>
-                </div>
-              )}
-
-              {/* Public Disruption Signals Context (STEP 17) */}
-              <div className="pt-2.5 border-t border-line flex items-center justify-between text-xs">
-                <span className="text-ink-mute flex items-center gap-1.5">
-                  <Radio size={12} className="text-blue-500" />
-                  <span>Public Disruption Signals:</span>
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                    simResult?.publicSignals?.aggregation?.signalActivity === 'high' ||
-                    simResult?.publicSignals?.aggregation?.signalActivity === 'very_high'
-                      ? 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30'
-                      : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                  }`}
-                >
-                  {simResult?.publicSignals?.aggregation?.signalActivity?.replace('_', ' ') || 'High Activity'}
-                </span>
-              </div>
-            </div>
-
-            {/* ETA Comparison & Prediction (4 cols) */}
-            <div className="md:col-span-4 p-4 rounded-xl bg-surface border border-line flex flex-col justify-between">
-              <div>
-                <span className="text-xs font-semibold text-ink-mute uppercase tracking-wider block mb-3">
-                  ETA & Delay Projection
-                </span>
-
-                <div className="space-y-3 text-xs">
-                  <div className="flex justify-between items-center p-2.5 rounded-lg bg-surface-alt border border-line">
-                    <span className="text-ink-mute">Original Scheduled ETA:</span>
-                    <strong className="text-ink font-semibold">{logisticsDelayInfo.originalFormatted}</strong>
-                  </div>
-
-                  <div className="flex justify-between items-center p-2.5 rounded-lg bg-surface-alt border border-line">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-ink-mute">Simulated ETA:</span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
-                        SIMULATED
-                      </span>
-                    </div>
-                    <strong className="text-red-600 dark:text-red-400 font-bold text-sm">
-                      {logisticsDelayInfo.simulatedFormatted}
-                    </strong>
-                  </div>
-
-                  <div className="flex justify-between items-center p-2.5 rounded-lg bg-red-500/10 border border-red-500/20">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-red-700 dark:text-red-300 font-medium">Predicted Delay:</span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-red-500/20 text-red-700 dark:text-red-300 border border-red-500/40">
-                        PREDICTED
-                      </span>
-                    </div>
-                    <strong className="text-red-600 dark:text-red-400 font-bold text-sm">
-                      {logisticsDelayInfo.delayText}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-
-              <span className="text-[11px] text-ink-mute mt-3 block">
-                * SIMULATED PROJECTION: Operational data remains unchanged. Real GPS &amp; MongoDB records are untouched.
-              </span>
-            </div>
-
-            {/* Operational Recommendation & Actions (3 cols) */}
-            <div className="md:col-span-3 p-4 rounded-xl bg-surface border border-line flex flex-col justify-between">
-              <div>
-                <span className="text-xs font-semibold text-ink-mute uppercase tracking-wider block mb-2">
-                  Recommended Action
-                </span>
-                <p className="text-xs text-ink font-medium leading-relaxed mb-3">
-                  {logisticsDelayInfo.recommendation}
-                </p>
-
-                <div className="p-2.5 rounded-lg bg-surface-alt border border-line text-[11px] text-ink-soft">
-                  <strong className="text-ink block">Partner Status:</strong>
-                  {logisticsDelayInfo.exceedsEffectiveRadius
-                    ? '⚠ Current Partner May Be Affected by severe corridor storm.'
-                    : 'Current partner operates within safe bounds.'}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-2 mt-4">
-                <button
-                  onClick={() => handleNotifySeeker(primaryLogisticsJob.shortId)}
-                  className="w-full btn-secondary text-xs py-2 px-3 flex items-center justify-center gap-1.5"
-                >
-                  <Send size={13} />
-                  <span>Notify Seeker</span>
-                </button>
-                <Link
-                  to="/nearby"
-                  className="w-full btn-primary text-xs py-2 px-3 flex items-center justify-center gap-1.5"
-                >
-                  <Compass size={13} />
-                  <span>Find Alternative Partner</span>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── STAGE 4: PUBLIC & SOCIAL SIGNALS INTEGRATION (STEP 12) ── */}
-      {(activeTab === 'overview' || activeTab === 'signals') && (
-        <PublicSignalsPanel
-          city={selectedCity.name}
-          weatherClassification={weatherClass}
-          scenario={scenario}
-          effectiveRadius={effectiveRadius}
-          initialSignalsData={simResult?.publicSignals}
-        />
-      )}
-
-      {/* ── STEP 9: NORMAL VS DIGITAL TWIN COMPARISON TABLE ─────────── */}
-      <div className="bg-surface-alt border border-line rounded-2xl p-6 shadow-sm mb-6">
-        <div className="flex items-center justify-between pb-4 border-b border-line mb-4">
-          <div className="flex items-center gap-2">
-            <Activity size={18} className="text-indigo-500" />
-            <h3 className="font-bold text-ink text-base">
-              Normal Operating Baseline vs. Digital Twin Scenario
-            </h3>
-          </div>
-          <span className="text-xs text-ink-mute font-mono">Live Comparison Matrix</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-line text-ink-mute uppercase tracking-wider font-semibold">
-                <th className="py-3 px-4">Metric</th>
-                <th className="py-3 px-4">Normal Baseline (Standard)</th>
-                <th className="py-3 px-4 text-indigo-600 dark:text-indigo-400">
-                  Digital Twin ({weatherClass.severity.toUpperCase()} Storm)
-                </th>
-                <th className="py-3 px-4 text-right">Variance / Impact</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line text-ink">
-              <tr>
-                <td className="py-3 px-4 font-semibold">Logistics Service Radius</td>
-                <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400">
-                  {STANDARD_LOGISTICS_RADIUS_KM} km
-                </td>
-                <td className={`py-3 px-4 font-bold ${effectiveRadius < 30 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  {effectiveRadius} km
-                </td>
-                <td className={`py-3 px-4 text-right font-medium ${effectiveRadius < 30 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  {effectiveRadius < 30
-                    ? `-${STANDARD_LOGISTICS_RADIUS_KM - effectiveRadius} km (${Math.round(((STANDARD_LOGISTICS_RADIUS_KM - effectiveRadius) / STANDARD_LOGISTICS_RADIUS_KM) * 100)}% radius drop)`
-                    : '0 km (100% full coverage)'}
-                </td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 font-semibold">Resource Availability</td>
-                <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400">
-                  100%
-                </td>
-                <td className={`py-3 px-4 font-bold ${metrics.avgAvailabilityFactor < 1 ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  {(metrics.avgAvailabilityFactor * 100).toFixed(1)}%
-                </td>
-                <td className={`py-3 px-4 text-right font-medium ${metrics.avgAvailabilityFactor < 1 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  {metrics.avgAvailabilityFactor < 1
-                    ? `-${((1 - metrics.avgAvailabilityFactor) * 100).toFixed(1)}% available`
-                    : '✓ 0% loss (Full availability)'}
-                </td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 font-semibold">Bookings at Risk</td>
-                <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400">
-                  0 bookings
-                </td>
-                <td className={`py-3 px-4 font-bold ${metrics.highRiskBookings > 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  {metrics.highRiskBookings} bookings
-                </td>
-                <td className={`py-3 px-4 text-right font-medium ${metrics.highRiskBookings > 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  {metrics.highRiskBookings > 0
-                    ? `+${metrics.highRiskBookings} risk alerts`
-                    : '✓ 0 risk alerts (Safe window)'}
-                </td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 font-semibold">Logistics Bottlenecks</td>
-                <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400">
-                  0 (On Time)
-                </td>
-                <td className={`py-3 px-4 font-bold ${metrics.disruptedLogistics > 0 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  {metrics.disruptedLogistics} active jobs
-                </td>
-                <td className={`py-3 px-4 text-right font-medium ${metrics.disruptedLogistics > 0 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  {metrics.disruptedLogistics > 0 ? logisticsDelayInfo.delayText : '✓ 0m (On Schedule)'}
-                </td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 font-semibold">Delivery State</td>
-                <td className="py-3 px-4 font-medium text-emerald-600 dark:text-emerald-400">
-                  ✓ On Time
-                </td>
-                <td className={`py-3 px-4 font-bold ${logisticsDelayInfo.statusText === 'ON TIME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-                  {logisticsDelayInfo.statusText}
-                </td>
-                <td className={`py-3 px-4 text-right font-medium ${logisticsDelayInfo.statusText === 'ON TIME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-                  {logisticsDelayInfo.statusText === 'ON TIME' ? '✓ Standard Transit / Safe' : '⚠ Reschedule Recommended'}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── STEP 8: BOOKINGS WEATHER IMPACT LIST ──────────────────────── */}
-      {(activeTab === 'overview' || activeTab === 'bookings') && (
-        <div className="bg-surface-alt border border-line rounded-2xl p-6 shadow-sm mb-6">
-          <div className="flex items-center justify-between pb-4 border-b border-line mb-4">
-            <div className="flex items-center gap-2">
-              <Calendar size={18} className="text-indigo-500" />
-              <h3 className="font-bold text-ink text-base">
-                Affected Bookings & Fulfilment Risk ({displayBookings.length})
-              </h3>
-            </div>
-            <span className="text-xs text-ink-mute">
-              Non-destructive risk tracking
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {displayBookings.slice(0, 4).map((b) => {
-              const riskInfo = getBookingRiskInfo(b.disruptionProbability, b.riskLevel);
-              return (
-                <div
-                  key={b.bookingId}
-                  className="p-4 rounded-xl bg-surface border border-line flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="min-w-0">
-                        <span className="text-[11px] font-mono text-ink-mute block">
-                          Booking #{b.bookingId?.slice(-6).toUpperCase()}
-                        </span>
-                        <h4 className="font-bold text-sm text-ink truncate mt-0.5">
-                          {b.resourceTitle}
-                        </h4>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${riskInfo.badgeTone} shrink-0`}>
-                        {riskInfo.riskBadge}
-                      </span>
-                    </div>
-
-                    <div className="text-xs space-y-1.5 my-3 text-ink-soft">
-                      <div className="flex justify-between">
-                        <span>Scheduled Event:</span>
-                        <strong className="text-ink">
-                          {b.startDateTime ? dateTime(b.startDateTime) : 'Upcoming Slot'}
-                        </strong>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Disruption Probability:</span>
-                        <strong className="text-red-500">
-                          {Math.round((b.disruptionProbability || 0) * 100)}%
-                        </strong>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Cancellation Risk:</span>
-                        <strong className="text-ink font-semibold">
-                          {riskInfo.cancellationRisk}
-                        </strong>
-                      </div>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg bg-surface-alt border border-line text-[11px] text-ink-soft mb-3">
-                      <strong>Recommendation:</strong> {b.recommendation || riskInfo.actionText}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-3 border-t border-line">
-                    <Link
-                      to={`/bookings/detail/${b.bookingId}`}
-                      className="flex-1 btn-secondary text-xs py-1.5 text-center"
-                    >
-                      View Booking
-                    </Link>
-                    <button
-                      onClick={() => handleOpenRescheduleModal(b)}
-                      className="flex-1 btn-primary text-xs py-1.5 text-center"
-                    >
-                      Reschedule Review
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 10: CASCADING EFFECTS VISUALIZATION ─────────────────── */}
-      {(activeTab === 'overview' || activeTab === 'cascades') && (
-        <div className="bg-surface-alt border border-line rounded-2xl p-6 shadow-sm mb-6">
-          <div className="flex items-center justify-between pb-4 border-b border-line mb-5">
-            <div className="flex items-center gap-2">
-              <Layers size={18} className="text-indigo-500" />
-              <h3 className="font-bold text-ink text-base">
-                Cascading Operational Effects Propagation
-              </h3>
-            </div>
-            <span className="text-xs text-ink-mute">Primary → Secondary → Tertiary</span>
-          </div>
-
-          {/* Compact Propagation Chain */}
-          <div className="p-4 rounded-xl bg-surface border border-line mb-5">
-            <span className="text-xs font-semibold text-ink-mute uppercase tracking-wider block mb-3">
-              Marketplace Disruption Cascade Chain
-            </span>
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-ink">
-              <span className="px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-1.5 font-semibold">
-                🌧 Weather ({scenario.rainfallMmPerHour} mm/h)
-              </span>
-              <ArrowRight size={14} className="text-ink-mute shrink-0" />
-              <span className="px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 flex items-center gap-1.5 font-semibold">
-                📍 Geographic Impact ({STANDARD_LOGISTICS_RADIUS_KM}km → {effectiveRadius}km)
-              </span>
-              <ArrowRight size={14} className="text-ink-mute shrink-0" />
-              <span className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center gap-1.5 font-semibold">
-                🚚 Logistics Disruption ({primaryLogisticsJob.distanceKm}km &gt; {effectiveRadius}km)
-              </span>
-              <ArrowRight size={14} className="text-ink-mute shrink-0" />
-              <span className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1.5 font-semibold">
-                ⏱ Delivery Delay ({logisticsDelayInfo.delayText})
-              </span>
-              <ArrowRight size={14} className="text-ink-mute shrink-0" />
-              <span className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center gap-1.5 font-semibold">
-                📅 Booking Risk ({metrics.highRiskBookings} at risk)
-              </span>
-              <ArrowRight size={14} className="text-ink-mute shrink-0" />
-              <span className="px-2.5 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 flex items-center gap-1.5 font-semibold">
-                🔁 Reschedule / Alternative Partner
-              </span>
-            </div>
-          </div>
-
-          {/* Cards for each cascading effect from API */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {cascadingEffects.map((c, i) => (
-              <div
-                key={i}
-                className="p-3.5 rounded-xl bg-surface border border-line flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-1 mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">
-                      {c.cascade || 'cascade'} effect
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        c.severity === 'extreme' || c.severity === 'severe'
-                          ? 'bg-red-500/10 text-red-600 dark:text-red-400'
-                          : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                      }`}
-                    >
-                      {c.severity}
-                    </span>
-                  </div>
-                  <h5 className="font-bold text-xs text-ink capitalize mb-1">
-                    {c.type?.replace(/_/g, ' ')}
-                  </h5>
-                  <p className="text-[11px] text-ink-soft leading-normal">
-                    {c.description}
-                  </p>
-                </div>
-                {c.estimatedPriceIncreasePct && (
-                  <div className="mt-3 pt-2 border-t border-line text-[11px] text-amber-600 dark:text-amber-400 font-semibold">
-                    +{c.estimatedPriceIncreasePct}% Surge Price Projection
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Non-Destructive Reschedule Review Modal ───────────────────── */}
-      {rescheduleModalBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-surface-alt border border-line rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in duration-150">
-            <div className="flex items-start justify-between pb-3 border-b border-line mb-4">
-              <div>
-                <h3 className="font-bold text-ink text-base">Weather Risk Reschedule Review</h3>
-                <span className="text-xs text-ink-mute">
-                  Booking #{rescheduleModalBooking.bookingId?.slice(-6).toUpperCase()}
-                </span>
-              </div>
-              <button
-                onClick={() => setRescheduleModalBooking(null)}
-                className="p-1 rounded-lg text-ink-mute hover:text-ink hover:bg-surface"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-ink mb-5">
-              <p className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300">
-                <strong>Simulated Weather Risk:</strong> High rainfall and contracted operating radius indicate high disruption probability during this slot.
-              </p>
-              <div className="p-3 rounded-xl bg-surface border border-line space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-ink-mute">Resource:</span>
-                  <strong className="text-ink">{rescheduleModalBooking.resourceTitle}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-mute">Disruption Risk:</span>
-                  <strong className="text-red-500 font-bold">
-                    {Math.round((rescheduleModalBooking.disruptionProbability || 0.8) * 100)}%
-                  </strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-mute">Action Policy:</span>
-                  <span className="text-ink font-medium">Safe User-Initiated Reschedule</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  toast.success('Reschedule options prepared for Seeker review');
-                  setRescheduleModalBooking(null);
-                }}
-                className="flex-1 btn-primary text-xs py-2.5"
-              >
-                Propose New Time Slot
-              </button>
-              <button
-                onClick={() => setRescheduleModalBooking(null)}
-                className="btn-secondary text-xs py-2.5 px-4"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 13: DATABASE SAFETY CONFIRMATION FOOTER ── */}
-      <div className="mt-8 p-4 rounded-2xl bg-surface-alt border border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-ink-mute">
-        <div className="flex items-center gap-2">
-          <ShieldCheck size={18} className="text-emerald-500 shrink-0" />
-          <span className="font-bold text-ink">
-            Simulation only — operational data unchanged.
-          </span>
-        </div>
-        <span className="text-[11px] text-ink-soft">
-          Zero database mutations • Real MongoDB resources, bookings &amp; logistics records remain in their true state.
-        </span>
-      </div>
+      {simResult && <>
+        <DigitalTwinMap centerCity={selectedCity.name} centerCoords={{lat:selectedCity.lat,lon:selectedCity.lon}} simResult={simResult} scenario={simResult.scenario} effectiveRadius={effectiveRadius} isLiveWeather={isLiveMode}/>
+        <section className="twin-card twin-records" aria-labelledby="records-heading">
+          <div className="twin-section-heading"><div><span className="twin-eyebrow">03 / OPERATIONAL REVIEW</span><h2 id="records-heading">Review the details</h2></div><span className="twin-caption">Your bookings and deliveries · Local marketplace resources</span></div>
+          <div className="twin-tabs" role="group" aria-label="Operational details">{tabs.map(([key,label,count]) => <button key={key} aria-pressed={activeTab === key} onClick={() => setActiveTab(key)}>{label}<span>{count}</span></button>)}</div>
+          {activeTab === 'resources' && (resources.length ? <div className="twin-table-wrap"><table><thead><tr><th>Resource</th><th>Scenario impact</th><th>Modelled availability</th><th>Next step</th></tr></thead><tbody>{resources.map(r => <tr key={r.resourceId}><td><strong>{r.title}</strong><small>{r.category.replaceAll('_',' ')}</small></td><td><Risk level={r.impactLevel}/></td><td>{Math.round(r.simulatedAvailabilityFactor * 100)}%</td><td><Link to={`/r/${r.resourceId}`}>Review listing <ArrowRight size={13}/></Link></td></tr>)}</tbody></table></div> : <Empty title="No resources in this area" text="Choose another location to explore nearby marketplace resources."/>)}
+          {activeTab === 'bookings' && (bookings.length ? <div className="twin-record-grid">{bookings.map(b => <article className="twin-record" key={b.bookingId}><div className="twin-record-head"><small>BOOKING #{b.bookingId.slice(-6).toUpperCase()}</small><Risk level={b.riskLevel}/></div><h3>{resourceTitle(b.resourceId)}</h3><p>{b.startDateTime ? dateTime(b.startDateTime) : 'Date not recorded'}</p><p>Scenario risk score: <strong>{Math.round(b.disruptionProbability * 100)}/100</strong></p><p>{b.recommendation}</p><Link to={`/bookings/detail/${b.bookingId}`}>Review booking <ArrowRight size={14}/></Link></article>)}</div> : <Empty title="No active bookings in this area" text="Bookings for your business will appear here when they match this planning area."/>)}
+          {activeTab === 'logistics' && (jobs.length ? <div className="twin-record-grid">{jobs.map(j => <article className="twin-record" key={j.jobId}><div className="twin-record-head"><small>DELIVERY #{j.jobId.slice(-6).toUpperCase()}</small><span className="twin-status">{j.currentStatus.replaceAll('_',' ')}</span></div><h3>{resourceTitle(j.resourceId)}</h3><p>{j.pickupLocation?.city || 'Pickup not recorded'} → {j.deliveryLocation?.city || 'Destination not recorded'}</p><p>Estimated additional delay: <strong>{formatDelay(j.estimatedDelayHours)}</strong></p><p>Direct distance: {j.distanceKm == null ? 'Not recorded' : `${j.distanceKm} km`}</p><p>{j.recommendation}</p><Link to={`/bookings/detail/${j.bookingId}`}>Review related booking <ArrowRight size={14}/></Link></article>)}</div> : <Empty title="No active deliveries in this area" text="There are no deliveries for your business to assess at this location."/>)}
+          {activeTab === 'requirements' && (requirements.length ? <div className="twin-record-grid">{requirements.map(r => <article className="twin-record" key={r.requirementId}><h3>{r.title}</h3><p>Modelled demand change: <strong>{signed(r.competitionIncreasePct, '%')}</strong></p><p>{r.note}</p></article>)}</div> : <Empty title="No open requirements in this area" text="Your open sourcing requirements will appear here when they match this location."/>)}
+          {activeTab === 'effects' && (effects.length ? <div className="twin-record-grid">{effects.map((e,i) => <article className="twin-record" key={`${e.type}-${i}`}><small>{e.cascade} effect · scenario estimate</small><h3>{e.type.replaceAll('_',' ')}</h3><p>{e.description}</p></article>)}</div> : <Empty title="No knock-on effects identified" text="The selected scenario did not trigger any additional effects in this model."/>)}
+        </section>
+      </>}
+      <PublicSignalsPanel key={selectedCity.name} city={selectedCity.name}/>
+      <details className="twin-card twin-method"><summary>How to interpret this assessment</summary><div><p>This is a rule-based planning model. Scores express relative scenario risk, not the probability of an event. Weather learning and statistical uncertainty are not implemented.</p><p>Resources are selected within 50 km. Your active bookings are stress-tested across their recorded dates, rather than matched to a forecast window. Availability is a modelled capacity factor; it does not represent unreserved stock. Price exposure uses listing base rates, not measured revenue loss.</p><p>The clear-weather comparison uses the same records and duration with no rain or wind at 25°C. Delivery coverage is an illustrative weather-adjusted radius, not a road-route guarantee. Public reports provide context and do not verify a simulated scenario.</p></div></details>
     </div>
   );
 }
+
+function Metric({label,value,detail}) { return <div className="twin-metric"><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>; }
+function Risk({level}) { return <span className={`twin-risk ${['high','critical'].includes(level) ? 'twin-risk-high' : ''}`}>{level}</span>; }
+function Empty({title,text}) { return <div className="twin-empty"><h3>{title}</h3><p>{text}</p></div>; }

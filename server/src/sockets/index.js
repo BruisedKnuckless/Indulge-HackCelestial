@@ -6,7 +6,18 @@ let io = null;
 
 export function initSockets(httpServer) {
   io = new Server(httpServer, {
-    cors: { origin: env.clientUrl, credentials: true },
+    cors: {
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const normalized = origin.trim().replace(/\/+$/, '');
+        if (env.isProduction) {
+          return callback(null, env.allowedOrigins.includes(normalized));
+        }
+        const isLocalDev = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalized);
+        return callback(null, env.allowedOrigins.includes(normalized) || isLocalDev);
+      },
+      credentials: true,
+    },
   });
 
   // Each business joins a room keyed by its own id, so notifications can be

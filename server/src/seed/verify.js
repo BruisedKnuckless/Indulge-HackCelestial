@@ -10,6 +10,7 @@ process.env.IN_VERIFY = 'true';
 global.__IN_VERIFY__ = true;
 
 import http from 'http';
+import { verifyPolish, verifyPaymentPolish } from './polish-regressions.js';
 import { createApp } from '../app.js';
 import { connectDB, disconnectDB } from '../config/db.js';
 import { validateEnv } from '../config/env.js';
@@ -191,6 +192,7 @@ async function main() {
 
   const noAuth = await api('GET', '/api/bookings/sent');
   check('protected route requires a token', noAuth.status === 401);
+  await verifyPolish({ api, check, token: orchid });
 
   // ---- search + ranking ----
   console.log('\nSearch & ranking');
@@ -7891,6 +7893,7 @@ async function main() {
     if (savedEnv.geminiKey !== undefined) process.env.GEMINI_API_KEY = savedEnv.geminiKey;
   }
 
+  await verifyPaymentPolish({ api, check });
   console.log(`\n${passed} passed, ${failed} failed\n`);
 
   server.close();

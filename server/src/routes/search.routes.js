@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import Resource from '../models/Resource.js';
 import Requirement from '../models/Requirement.js';
 import { optionalAuth } from '../middleware/auth.middleware.js';
-import { asyncHandler } from '../middleware/error.middleware.js';
+import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { rankResources } from '../services/matching.service.js';
 
 const router = Router();
@@ -43,6 +43,17 @@ router.get(
       limit = 40,
       requirementId,
     } = req.query;
+
+    if ((start && !Number.isFinite(+new Date(start))) || (end && !Number.isFinite(+new Date(end))) ||
+        (start && end && new Date(end) <= new Date(start))) {
+      throw new HttpError(400, 'Choose valid dates with the end after the start.');
+    }
+    if (quantity !== undefined && (!Number.isSafeInteger(Number(quantity)) || Number(quantity) < 1)) {
+      throw new HttpError(400, 'Quantity must be a positive whole number.');
+    }
+    if (!Number.isSafeInteger(Number(limit)) || Number(limit) < 1 || Number(limit) > 200) {
+      throw new HttpError(400, 'Limit must be a whole number between 1 and 200.');
+    }
 
     let requirement = null;
     if (
@@ -123,12 +134,12 @@ router.get(
             from: 'users',
             localField: 'owner',
             foreignField: '_id',
+            pipeline: [{ $project: { businessName: 1, ratingAvg: 1, ratingCount: 1, location: 1 } }],
             as: 'ownerDoc',
           },
         },
         { $unwind: '$ownerDoc' },
         { $addFields: { distanceKm: { $divide: ['$distanceMeters', 1000] } } },
-        { $project: { 'ownerDoc.passwordHash': 0 } },
       ]);
     } else {
       candidates = await Resource.find(match)

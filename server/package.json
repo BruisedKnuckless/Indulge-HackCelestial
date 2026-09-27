@@ -9,7 +9,7 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "seed": "node src/seed/seed.js",
-    "verify": "node src/seed/verify.js",
+    "verify": "node src/seed/verify-local.js",
     "train:delivery": "node src/ml/delivery/train.js",
     "inspect:demo": "node src/ml/inspection/cli.js demo",
     "inspect:generate": "node src/ml/inspection/cli.js generate",

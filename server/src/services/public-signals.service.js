@@ -246,7 +246,7 @@ function geocodeSignal(cityName, title, description = '') {
 
 // ─── Fetch Public Signals from Google News Civic RSS ─────────────────────────
 async function fetchGoogleNewsSignals(cityName = 'Thane') {
-  const query = `${cityName} (rain OR waterlogging OR flood OR traffic OR weather OR "water logging" OR landslide OR "tree fall")`;
+  const query = `${cityName} (rain OR waterlogging OR flood OR traffic OR weather OR "water logging" OR landslide OR "tree fall") when:2d`;
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN&ceid=IN:en`;
 
   const controller = new AbortController();
@@ -284,7 +284,10 @@ async function fetchGoogleNewsSignals(cityName = 'Thane') {
       const link = decodeHtml(rawLink);
       const description = decodeHtml(rawDesc);
       const pubDate = new Date(rawPubDate);
-      const timestamp = isNaN(pubDate.getTime()) ? new Date().toISOString() : pubDate.toISOString();
+      const ageMs = Date.now() - pubDate.getTime();
+      // Old, undated and future reports cannot corroborate current conditions.
+      if (!Number.isFinite(ageMs) || ageMs < -5 * 60_000 || ageMs > 48 * 3600_000) continue;
+      const timestamp = pubDate.toISOString();
 
       // Check weather / traffic / civic relevance
       const text = `${title} ${description}`.toLowerCase();
@@ -527,121 +530,6 @@ export function correlateWeatherAndSignals(weatherClass, signalsAgg) {
   };
 }
 
-// ─── Canonical Demo Signals for Thane Demonstration ──────────────────────────
-function getDemoSignals(cityName = 'Thane') {
-  const now = Date.now();
-  return [
-    {
-      id: 'sig_demo_1',
-      source: 'Mumbai Live / Civic Alerts',
-      sourceType: 'public_civic_feed',
-      type: 'public_report',
-      title: 'Waterlogging reported near Majiwada Junction and Cadbury Flyover',
-      summary: 'Heavy water accumulation slow-moving traffic on Eastern Express Highway Thane corridor toward Mumbai.',
-      location: {
-        name: 'Thane',
-        landmark: 'Majiwada Junction',
-        lat: 19.2183,
-        lon: 72.9781,
-        isCityLevel: false,
-        precision: 'landmark',
-      },
-      timestamp: new Date(now - 8 * 60 * 1000).toISOString(),
-      relativeTime: '8 min ago',
-      severity: 'high',
-      weatherRelated: true,
-      signalCategory: 'flooding',
-      categoryLabel: 'Flooding / Waterlogging',
-      categoryIcon: '🌊',
-      engagement: null,
-      url: 'https://news.google.com/search?q=Thane+waterlogging',
-      verified: false,
-      verificationNote: 'Public signal — not independently verified',
-    },
-    {
-      id: 'sig_demo_2',
-      source: 'The Times of India — Civic Tracker',
-      sourceType: 'news_syndication',
-      type: 'public_report',
-      title: 'Heavy water accumulation on Ghodbunder Road slow traffic toward Borivali',
-      summary: 'Traffic slowed to a crawl between Patlipada and Kasarvadavali; diversions recommended for heavy transport.',
-      location: {
-        name: 'Thane',
-        landmark: 'Ghodbunder Road',
-        lat: 19.2519,
-        lon: 72.9563,
-        isCityLevel: false,
-        precision: 'landmark',
-      },
-      timestamp: new Date(now - 16 * 60 * 1000).toISOString(),
-      relativeTime: '16 min ago',
-      severity: 'high',
-      weatherRelated: true,
-      signalCategory: 'traffic_road',
-      categoryLabel: 'Traffic / Road Disruption',
-      categoryIcon: '🚗',
-      engagement: null,
-      url: 'https://news.google.com/search?q=Ghodbunder+Road+traffic',
-      verified: false,
-      verificationNote: 'Public signal — not independently verified',
-    },
-    {
-      id: 'sig_demo_3',
-      source: 'NDTV Profit — Transport Update',
-      sourceType: 'news_syndication',
-      type: 'public_report',
-      title: 'Commercial freight and van dispatch delays reported in Wagle Industrial belt',
-      summary: 'Logistics partners facing road diversions and extended turnaround times due to storm water runoffs.',
-      location: {
-        name: 'Thane',
-        landmark: 'Wagle Industrial Estate',
-        lat: 19.1990,
-        lon: 72.9630,
-        isCityLevel: false,
-        precision: 'landmark',
-      },
-      timestamp: new Date(now - 24 * 60 * 1000).toISOString(),
-      relativeTime: '24 min ago',
-      severity: 'high',
-      weatherRelated: true,
-      signalCategory: 'transport_delay',
-      categoryLabel: 'Transport Delay',
-      categoryIcon: '🚚',
-      engagement: null,
-      url: 'https://news.google.com/search?q=Wagle+Estate+Thane',
-      verified: false,
-      verificationNote: 'Public signal — not independently verified',
-    },
-    {
-      id: 'sig_demo_4',
-      source: 'Regional Weather Warning / IMD Alert',
-      sourceType: 'disaster_feed',
-      type: 'public_report',
-      title: 'Orange Advisory: High wind gusts and localized flooding risk for Thane & MMR',
-      summary: 'Advisory for banquet operators and transport fleets to avoid open canopy setups and unpaved staging areas.',
-      location: {
-        name: 'Thane',
-        landmark: 'Teen Hath Naka',
-        lat: 19.1925,
-        lon: 72.9680,
-        isCityLevel: false,
-        precision: 'landmark',
-      },
-      timestamp: new Date(now - 38 * 60 * 1000).toISOString(),
-      relativeTime: '38 min ago',
-      severity: 'critical',
-      weatherRelated: true,
-      signalCategory: 'safety_concern',
-      categoryLabel: 'Safety / Alert Advisory',
-      categoryIcon: '⚠',
-      engagement: null,
-      url: 'https://news.google.com/search?q=Thane+weather+alert',
-      verified: false,
-      verificationNote: 'Public signal — not independently verified',
-    },
-  ];
-}
-
 // ─── Main Service Export: getPublicSignals ────────────────────────────────────
 export async function getPublicSignals(cityName = 'Thane', forceRefresh = false) {
   const normCity = (cityName || 'Thane').trim();
@@ -663,9 +551,9 @@ export async function getPublicSignals(cityName = 'Thane', forceRefresh = false)
   // 2. Fetch live public signals
   const liveSignals = await fetchGoogleNewsSignals(normCity);
 
-  // 3. Fallback to canonical demo signals if live returns empty (e.g. offline/network issue)
+  // 3. An empty feed must stay empty, including when the network is unavailable.
   const isFallback = liveSignals.length === 0;
-  const signals = isFallback ? getDemoSignals(normCity) : liveSignals;
+  const signals = liveSignals;
 
   // 4. Calculate aggregation & clustering
   const aggregation = calculateAggregation(signals, normCity);
@@ -674,7 +562,7 @@ export async function getPublicSignals(cityName = 'Thane', forceRefresh = false)
   const payload = {
     success: true,
     location: normCity,
-    feedSource: isFallback ? 'Public News Syndication (Demo Baseline)' : 'Google News Public RSS Feed',
+    feedSource: isFallback ? 'No public reports available' : 'Google News Public RSS Feed',
     isLiveFeed: !isFallback,
     isFallback,
     fetchedAt: new Date().toISOString(),

@@ -28,9 +28,15 @@ export async function rankResources(candidates, criteria = {}, seeker = null) {
 
   // If personalized scoring is explicitly skipped (e.g. logged out guest)
   if (criteria.skipScoring) {
-    return candidates.map((r) => ({
+    const availability = await Promise.all(candidates.map(async (r) => {
+      if (!criteria.start || !criteria.end) return { resource: r, available: r.totalQuantity ?? 1 };
+      const result = await getAvailableQuantity(r._id, criteria.start, criteria.end, { resource: r });
+      const hours = (criteria.end - criteria.start) / HOUR_MS;
+      return { resource: r, available: hours < (r.pricing?.minRentalPeriodHours || 0) ? 0 : result.available };
+    }));
+    return availability.filter(({ available }) => available >= (criteria.quantity || 1)).map(({ resource: r, available }) => ({
       ...r,
-      availableQuantity: r.totalQuantity ?? 1,
+      availableQuantity: available,
       matchScore: null,
       matchBreakdown: null,
       matchHighlights: [],
@@ -81,7 +87,8 @@ export async function rankResources(candidates, criteria = {}, seeker = null) {
   );
 
   // Only resources that can actually serve the request get ranked when dates specified
-  const viable = start && end ? enriched.filter((r) => r.availableQuantity >= quantity) : enriched;
+  const viable = start && end ? enriched.filter((r) => r.availableQuantity >= quantity &&
+    (end - start) / HOUR_MS >= (r.pricing?.minRentalPeriodHours || 0)) : enriched;
   if (!viable.length) return [];
 
   const prices = viable.map((r) => r.pricing?.basePrice ?? 0);

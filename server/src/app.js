@@ -70,11 +70,12 @@ export function createApp() {
         return callback(corsErr);
       }
 
-      // In development / test: allow configured origins and common local dev hosts
+      // In development / test: allow configured origins and common local dev hosts (e.g. Vite on any port)
+      const isLocalDev = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalized);
+
       if (
         allowed.includes(normalized) ||
-        normalized === 'http://localhost:5173' ||
-        normalized === 'http://127.0.0.1:5173' ||
+        isLocalDev ||
         normalized === 'http://localhost:5050'
       ) {
         return callback(null, true);

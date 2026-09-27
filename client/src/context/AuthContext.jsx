@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import api, { TOKEN_KEY } from '../api/client';
+import api, { TOKEN_KEY, BUSINESS_UNAUTHORIZED_EVENT } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -8,6 +8,15 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(null);
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'admin' });
+    };
+    window.addEventListener(BUSINESS_UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(BUSINESS_UNAUTHORIZED_EVENT, onUnauthorized);
+  }, [queryClient]);
 
   // Restore the session on first load so a refresh doesn't sign the user out.
   useEffect(() => {
@@ -28,7 +37,7 @@ export function AuthProvider({ children }) {
     (data) => {
       localStorage.setItem(TOKEN_KEY, data.token);
       setUser(data.user);
-      queryClient.invalidateQueries();
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'admin' });
       return data.user;
     },
     [queryClient]

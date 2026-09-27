@@ -326,8 +326,19 @@ router.patch(
     const booking = await Booking.findById(req.params.id).populate('resource');
     if (!booking) throw new HttpError(404, 'Booking not found.');
 
-    const unitPrice = booking.agreedPrice ?? booking.quotedPrice ?? booking.resource?.pricing?.basePrice ?? 0;
+    // Validate before crediting or reserving any wallet funds, including retries.
+    const existingPayment = await PaymentService.validatePaymentAttempt({ booking, user: req.user, paymentMethod });
+    if (existingPayment) {
+      return res.json({ success: true, booking, transaction: existingPayment, alreadyPaid: true,
+        feeBreakdown: existingPayment.metadata?.feeBreakdown });
+    }
+
     const quantity = booking.requestedQuantity || 1;
+    // Quoted/agreed prices already cover the entire quantity and hire period.
+    const rentalTotal = booking.agreedPrice ?? booking.quotedPrice ?? estimatePrice(booking.resource, {
+      quantity, startDateTime: booking.startDateTime, endDateTime: booking.endDateTime,
+    });
+    const unitPrice = rentalTotal / quantity;
     const category = booking.resource?.category || 'other';
     const logisticsFee = booking.logistics === 'provider_transport' ? 2000 : 0;
 

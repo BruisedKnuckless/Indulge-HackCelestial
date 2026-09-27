@@ -201,10 +201,15 @@ function OrderTimeline({ booking, onClickInProgress, fulfillmentExpanded }) {
 ══════════════════════════════════════════════════════════════════════════════ */
 
 const FULFILLMENT_STAGES = [
-  { key: 'packed',           label: 'Order Packed',          tsField: 'packedAt' },
-  { key: 'loading',          label: 'Loading for Transport', tsField: 'loadingAt' },
-  { key: 'out_for_delivery', label: 'Out for Delivery',      tsField: 'outForDeliveryAt' },
-  { key: 'delivered',        label: 'Delivered',             tsField: 'deliveredAt' },
+  { key: 'packed',           label: 'Order Packed',          role: 'Lister (Warehouse prep)',       tsField: 'packedAt' },
+  { key: 'loading',          label: 'Loading for Transport', role: 'Logistics Partner / Driver',    tsField: 'loadingAt' },
+  { key: 'out_for_delivery', label: 'Out for Delivery',      role: 'Logistics Partner (In Transit)',tsField: 'outForDeliveryAt' },
+  { key: 'delivered',        label: 'Delivered',             role: 'Logistics Partner (Delivered)', tsField: 'deliveredAt' },
+];
+
+const SELF_PICKUP_STAGES = [
+  { key: 'packed',           label: 'Order Prepared & Ready for Pickup', role: 'Lister (Facility prep)', tsField: 'packedAt' },
+  { key: 'delivered',        label: 'Collected & Picked Up',             role: 'Seeker & Lister',        tsField: 'deliveredAt' },
 ];
 
 const FULFILLMENT_ORDER  = FULFILLMENT_STAGES.map(s => s.key);
@@ -215,15 +220,24 @@ const FULFILLMENT_LABELS = {
   delivered:        'Mark Delivered',
 };
 
-function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy, partnerAssigned, partnerName }) {
-  const activeIdx = FULFILLMENT_ORDER.indexOf(fulfillment?.status ?? '');
-  const nextStatus = FULFILLMENT_ORDER[activeIdx + 1];
+function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy, partnerAssigned, partnerName, isSelfPickup }) {
+  const stages = isSelfPickup ? SELF_PICKUP_STAGES : FULFILLMENT_STAGES;
+  const orderKeys = stages.map(s => s.key);
+  const activeIdx = orderKeys.indexOf(fulfillment?.status ?? '');
+  const nextStatus = orderKeys[activeIdx + 1];
   const isDelivered = fulfillment?.status === 'delivered';
 
   return (
     <div>
+      {isSelfPickup && (
+        <div className="mb-3 p-2 rounded-lg bg-surface-subtle border border-line text-xs text-ink-soft flex items-center gap-2">
+          <MapPin size={13} className="text-accent shrink-0" />
+          <span><strong>Self-Pickup Order:</strong> Seeker collects directly at the provider facility. No freight transport vehicle dispatched.</span>
+        </div>
+      )}
+
       <div className="space-y-0">
-        {FULFILLMENT_STAGES.map((stage, i) => {
+        {stages.map((stage, i) => {
           const isDone    = i <= activeIdx;
           const isCurrent = !isDelivered && (activeIdx === -1 ? i === 0 : i === activeIdx + 1);
           const ts        = fulfillment?.[stage.tsField];
@@ -240,16 +254,21 @@ function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy, partner
                 ].join(' ')}>
                   {isDone ? <Check size={11} strokeWidth={2.5} /> : isCurrent ? <span className="w-1.5 h-1.5 rounded-full bg-current" /> : null}
                 </div>
-                {i < FULFILLMENT_STAGES.length - 1 && (
+                {i < stages.length - 1 && (
                   <Connector done={isDone} />
                 )}
               </div>
               {/* Label */}
               <div className="pb-3 min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <p className={`text-sm font-medium ${isDone ? 'text-ink' : isCurrent ? 'text-ink font-semibold' : 'text-ink-mute'}`}>
                     {stage.label}
                   </p>
+                  {stage.role && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-surface-alt border border-line text-ink-mute font-mono">
+                      {stage.role}
+                    </span>
+                  )}
                   {isCurrent && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-ink/10 text-ink font-medium">
                       Next Step
@@ -257,7 +276,7 @@ function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy, partner
                   )}
                 </div>
                 <p className="text-xs text-ink-mute">
-                  {ts ? dateTime(ts) : isCurrent ? (isProvider ? 'Ready to advance' : 'Waiting for provider') : 'Pending'}
+                  {ts ? dateTime(ts) : isCurrent ? (isProvider ? 'Ready to advance' : 'Waiting for completion') : 'Pending'}
                 </p>
               </div>
             </div>
@@ -267,15 +286,10 @@ function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy, partner
 
       {/* Provider next action */}
       {isProvider && nextStatus && (
-        partnerAssigned ? (
-          <div className="mt-3 p-2.5 rounded-lg bg-surface-subtle border border-line text-xs text-ink-soft flex items-center gap-2">
-            <Truck size={14} className="text-indigo shrink-0" />
-            <span>Transit is dispatched to logistics partner <strong>{partnerName || 'Logistics Partner'}</strong>. Step updates occur upon driver checkpoint scans.</span>
-          </div>
-        ) : (
+        isSelfPickup ? (
           <div className="mt-3 pt-3 border-t border-line flex items-center justify-between gap-3 flex-wrap">
             <p className="text-xs text-ink-soft">
-              Ready to update delivery status:
+              {nextStatus === 'packed' ? 'Order ready at your facility?' : 'Seeker arrived and collected the equipment?'}
             </p>
             <button
               type="button"
@@ -284,8 +298,53 @@ function FulfillmentTimeline({ fulfillment, isProvider, onAdvance, busy, partner
               className="btn-primary btn-sm"
               id={`ff-btn-${nextStatus}`}
             >
-              {busy ? 'Updating…' : FULFILLMENT_LABELS[nextStatus]}
+              {busy ? 'Updating…' : nextStatus === 'packed' ? 'Mark Ready for Pickup' : 'Confirm Handover / Picked Up'}
             </button>
+          </div>
+        ) : nextStatus === 'packed' ? (
+          // Order Packing is the Lister's warehouse preparation responsibility
+          <div className="mt-3 pt-3 border-t border-line flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-xs text-ink-soft">
+              Equipment prepped and packed at your warehouse?
+            </p>
+            <button
+              type="button"
+              onClick={() => onAdvance('packed')}
+              disabled={Boolean(busy)}
+              className="btn-primary btn-sm"
+              id="ff-btn-packed"
+            >
+              {busy ? 'Updating…' : 'Mark Order Packed'}
+            </button>
+          </div>
+        ) : partnerAssigned ? (
+          // Road transit is handled by the assigned logistics partner
+          <div className="mt-3 p-2.5 rounded-lg bg-surface-subtle border border-line text-xs text-ink-soft flex items-center gap-2">
+            <Truck size={14} className="text-indigo shrink-0" />
+            <span>Transit is dispatched to logistics partner <strong>{partnerName || 'Logistics Partner'}</strong>. Driver updates checkpoints (loading, transit, delivery) on the road.</span>
+          </div>
+        ) : (
+          // Dedicated logistics partner awaiting pickup / optional in-house transport fallback
+          <div className="mt-3 p-3 rounded-lg bg-surface-subtle border border-line text-xs text-ink-soft space-y-2">
+            <div className="flex items-center gap-2 text-ink font-semibold">
+              <Truck size={14} className="text-indigo shrink-0" />
+              <span>Awaiting Logistics Partner Pickup</span>
+            </div>
+            <p className="text-[11px] text-ink-mute leading-relaxed">
+              Order is packed at your warehouse. Road transport, driver loading, and final delivery are handled by the assigned logistics carrier.
+            </p>
+            <div className="pt-2 border-t border-line/60 flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-[11px] text-ink-mute">Self-transporting with in-house vehicle?</span>
+              <button
+                type="button"
+                onClick={() => onAdvance(nextStatus)}
+                disabled={Boolean(busy)}
+                className="btn-outline btn-sm text-[11px]"
+                id={`ff-btn-${nextStatus}`}
+              >
+                {busy ? 'Updating…' : FULFILLMENT_LABELS[nextStatus]}
+              </button>
+            </div>
           </div>
         )
       )}
@@ -1176,6 +1235,7 @@ export default function BookingDetail() {
                     busy={busy === 'fulfillment' ? busy : ''}
                     partnerAssigned={Boolean(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)}
                     partnerName={(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)?.businessName}
+                    isSelfPickup={booking.logistics === 'self_pickup'}
                   />
                 ) : (
                   <div className="p-3.5 rounded-lg border border-line bg-surface-alt/60 space-y-2">
@@ -1309,6 +1369,7 @@ export default function BookingDetail() {
                 busy={busy === 'fulfillment' ? busy : ''}
                 partnerAssigned={Boolean(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)}
                 partnerName={(logisticsJob?.assignedPartner || logisticsJob?.logisticsPartner)?.businessName}
+                isSelfPickup={booking.logistics === 'self_pickup'}
               />
             </Section>
           )}
@@ -1406,11 +1467,24 @@ export default function BookingDetail() {
                 <hr className="rule my-3" />
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-ink">Payment</h3>
-                  <span className="badge badge-success text-[10px] uppercase font-bold tracking-wider">
-                    {transaction?.status === 'simulated_paid' || isConfirmed || isCompleted
-                      ? 'PAID'
-                      : transaction?.status || 'PENDING'}
-                  </span>
+                  {(() => {
+                    const isPaid =
+                      transaction?.status === 'simulated_paid' ||
+                      transaction?.status === 'paid' ||
+                      Boolean(transaction?.paidAt) ||
+                      isConfirmed ||
+                      isCompleted;
+
+                    return (
+                      <span
+                        className={`badge ${
+                          isPaid ? 'badge-success' : 'badge-warning'
+                        } text-[10px] uppercase font-bold tracking-wider`}
+                      >
+                        {isPaid ? 'PAID' : (transaction?.status || 'PENDING').toUpperCase()}
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 <div className="p-3 rounded-lg bg-surface-sunk/60 border border-line space-y-2 mb-3">
@@ -1434,29 +1508,44 @@ export default function BookingDetail() {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  {transaction && (
-                    <a
-                      href={`/api/transactions/${transaction._id}/receipt.pdf`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download={`receipt-${String(transaction._id).slice(-6)}.pdf`}
-                      className="btn-secondary btn-sm w-full justify-center text-xs inline-flex items-center gap-1.5"
-                    >
-                      <Download size={13} /> Download Receipt
-                    </a>
-                  )}
-                  {transaction && (
-                    <a
-                      href={`/api/transactions/${transaction._id}/receipt`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-outline btn-sm w-full justify-center text-[11px] text-ink-soft hover:text-ink"
-                    >
-                      View Payment
-                    </a>
-                  )}
-                </div>
+                {(() => {
+                  const isPaid =
+                    transaction?.status === 'simulated_paid' ||
+                    transaction?.status === 'paid' ||
+                    Boolean(transaction?.paidAt) ||
+                    isConfirmed ||
+                    isCompleted;
+
+                  return (
+                    <div className="flex flex-col gap-2">
+                      {transaction && isPaid ? (
+                        <a
+                          href={`/api/transactions/${transaction._id}/receipt.pdf`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={`receipt-${String(transaction._id).slice(-6)}.pdf`}
+                          className="btn-secondary btn-sm w-full justify-center text-xs inline-flex items-center gap-1.5"
+                        >
+                          <Download size={13} /> Download Receipt
+                        </a>
+                      ) : (
+                        <div className="p-2 rounded bg-surface-subtle border border-line text-[11px] text-ink-mute text-center italic">
+                          Receipt will be available once payment is settled
+                        </div>
+                      )}
+                      {transaction && (
+                        <a
+                          href={`/api/transactions/${transaction._id}/receipt`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-outline btn-sm w-full justify-center text-[11px] text-ink-soft hover:text-ink"
+                        >
+                          View Payment Details
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
               </>
             )}
 

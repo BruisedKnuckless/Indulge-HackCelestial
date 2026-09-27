@@ -10,8 +10,10 @@
 
 import { Router } from 'express';
 import { runWeatherSimulation, getTwinStatus } from '../services/digital-twin.service.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
+router.use(requireAuth);
 
 /**
  * POST /api/digital-twin/simulate
@@ -35,12 +37,12 @@ router.post('/simulate', async (req, res, next) => {
     if (!location) {
       return res.status(400).json({ error: 'location is required (city name or {lat,lon})' });
     }
-    if (!scenario || typeof scenario !== 'object') {
+    if (!scenario || typeof scenario !== 'object' || Array.isArray(scenario)) {
       return res.status(400).json({ error: 'scenario object is required' });
     }
 
-    const result = await runWeatherSimulation({ location, scenario, useLiveWeather });
-    return res.json(result);
+    const result = await runWeatherSimulation({ location, scenario, useLiveWeather, userId: req.user._id });
+    return res.status(result.success ? 200 : (result.statusCode || 400)).json(result);
   } catch (err) {
     next(err);
   }

@@ -68,12 +68,30 @@ cd server && npm run verify
 ```
 
 Boots the real API against a seeded in-memory database and drives it over HTTP —
-53 checks covering auth, ranking, double-booking prevention, partial allocation,
+614 checks covering auth, ranking, double-booking prevention, partial allocation,
 minimum hire periods, availability windows, cart checkout, the booking lifecycle,
 negotiation, requirements and offers, queue prioritisation, reviews, transactions and
-analytics. All 53 should pass.
+analytics, privacy, weather scenarios, and payment regressions. All 614 should pass.
+The verification launcher always uses an isolated in-memory database, even if a
+persistent database is configured in your environment.
 
 ---
+
+## Review and demo readiness
+
+See [PROJECT_REVIEW.md](PROJECT_REVIEW.md) for the September 2026 review, fixes,
+implemented innovation, requirement coverage, and remaining release gaps.
+
+The weather twin at `/digital-twin` now compares a clear-weather baseline with the
+selected scenario using one marketplace snapshot. It requires sign-in, limits
+booking details to the current business and dispatch jobs to their participants,
+and preserves empty/unavailable states. Its coefficients are rule based; the UI
+labels them as scenario estimates, not trained or calibrated weather predictions.
+
+`OPENWEATHER_API_KEY` enables live weather. For Midnight Task 2, the RFQ intake
+requires both `NUGEN_API_KEY` and a genuinely aligned model from the existing
+`npm run rfq:align` workflow (see `server/src/ml/rfq/README.md`). Rule parsing and
+Gemini fallback are useful for resilience but do not demonstrate Nugen alignment.
 
 ## How the interesting parts work
 

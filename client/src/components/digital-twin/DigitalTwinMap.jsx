@@ -41,6 +41,11 @@ import {
   getLogisticsRiskStatus,
 } from './digitalTwinHelper';
 
+// Leaflet consumes HTML strings, unlike React which escapes text for us.
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[char]));
+
 // Category icon symbols for HTML marker rendering
 const CATEGORY_SYMBOLS = {
   banquet_space: '🏛️',
@@ -97,7 +102,7 @@ function parseCoords(location) {
   if (Array.isArray(location.coordinates) && location.coordinates.length === 2) {
     const lng = Number(location.coordinates[0]);
     const lat = Number(location.coordinates[1]);
-    if (!isNaN(lat) && !isNaN(lng) && lat !== 0) return [lat, lng];
+    if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return [lat, lng];
   }
   // Object with lat & lon/lng
   if (location.lat != null && (location.lon != null || location.lng != null)) {
@@ -138,14 +143,14 @@ export default function DigitalTwinMap({
   const [isMapReady, setIsMapReady] = useState(false);
 
   // Center coordinate tuple [lat, lng]
-  const centerLat = Number(centerCoords?.lat || 19.2183);
-  const centerLng = Number(centerCoords?.lon || centerCoords?.lng || 72.9781);
+  const centerLat = Number(centerCoords?.lat ?? 19.2183);
+  const centerLng = Number(centerCoords?.lon ?? centerCoords?.lng ?? 72.9781);
 
   // Weather classification from simulation
   const weatherClass = simResult?.weatherClassification || {
-    severity: 'severe',
-    score: 68,
-    isStorm: true,
+    severity: 'unknown',
+    score: 0,
+    isStorm: false,
   };
 
   // ── 1. Initialize Map Instance ───────────────────────────────────────────
@@ -162,8 +167,14 @@ export default function DigitalTwinMap({
       });
 
       // Add minimal attribution in corner
-      L.control.attribution({ position: 'bottomright', prefix: 'Indulge Twin • OSM' }).addTo(map);
+      L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
 
+      // Leaflet retains aria-describedby after transient tooltips close.
+      map.on('tooltipclose', ({ tooltip }) => {
+        map.eachLayer(layer => {
+          if (layer.getTooltip?.() === tooltip) layer.getElement?.()?.removeAttribute('aria-describedby');
+        });
+      });
       mapInstanceRef.current = map;
       setIsMapReady(true);
     }
@@ -238,7 +249,7 @@ export default function DigitalTwinMap({
       className: 'twin-center-marker',
       html: `
         <div class="relative flex items-center justify-center w-8 h-8">
-          <div class="absolute w-8 h-8 rounded-full bg-indigo-500/25 animate-ping"></div>
+          <div class="absolute w-8 h-8 rounded-full bg-indigo-500/25"></div>
           <div class="relative w-4 h-4 rounded-full bg-indigo-600 border-2 border-white shadow-md flex items-center justify-center">
             <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
           </div>
@@ -248,7 +259,7 @@ export default function DigitalTwinMap({
       iconAnchor: [16, 16],
     });
 
-    layers.centerMarker = L.marker([centerLat, centerLng], { icon: centerIcon, zIndexOffset: 1000 })
+    layers.centerMarker = L.marker([centerLat, centerLng], { icon: centerIcon, zIndexOffset: -100, title: `Planning area: ${centerCity}` })
       .addTo(map)
       .bindTooltip(
         `<div class="text-xs font-semibold px-1 py-0.5">${centerCity} Hub (Simulation Center)</div>`,
@@ -301,6 +312,7 @@ export default function DigitalTwinMap({
     if (!mapInstanceRef.current || !isMapReady) return;
     const map = mapInstanceRef.current;
     const layers = layersRef.current;
+    setSelectedEntity(null);
 
     // Clear previous dynamic layers
     layers.resourceMarkers.forEach((m) => map.removeLayer(m));
@@ -312,114 +324,10 @@ export default function DigitalTwinMap({
     layers.signalMarkers.forEach((s) => map.removeLayer(s));
     layers.signalMarkers = [];
 
-    // ── Resilient Data Sources: Real simulation data first, canonical demo fallback if empty ──
-    const rawResources = simResult?.affectedResources || [];
-    const hasResourceWithCoords = rawResources.some((r) => parseCoords(r.location));
-    const affectedResources = hasResourceWithCoords
-      ? rawResources
-      : [
-          {
-            resourceId: 'res_demo_thane_1',
-            title: 'Crystal Grand Ballroom — 500 guests',
-            category: 'banquet_space',
-            location: {
-              address: 'Eastern Express Highway, Majiwada',
-              city: 'Thane',
-              coordinates: [72.9781, 19.2183],
-            },
-            impactLevel: weatherClass.score >= 50 ? 'critical' : weatherClass.score >= 25 ? 'moderate' : 'low',
-            availabilityReductionPct: weatherClass.score >= 50 ? 55 : weatherClass.score >= 25 ? 20 : 0,
-            simulatedAvailabilityFactor: weatherClass.score >= 50 ? 0.45 : weatherClass.score >= 25 ? 0.8 : 1.0,
-            estimatedRevenueLossInr: weatherClass.score >= 50 ? 45000 : 0,
-            reasons: ['Heavy storm rainfall triggers outdoor canopy safety shutdown'],
-            requiresLogistics: false,
-          },
-          {
-            resourceId: 'res_demo_thane_2',
-            title: 'Chiavari Banquet Chairs (gold, 200 units)',
-            category: 'furniture',
-            location: {
-              address: 'Road No 16, Wagle Industrial Estate',
-              city: 'Thane',
-              coordinates: [72.963, 19.199],
-            },
-            impactLevel: weatherClass.score >= 50 ? 'high' : 'low',
-            availabilityReductionPct: weatherClass.score >= 50 ? 40 : 0,
-            simulatedAvailabilityFactor: weatherClass.score >= 50 ? 0.6 : 1.0,
-            estimatedRevenueLossInr: weatherClass.score >= 50 ? 12000 : 0,
-            reasons: ['Transport risk in wet conditions'],
-            requiresLogistics: true,
-          },
-          {
-            resourceId: 'res_demo_thane_3',
-            title: 'Pro Audio Line-Array System & Sound Console',
-            category: 'av_equipment',
-            location: {
-              address: 'Ghodbunder Road, Kavesar',
-              city: 'Thane',
-              coordinates: [72.9563, 19.2519],
-            },
-            impactLevel: weatherClass.score >= 50 ? 'high' : 'low',
-            availabilityReductionPct: weatherClass.score >= 50 ? 35 : 0,
-            simulatedAvailabilityFactor: weatherClass.score >= 50 ? 0.65 : 1.0,
-            estimatedRevenueLossInr: weatherClass.score >= 50 ? 18000 : 0,
-            reasons: ['High moisture and electrical risk during storm'],
-            requiresLogistics: true,
-          },
-        ];
-
-    const rawLogistics = simResult?.affectedLogisticsJobs || [];
-    const hasLogistics = rawLogistics.length > 0;
-    const affectedLogistics = hasLogistics
-      ? rawLogistics
-      : [
-          {
-            jobId: 'sim_demo_lg1024',
-            bookingId: 'bk_demo_chiavari',
-            resourceId: 'res_demo_thane_2',
-            currentStatus: 'accepted',
-            pickupLocation: {
-              address: 'Plot A-42, Wagle Industrial Estate, Thane West',
-              city: 'Thane',
-              coordinates: [72.963, 19.199],
-            },
-            deliveryLocation: {
-              address: 'Ghodbunder Corridor / Powai',
-              city: 'Thane',
-              coordinates: [72.9563, 19.2519],
-            },
-            disruptionProbability: weatherClass.score >= 50 ? 0.98 : weatherClass.score >= 25 ? 0.35 : 0.05,
-            estimatedDelayHours: weatherClass.score >= 50 ? 3.9 : weatherClass.score >= 25 ? 0.5 : 0,
-            recommendation: weatherClass.score >= 50 ? 'Reschedule — high disruption risk' : 'Monitor traffic conditions',
-          },
-        ];
-
-    const rawBookings = simResult?.affectedBookings || [];
-    const hasBookings = rawBookings.length > 0;
-    const affectedBookings = hasBookings
-      ? rawBookings
-      : [
-          {
-            bookingId: 'bk_demo_crystal',
-            resourceId: 'res_demo_thane_1',
-            status: 'confirmed',
-            startDateTime: '2026-10-18T18:00:00.000Z',
-            disruptionProbability: weatherClass.score >= 50 ? 0.8 : 0.1,
-            riskLevel: weatherClass.score >= 50 ? 'critical' : 'low',
-            recommendation: weatherClass.score >= 50 ? 'Consider rescheduling or sourcing indoor alternative' : 'Safe dispatch window',
-            logistics: 'none',
-          },
-          {
-            bookingId: 'bk_demo_chiavari',
-            resourceId: 'res_demo_thane_2',
-            status: 'confirmed',
-            startDateTime: '2026-10-11T12:00:00.000Z',
-            disruptionProbability: weatherClass.score >= 50 ? 0.95 : 0.15,
-            riskLevel: weatherClass.score >= 50 ? 'critical' : 'low',
-            recommendation: weatherClass.score >= 50 ? 'Delay anticipated due to logistics corridor flooding' : 'On schedule',
-            logistics: 'provider_transport',
-          },
-        ];
+    // Missing data stays empty; markers must represent actual snapshot records.
+    const affectedResources = simResult?.affectedResources || [];
+    const affectedLogistics = simResult?.affectedLogisticsJobs || [];
+    const affectedBookings = simResult?.affectedBookings || [];
 
     // Helper: matches current filter
     const allowResources = filterType === 'all' || filterType === 'resources';
@@ -485,7 +393,7 @@ export default function DigitalTwinMap({
         let haloClass = '';
         let badgeColor = categoryColor;
         if (isCritical) {
-          haloClass = 'ring-4 ring-red-500/40 animate-pulse border-red-500 bg-red-950/80';
+          haloClass = 'ring-4 ring-red-500/40 border-red-500 bg-red-950/80';
           badgeColor = '#EF4444';
         } else if (isHigh) {
           haloClass = 'ring-2 ring-orange-500/40 border-orange-500 bg-orange-950/80';
@@ -504,7 +412,7 @@ export default function DigitalTwinMap({
             </div>
             ${
               isCritical
-                ? `<span class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-600 border border-white flex items-center justify-center text-[9px] text-white font-bold animate-bounce">!</span>`
+                ? `<span class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-600 border border-white flex items-center justify-center text-[9px] text-white font-bold">!</span>`
                 : ''
             }
           </div>
@@ -517,7 +425,7 @@ export default function DigitalTwinMap({
           iconAnchor: [16, 16],
         });
 
-        const marker = L.marker(coords, { icon })
+        const marker = L.marker(coords, { icon, riseOnHover: true, title: r.title })
           .addTo(map)
           .on('click', () => {
             const entity = {
@@ -540,9 +448,9 @@ export default function DigitalTwinMap({
 
         marker.bindTooltip(
           `<div class="text-xs leading-snug">
-            <strong class="text-ink">${r.title}</strong>
-            <div class="text-[11px] text-ink-mute">${CATEGORY_LABELS[r.category] || r.category}</div>
-            <div class="mt-1 font-semibold ${isCritical ? 'text-red-500' : isHigh ? 'text-orange-500' : 'text-emerald-500'}">
+            <strong class="text-ink">${escapeHtml(r.title)}</strong>
+            <div class="text-[11px] text-ink-soft">${escapeHtml(CATEGORY_LABELS[r.category] || r.category)}</div>
+            <div class="mt-1 font-semibold ${isCritical ? 'text-red-700 dark:text-red-300' : isHigh ? 'text-orange-500' : 'text-emerald-700 dark:text-emerald-300'}">
               ${isAffected ? `⚠ ${r.availabilityReductionPct}% Availability Hit` : '✓ 100% Available'}
             </div>
           </div>`,
@@ -556,13 +464,10 @@ export default function DigitalTwinMap({
     // ── B. Render Real Logistics Delivery Routes (STEP 6 & STEP 8) ────────
     if (allowLogistics || filterAffectedOnly) {
       affectedLogistics.forEach((job) => {
-        const pickupCoords = parseCoords(job.pickupLocation) || [19.199, 72.963]; // Wagle Estate
-        const deliveryCoords = parseCoords(job.deliveryLocation) || [19.2519, 72.9563]; // Ghodbunder Road
-
-        // Calculate distance in km
-        const rawDist = getDistanceKm(pickupCoords[0], pickupCoords[1], deliveryCoords[0], deliveryCoords[1]);
-        // Use demo reference 18.4 km if within realistic driving corridor
-        const distanceKm = rawDist > 3 ? (rawDist < 10 ? 18.4 : rawDist) : 18.4;
+        const pickupCoords = parseCoords(job.pickupLocation);
+        const deliveryCoords = parseCoords(job.deliveryLocation);
+        if (!pickupCoords || !deliveryCoords) return;
+        const distanceKm = getDistanceKm(pickupCoords[0], pickupCoords[1], deliveryCoords[0], deliveryCoords[1]);
 
         // Check if outside weather-adjusted radius
         const isOutsideSimRadius = distanceKm > effectiveRadius;
@@ -592,7 +497,7 @@ export default function DigitalTwinMap({
           iconAnchor: [30, 24],
         });
 
-        const pickupMarker = L.marker(pickupCoords, { icon: pickupIcon }).addTo(map);
+        const pickupMarker = L.marker(pickupCoords, { icon: pickupIcon, title: `Delivery pickup ${job.jobId.slice(-6)}` }).addTo(map);
 
         // 2. Delivery Destination Marker
         const deliveryIcon = L.divIcon({
@@ -612,7 +517,7 @@ export default function DigitalTwinMap({
           iconAnchor: [40, 24],
         });
 
-        const deliveryMarker = L.marker(deliveryCoords, { icon: deliveryIcon }).addTo(map);
+        const deliveryMarker = L.marker(deliveryCoords, { icon: deliveryIcon, title: `Delivery destination ${job.jobId.slice(-6)}` }).addTo(map);
 
         // 3. Connecting Route Polyline
         const polyline = L.polyline([pickupCoords, deliveryCoords], {
@@ -631,7 +536,7 @@ export default function DigitalTwinMap({
           html: `
             <div class="cursor-pointer px-2 py-0.5 rounded-md ${
               isOutsideSimRadius
-                ? 'bg-red-600/95 text-white ring-2 ring-red-400/50 animate-pulse'
+                ? 'bg-red-600/95 text-white ring-2 ring-red-400/50'
                 : 'bg-surface/95 border border-line text-ink'
             } text-[10px] font-bold shadow-md whitespace-nowrap flex items-center gap-1">
               <span class="text-xs">🚚</span>
@@ -643,12 +548,12 @@ export default function DigitalTwinMap({
           iconAnchor: [55, 11],
         });
 
-        const pillMarker = L.marker([midLat, midLng], { icon: distancePillIcon }).addTo(map);
+        const pillMarker = L.marker([midLat, midLng], { icon: distancePillIcon, title: `Delivery details ${job.jobId.slice(-6)}` }).addTo(map);
 
         // Click handler on route / markers
         const handleLogisticsClick = () => {
           const riskInfo = getLogisticsRiskStatus(job.disruptionProbability, distanceKm, effectiveRadius);
-          const eta = calculateSimulatedETA(job.scheduledPickupTime, job.estimatedDelayHours);
+          const eta = calculateSimulatedETA(job.requiredDeliveryTime, job.estimatedDelayHours);
 
           const entity = {
             type: 'logistics',
@@ -656,8 +561,8 @@ export default function DigitalTwinMap({
             displayId: `LG-${job.jobId.slice(-4).toUpperCase()}`,
             bookingId: job.bookingId,
             resourceId: job.resourceId,
-            pickupAddress: job.pickupLocation?.address ? `${job.pickupLocation.address}, ${job.pickupLocation.city}` : 'Wagle Estate, Thane',
-            deliveryAddress: job.deliveryLocation?.address ? `${job.deliveryLocation.address}, ${job.deliveryLocation.city}` : 'Ghodbunder Road, Thane',
+            pickupAddress: job.pickupLocation?.address ? `${job.pickupLocation.address}, ${job.pickupLocation.city}` : 'Not recorded',
+            deliveryAddress: job.deliveryLocation?.address ? `${job.deliveryLocation.address}, ${job.deliveryLocation.city}` : 'Not recorded',
             distanceKm,
             standardRadiusKm: STANDARD_LOGISTICS_RADIUS_KM,
             effectiveRadiusKm: effectiveRadius,
@@ -705,7 +610,7 @@ export default function DigitalTwinMap({
           html: `
             <div class="cursor-pointer group flex items-center justify-center">
               <div class="w-6 h-6 rounded-lg ${
-                isRisk ? 'bg-red-600 text-white animate-pulse' : 'bg-indigo-600 text-white'
+                isRisk ? 'bg-red-600 text-white' : 'bg-indigo-600 text-white'
               } flex items-center justify-center text-[10px] font-bold shadow-md border border-white">
                 📅
               </div>
@@ -715,7 +620,7 @@ export default function DigitalTwinMap({
           iconAnchor: [12, 12],
         });
 
-        const bMarker = L.marker(offsetCoords, { icon: bookingIcon })
+        const bMarker = L.marker(offsetCoords, { icon: bookingIcon, zIndexOffset: 600, riseOnHover: true, title: `Booking ${b.bookingId.slice(-6)}` })
           .addTo(map)
           .on('click', () => {
             const entity = {
@@ -736,8 +641,8 @@ export default function DigitalTwinMap({
         bMarker.bindTooltip(
           `<div class="text-xs">
             <strong class="text-ink">Booking #${b.bookingId.slice(-4).toUpperCase()}</strong>
-            <div class="text-[11px] ${isRisk ? 'text-red-500 font-bold' : 'text-ink-mute'}">
-              Risk: ${b.riskLevel.toUpperCase()} (${Math.round(b.disruptionProbability * 100)}%)
+            <div class="text-[11px] ${isRisk ? 'text-red-700 dark:text-red-300 font-bold' : 'text-ink-soft'}">
+              Risk: ${b.riskLevel.toUpperCase()} (${Math.round(b.disruptionProbability * 100)}/100)
             </div>
           </div>`,
           { direction: 'top', offset: [0, -10] }
@@ -758,8 +663,8 @@ export default function DigitalTwinMap({
         const clusterCoords = getDispersedCoords([cl.lat, cl.lon]);
 
         const clusterHtml = `
-          <div class="twin-signal-cluster cursor-pointer flex items-center gap-1 bg-blue-600/95 hover:bg-blue-700 text-white px-2 py-0.5 rounded-full shadow-lg border border-white ring-2 ring-blue-400/40 animate-pulse text-[11px] font-bold whitespace-nowrap">
-            <span>${cl.dominantIcon}</span>
+          <div class="twin-signal-cluster cursor-pointer flex items-center gap-1 bg-blue-600/95 hover:bg-blue-700 text-white px-2 py-0.5 rounded-full shadow-lg border border-white ring-2 ring-blue-400/40 text-[11px] font-bold whitespace-nowrap">
+            <span>${escapeHtml(cl.dominantIcon)}</span>
             <span>${cl.count} Reports</span>
           </div>
         `;
@@ -771,7 +676,7 @@ export default function DigitalTwinMap({
           iconAnchor: [47, 12],
         });
 
-        const clusterMarker = L.marker(clusterCoords, { icon: clusterIcon })
+        const clusterMarker = L.marker(clusterCoords, { icon: clusterIcon, title: `Public report cluster` })
           .addTo(map)
           .on('click', () => {
             const entity = {
@@ -788,7 +693,7 @@ export default function DigitalTwinMap({
 
         clusterMarker.bindTooltip(
           `<div class="text-xs font-semibold">
-            <div>${cl.dominantIcon} ${cl.landmark}</div>
+            <div>${escapeHtml(cl.dominantIcon)} ${escapeHtml(cl.landmark)}</div>
             <div class="text-[10px] text-blue-400">${cl.count} Public Reports Clustered</div>
           </div>`,
           { direction: 'top', offset: [0, -12] }
@@ -810,9 +715,9 @@ export default function DigitalTwinMap({
         const sigHtml = `
           <div class="twin-signal-marker cursor-pointer group transition-transform duration-200 hover:scale-125">
             <div class="w-7 h-7 rounded-full bg-blue-600 border border-white flex items-center justify-center text-xs shadow-md ${
-              isDisrupted ? 'ring-2 ring-red-500/80 animate-bounce' : 'ring-1 ring-blue-300'
+              isDisrupted ? 'ring-2 ring-red-500/80' : 'ring-1 ring-blue-300'
             }">
-              <span>${sig.categoryIcon || '🌊'}</span>
+              <span>${escapeHtml(sig.categoryIcon || '🌊')}</span>
             </div>
           </div>
         `;
@@ -824,7 +729,7 @@ export default function DigitalTwinMap({
           iconAnchor: [14, 14],
         });
 
-        const marker = L.marker(coords, { icon })
+        const marker = L.marker(coords, { icon, title: sig.title })
           .addTo(map)
           .on('click', () => {
             const entity = {
@@ -846,9 +751,9 @@ export default function DigitalTwinMap({
 
         marker.bindTooltip(
           `<div class="text-xs max-w-xs leading-snug">
-            <div class="font-bold text-ink">${sig.categoryIcon} ${sig.categoryLabel}</div>
-            <div class="text-[11px] text-ink-mute">${sig.source} • ${sig.relativeTime}</div>
-            <div class="text-[11px] text-blue-500 truncate mt-0.5">${sig.title}</div>
+            <div class="font-bold text-ink">${escapeHtml(sig.categoryIcon)} ${escapeHtml(sig.categoryLabel)}</div>
+            <div class="text-[11px] text-ink-soft">${escapeHtml(sig.source)} • ${escapeHtml(sig.relativeTime)}</div>
+            <div class="text-[11px] text-blue-500 truncate mt-0.5">${escapeHtml(sig.title)}</div>
           </div>`,
           { direction: 'top', offset: [0, -10] }
         );
@@ -858,6 +763,8 @@ export default function DigitalTwinMap({
     }
   }, [
     simResult,
+    centerLat,
+    centerLng,
     effectiveRadius,
     filterType,
     isMapReady,
@@ -875,144 +782,16 @@ export default function DigitalTwinMap({
   const isSevere = weatherClass.severity === 'severe' || weatherClass.severity === 'extreme';
 
   return (
-    <div className="relative w-full bg-surface-alt border border-line rounded-3xl overflow-hidden shadow-sm my-6">
-      {/* ── TOP HEADER & IMPACT PROPAGATION CHAIN (STEP 9) ── */}
-      <div className="px-5 py-4 border-b border-line bg-surface/90 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <h3 className="font-bold text-ink text-base tracking-tight flex items-center gap-2">
-              <span>Geospatial Digital Twin Simulation</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] uppercase font-mono font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                Live Geographic State
-              </span>
-            </h3>
-          </div>
-          <p className="text-xs text-ink-soft mt-0.5">
-            Real-time geospatial mapping of hospitality assets, standard 30 km logistics radius, and weather-driven impact corridors.
-          </p>
-        </div>
-
-        {/* Impact Propagation Chain (STEP 9) */}
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold flex-wrap bg-surface-sunk/80 px-3 py-1.5 rounded-xl border border-line">
-          <span className="flex items-center gap-1 text-ink">
-            <CloudRain size={12} className={isSevere ? 'text-red-500' : 'text-blue-500'} />
-            <span>Weather</span>
-          </span>
-          <span className="text-ink-mute">→</span>
-          <span className="flex items-center gap-1 text-ink">
-            <Compass size={12} className="text-indigo-500" />
-            <span>{effectiveRadius}km Radius</span>
-          </span>
-          <span className="text-ink-mute">→</span>
-          <span className="flex items-center gap-1 text-ink">
-            <Truck size={12} className={isSevere ? 'text-red-500' : 'text-emerald-500'} />
-            <span>Logistics</span>
-          </span>
-          <span className="text-ink-mute">→</span>
-          <span className="flex items-center gap-1 text-ink">
-            <Calendar size={12} className={isSevere ? 'text-amber-500' : 'text-emerald-500'} />
-            <span>Bookings</span>
-          </span>
-          <span className="text-ink-mute">→</span>
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${isSevere ? 'bg-red-500/20 text-red-600 dark:text-red-400' : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'}`}>
-            {isSevere ? 'Action: Reschedule' : 'Action: Dispatch'}
-          </span>
-        </div>
+    <div className="relative w-full bg-surface-alt border border-line rounded-2xl overflow-hidden shadow-sm">
+      <div className="px-5 py-4 border-b border-line flex flex-wrap items-center justify-between gap-3">
+        <div><h3 className="font-semibold text-ink text-base">Operational coverage</h3><p className="text-xs text-ink-soft mt-1">Explore resources and delivery exposure around {centerCity}. Select a marker for details.</p></div>
+        <span className="text-xs text-ink-soft">{effectiveRadius} km scenario radius · 30 km baseline</span>
       </div>
 
-      {/* ── MAP CONTAINER WITH OVERLAYS ── */}
-      <div className="relative w-full h-[520px] lg:h-[600px] select-none">
-        <style>{`
-          .twin-dark-tiles {
-            filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(90%) grayscale(25%);
-          }
-          .leaflet-tooltip {
-            background: ${dark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)'} !important;
-            border: 1px solid ${dark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'} !important;
-            color: ${dark ? '#f8fafc' : '#0f172a'} !important;
-            border-radius: 12px !important;
-            box-shadow: 0 10px 25px -5px ${dark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.15)'} !important;
-            padding: 8px 12px !important;
-            backdrop-filter: blur(8px) !important;
-            font-family: inherit !important;
-            pointer-events: none !important;
-          }
-          .leaflet-tooltip-top:before {
-            border-top-color: ${dark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)'} !important;
-          }
-          .leaflet-tooltip-bottom:before {
-            border-bottom-color: ${dark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)'} !important;
-          }
-          .leaflet-tooltip-left:before {
-            border-left-color: ${dark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)'} !important;
-          }
-          .leaflet-tooltip-right:before {
-            border-right-color: ${dark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)'} !important;
-          }
-          .leaflet-tooltip .text-ink {
-            color: ${dark ? '#f8fafc' : '#0f172a'} !important;
-          }
-          .leaflet-tooltip .text-ink-mute {
-            color: ${dark ? '#94a3b8' : '#64748b'} !important;
-          }
-        `}</style>
-        {/* Leaflet DOM Anchor */}
-        <div ref={mapContainerRef} className="w-full h-full z-0" />
-
-        {/* ── TOP-LEFT WEATHER HUD BADGE (STEP 10) ── */}
-        <div className="absolute top-4 left-4 z-[400] max-w-xs bg-surface/95 dark:bg-surface/90 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-lg text-ink">
-          <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-line">
-            <div className="flex items-center gap-1.5">
-              <MapPin size={14} className="text-indigo-500" />
-              <strong className="text-sm tracking-tight">{centerCity} Digital Twin</strong>
-            </div>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-              isLiveWeather
-                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-            }`}>
-              {isLiveWeather ? 'Live Weather' : 'Counterfactual Simulation'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center gap-1.5">
-              <CloudRain size={13} className="text-blue-500" />
-              <span className="text-ink-mute">Rain:</span>
-              <strong className="text-ink">{scenario?.rainfallMmPerHour ?? 0} mm/h</strong>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Wind size={13} className="text-teal-500" />
-              <span className="text-ink-mute">Wind:</span>
-              <strong className="text-ink">{scenario?.windSpeedMps ?? 2} m/s</strong>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Thermometer size={13} className="text-rose-500" />
-              <span className="text-ink-mute">Temp:</span>
-              <strong className="text-ink">{scenario?.temperature ?? 28}°C</strong>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Clock size={13} className="text-amber-500" />
-              <span className="text-ink-mute">Dur:</span>
-              <strong className="text-ink">{scenario?.durationHours ?? 1}h</strong>
-            </div>
-          </div>
-
-          <div className="mt-2.5 pt-2 border-t border-line flex items-center justify-between text-xs">
-            <span className="text-ink-mute">Classification:</span>
-            <span className={`font-black uppercase tracking-wider text-[11px] ${
-              isSevere ? 'text-red-500' : 'text-emerald-500'
-            }`}>
-              {weatherClass.severity} ({weatherClass.score}/100)
-            </span>
-          </div>
-        </div>
-
         {/* ── TOP-RIGHT CONTROLS & FILTER TOOLBAR (STEP 12) ── */}
-        <div className="absolute top-4 right-4 z-[400] flex flex-col items-end gap-2">
+        <div className="px-4 py-3 border-b border-line flex flex-wrap items-center gap-3">
           {/* Zoom, Reset & Theme Buttons */}
-          <div className="flex items-center bg-surface/95 dark:bg-surface/90 backdrop-blur-md border border-line rounded-xl p-1 shadow-md gap-1">
+          <div className="flex items-center bg-surface border border-line rounded-xl p-1  gap-1">
             <button
               onClick={handleZoomIn}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface-sunk transition-colors"
@@ -1057,17 +836,18 @@ export default function DigitalTwinMap({
           </div>
 
           {/* Filter Pills (STEP 12) */}
-          <div className="flex items-center gap-1 bg-surface/95 dark:bg-surface/90 backdrop-blur-md border border-line rounded-xl p-1 shadow-md text-xs font-semibold overflow-x-auto max-w-[90vw]">
+          <div className="twin-map-filters flex items-center flex-wrap gap-1 bg-surface border border-line rounded-xl p-1  text-xs font-semibold overflow-x-auto max-w-[90vw]">
             {[
               { id: 'all', label: 'All' },
               { id: 'resources', label: 'Resources' },
               { id: 'logistics', label: 'Logistics' },
               { id: 'bookings', label: 'Bookings' },
-              { id: 'signals', label: '🌐 Signals' },
-              { id: 'affected', label: '⚠ Affected' },
+              { id: 'signals', label: 'Reports' },
+              { id: 'affected', label: 'Affected' },
             ].map((f) => (
               <button
                 key={f.id}
+                aria-pressed={filterType === f.id}
                 onClick={() => setFilterType(f.id)}
                 className={`px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap ${
                   filterType === f.id
@@ -1081,7 +861,7 @@ export default function DigitalTwinMap({
           </div>
 
           {/* Radius Toggles (STEP 4 & 5) */}
-          <div className="flex items-center gap-2 bg-surface/95 dark:bg-surface/90 backdrop-blur-md border border-line rounded-xl px-3 py-1.5 shadow-md text-[11px] font-medium text-ink">
+          <div className="flex items-center gap-2 bg-surface border border-line rounded-xl px-3 py-1.5  text-[11px] font-medium text-ink">
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input
                 type="checkbox"
@@ -1099,12 +879,52 @@ export default function DigitalTwinMap({
                 onChange={(e) => setShowSimulatedRadius(e.target.checked)}
                 className="w-3.5 h-3.5 rounded text-red-600 focus:ring-red-500 border-line"
               />
-              <span className={effectiveRadius <= 15 ? 'text-red-500 font-bold' : 'text-amber-500 font-semibold'}>
+              <span className={effectiveRadius <= 15 ? 'text-red-700 dark:text-red-300 font-bold' : 'text-amber-700 dark:text-amber-300 font-semibold'}>
                 {effectiveRadius} km Simulated
               </span>
             </label>
           </div>
         </div>
+
+
+      {/* ── MAP CONTAINER WITH OVERLAYS ── */}
+      <div className="relative w-full h-[400px] sm:h-[520px] lg:h-[560px] select-none">
+        <style>{`
+          .twin-dark-tiles {
+            filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(90%) grayscale(25%);
+          }
+          .leaflet-tooltip {
+            background: ${dark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)'} !important;
+            border: 1px solid ${dark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)'} !important;
+            color: ${dark ? '#f8fafc' : '#0f172a'} !important;
+            border-radius: 12px !important;
+            box-shadow: 0 10px 25px -5px ${dark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.15)'} !important;
+            padding: 8px 12px !important;
+            backdrop-filter: blur(8px) !important;
+            font-family: inherit !important;
+            pointer-events: none !important;
+          }
+          .leaflet-tooltip-top:before {
+            border-top-color: ${dark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)'} !important;
+          }
+          .leaflet-tooltip-bottom:before {
+            border-bottom-color: ${dark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)'} !important;
+          }
+          .leaflet-tooltip-left:before {
+            border-left-color: ${dark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)'} !important;
+          }
+          .leaflet-tooltip-right:before {
+            border-right-color: ${dark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)'} !important;
+          }
+          .leaflet-tooltip .text-ink {
+            color: ${dark ? '#f8fafc' : '#0f172a'} !important;
+          }
+          .leaflet-tooltip .text-ink-soft {
+            color: ${dark ? '#94a3b8' : '#64748b'} !important;
+          }
+        `}</style>
+        {/* Leaflet DOM Anchor */}
+        <div ref={mapContainerRef} className="w-full h-full z-0" />
 
         {/* ── BOTTOM-LEFT MAP LEGEND (STEP 11) ── */}
         <div className="absolute bottom-4 left-4 z-[400] hidden sm:block bg-surface/95 dark:bg-surface/90 backdrop-blur-md border border-line rounded-2xl p-3 shadow-lg text-[11px] text-ink-soft max-w-xs">
@@ -1145,7 +965,7 @@ export default function DigitalTwinMap({
 
         {/* ── SELECTED ENTITY DETAIL POPUP CARD (STEP 13) ── */}
         {selectedEntity && (
-          <div className="absolute bottom-4 right-4 z-[450] w-full max-w-sm bg-surface dark:bg-surface-alt border border-line rounded-2xl p-4 shadow-2xl animate-fade-in text-ink">
+          <div style={{ maxHeight: 'calc(100% - 2rem)', overflowY: 'auto' }} className="absolute bottom-4 right-4 left-4 sm:left-auto z-[450] max-w-sm bg-surface dark:bg-surface-alt border border-line rounded-2xl p-4 shadow-2xl animate-fade-in text-ink">
             <div className="flex items-start justify-between gap-2 mb-2 pb-2 border-b border-line">
               <div className="flex items-center gap-2">
                 <span className="text-lg">
@@ -1167,7 +987,7 @@ export default function DigitalTwinMap({
                       ? `Booking #${selectedEntity.bookingId.slice(-4).toUpperCase()}`
                       : selectedEntity.title}
                   </h4>
-                  <span className="text-[11px] text-ink-mute">
+                  <span className="text-[11px] text-ink-soft">
                     {selectedEntity.type === 'logistics'
                       ? 'Commercial Logistics Job'
                       : selectedEntity.type === 'booking'
@@ -1182,7 +1002,7 @@ export default function DigitalTwinMap({
               </div>
               <button
                 onClick={() => setSelectedEntity(null)}
-                className="text-ink-mute hover:text-ink p-1 rounded-lg hover:bg-surface-sunk transition-colors"
+                className="text-ink-soft hover:text-ink p-1 rounded-lg hover:bg-surface-sunk transition-colors"
                 title="Close"
               >
                 <X size={15} />
@@ -1194,21 +1014,21 @@ export default function DigitalTwinMap({
               <div className="space-y-2 text-xs">
                 <div className="p-2.5 rounded-xl bg-surface-sunk/80 border border-line space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Distance:</span>
+                    <span className="text-ink-soft">Distance:</span>
                     <strong className="text-ink">{selectedEntity.distanceKm} km</strong>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Standard Service Radius:</span>
+                    <span className="text-ink-soft">Standard Service Radius:</span>
                     <span>30 km</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Weather-Adjusted Radius:</span>
-                    <strong className={selectedEntity.isOutsideRadius ? 'text-red-500' : 'text-emerald-500'}>
+                    <span className="text-ink-soft">Weather-Adjusted Radius:</span>
+                    <strong className={selectedEntity.isOutsideRadius ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}>
                       {selectedEntity.effectiveRadiusKm} km
                     </strong>
                   </div>
                   <div className="flex justify-between pt-1 border-t border-line">
-                    <span className="text-ink-mute">Status:</span>
+                    <span className="text-ink-soft">Status:</span>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${selectedEntity.tone}`}>
                       {selectedEntity.badgeLabel}
                     </span>
@@ -1217,13 +1037,13 @@ export default function DigitalTwinMap({
 
                 <div className="p-2.5 rounded-xl bg-surface-sunk/80 border border-line space-y-1">
                   <div className="flex items-center gap-1.5 text-ink-soft">
-                    <Clock size={12} className="text-amber-500" />
+                    <Clock size={12} className="text-amber-700 dark:text-amber-300" />
                     <span>Predicted Delay: <strong className="text-ink">{selectedEntity.delayText}</strong></span>
                   </div>
-                  <div className="flex justify-between text-[11px] text-ink-mute">
+                  <div className="flex justify-between text-[11px] text-ink-soft">
                     <span>Pickup: {selectedEntity.pickupAddress}</span>
                   </div>
-                  <div className="flex justify-between text-[11px] text-ink-mute">
+                  <div className="flex justify-between text-[11px] text-ink-soft">
                     <span>Destination: {selectedEntity.deliveryAddress}</span>
                   </div>
                 </div>
@@ -1239,21 +1059,21 @@ export default function DigitalTwinMap({
               <div className="space-y-2 text-xs">
                 <div className="p-2.5 rounded-xl bg-surface-sunk/80 border border-line space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Location:</span>
+                    <span className="text-ink-soft">Location:</span>
                     <span className="text-ink truncate max-w-[180px]">{selectedEntity.location}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Normal Availability:</span>
+                    <span className="text-ink-soft">Baseline capacity:</span>
                     <span>100%</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Simulated Availability:</span>
-                    <strong className={selectedEntity.impactLevel === 'critical' ? 'text-red-500' : 'text-amber-500'}>
+                    <span className="text-ink-soft">Modelled capacity:</span>
+                    <strong className={selectedEntity.impactLevel === 'critical' ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}>
                       {Math.round(selectedEntity.simulatedAvailabilityFactor * 100)}% ({selectedEntity.availabilityReductionPct}% drop)
                     </strong>
                   </div>
                   <div className="flex justify-between pt-1 border-t border-line">
-                    <span className="text-ink-mute">Impact Status:</span>
+                    <span className="text-ink-soft">Impact Status:</span>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                       selectedEntity.impactLevel === 'critical'
                         ? 'bg-red-500/20 text-red-600 dark:text-red-400'
@@ -1284,17 +1104,17 @@ export default function DigitalTwinMap({
               <div className="space-y-2 text-xs">
                 <div className="p-2.5 rounded-xl bg-surface-sunk/80 border border-line space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Logistics Mode:</span>
+                    <span className="text-ink-soft">Logistics Mode:</span>
                     <span className="text-ink">{selectedEntity.logisticsType}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Disruption Probability:</span>
-                    <strong className={selectedEntity.riskLevel === 'critical' ? 'text-red-500' : 'text-amber-500'}>
-                      {Math.round(selectedEntity.disruptionProbability * 100)}%
+                    <span className="text-ink-soft">Scenario risk score:</span>
+                    <strong className={selectedEntity.riskLevel === 'critical' ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}>
+                      {Math.round(selectedEntity.disruptionProbability * 100)}/100
                     </strong>
                   </div>
                   <div className="flex justify-between pt-1 border-t border-line">
-                    <span className="text-ink-mute">Risk Level:</span>
+                    <span className="text-ink-soft">Risk Level:</span>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                       selectedEntity.riskLevel === 'critical'
                         ? 'bg-red-500/20 text-red-600 dark:text-red-400'
@@ -1315,26 +1135,26 @@ export default function DigitalTwinMap({
               <div className="space-y-2 text-xs">
                 <div className="p-2.5 rounded-xl bg-surface-sunk/80 border border-line space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Category:</span>
+                    <span className="text-ink-soft">Category:</span>
                     <span className="font-semibold text-ink flex items-center gap-1">
                       <span>{selectedEntity.categoryIcon}</span>
                       <span>{selectedEntity.categoryLabel}</span>
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Source:</span>
+                    <span className="text-ink-soft">Source:</span>
                     <span className="text-ink font-medium">{selectedEntity.source}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Reported:</span>
+                    <span className="text-ink-soft">Reported:</span>
                     <span className="text-ink">{selectedEntity.relativeTime}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-ink-mute">Location:</span>
+                    <span className="text-ink-soft">Location:</span>
                     <span className="text-ink truncate max-w-[180px]">{selectedEntity.location}</span>
                   </div>
                   <div className="flex justify-between pt-1 border-t border-line">
-                    <span className="text-ink-mute">Severity:</span>
+                    <span className="text-ink-soft">Severity:</span>
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                         selectedEntity.severity === 'critical' || selectedEntity.severity === 'high'
@@ -1353,7 +1173,7 @@ export default function DigitalTwinMap({
                   </div>
                 )}
 
-                {selectedEntity.url && (
+                {/^https?:\/\//i.test(selectedEntity.url || '') && (
                   <a
                     href={selectedEntity.url}
                     target="_blank"
@@ -1365,7 +1185,7 @@ export default function DigitalTwinMap({
                   </a>
                 )}
 
-                <p className="text-[10px] text-ink-mute italic text-center">
+                <p className="text-[10px] text-ink-soft italic text-center">
                   Public signal — not independently verified
                 </p>
               </div>
@@ -1384,7 +1204,7 @@ export default function DigitalTwinMap({
                   {selectedEntity.reports?.map((r, i) => (
                     <div key={i} className="p-2 rounded-lg bg-surface-sunk border border-line text-[11px]">
                       <div className="font-semibold text-ink">{r.title}</div>
-                      <div className="text-[10px] text-ink-mute mt-0.5 flex justify-between">
+                      <div className="text-[10px] text-ink-soft mt-0.5 flex justify-between">
                         <span>{r.source}</span>
                         <span>{r.relativeTime}</span>
                       </div>
@@ -1401,25 +1221,25 @@ export default function DigitalTwinMap({
       <div className="px-5 py-3 bg-surface border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-4 flex-wrap">
           <span className="text-ink-soft">
-            Hub Center: <strong className="text-ink">{centerCity} (19.2183° N, 72.9781° E)</strong>
+            Planning area: <strong className="text-ink">{centerCity} ({centerLat.toFixed(4)}, {centerLng.toFixed(4)})</strong>
           </span>
           <span className="text-line-strong hidden sm:inline">•</span>
           <span className="text-ink-soft">
-            Mapped Resources: <strong className="text-ink">{simResult?.affectedResources?.length || 0}</strong>
+            Resources assessed: <strong className="text-ink">{simResult?.affectedResources?.length || 0}</strong>
           </span>
           <span className="text-line-strong hidden sm:inline">•</span>
           <span className="text-ink-soft">
-            Logistics Routes: <strong className="text-ink">{simResult?.affectedLogisticsJobs?.length || 0}</strong>
+            Deliveries assessed: <strong className="text-ink">{simResult?.affectedLogisticsJobs?.length || 0}</strong>
           </span>
           <span className="text-line-strong hidden sm:inline">•</span>
           <span className="text-ink-soft">
-            Bookings Mapped: <strong className="text-ink">{simResult?.affectedBookings?.length || 0}</strong>
+            Bookings assessed: <strong className="text-ink">{simResult?.affectedBookings?.length || 0}</strong>
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-ink-mute text-[11px]">
+        <div className="flex items-center gap-2 text-ink-soft text-[11px]">
           <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-          <span>Simulation Isolated • DB Read-Only</span>
+          <span>Approximate locations · Direct route lines</span>
         </div>
       </div>
     </div>

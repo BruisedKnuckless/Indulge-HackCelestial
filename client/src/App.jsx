@@ -371,7 +371,7 @@ export default function App() {
                 />
                 <Route
                   path="/digital-twin"
-                  element={<DigitalTwin />}
+                  element={<RequireAuth><DigitalTwin /></RequireAuth>}
                 />
                 <Route
                   path="/logistics"

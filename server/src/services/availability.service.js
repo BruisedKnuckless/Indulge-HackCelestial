@@ -81,6 +81,7 @@ export function maxConcurrent(bookings, start, end, opts = {}) {
  */
 export function matchesRecurringSchedule(schedule, start, end) {
   if (!schedule) return true;
+  if (!Number.isFinite(+start) || !Number.isFinite(+end) || end <= start) return false;
   const daysOfWeek = schedule.daysOfWeek;
   if (Array.isArray(daysOfWeek) && daysOfWeek.length > 0) {
     const cur = new Date(start);
@@ -93,9 +94,6 @@ export function matchesRecurringSchedule(schedule, start, end) {
   }
 
   // Time-of-day check
-  const startMinutes = start.getHours() * 60 + start.getMinutes();
-  const endMinutes = end.getHours() * 60 + end.getMinutes();
-
   let schedStartMinutes = 0;
   let schedEndMinutes = 24 * 60;
 
@@ -113,19 +111,23 @@ export function matchesRecurringSchedule(schedule, start, end) {
     schedEndMinutes = schedule.endHour * 60;
   }
 
-  if (startMinutes < schedStartMinutes) return false;
-
-  const isSameDay =
-    start.getFullYear() === end.getFullYear() &&
-    start.getMonth() === end.getMonth() &&
-    start.getDate() === end.getDate();
-
-  if (isSameDay) {
-    if (endMinutes > schedEndMinutes) return false;
-  } else {
-    if (endMinutes > schedEndMinutes && endMinutes !== 0) return false;
+  if (!Number.isFinite(schedStartMinutes) || !Number.isFinite(schedEndMinutes)) return false;
+  // Validate every occupied segment, including the overnight gap. An end at
+  // midnight belongs to the preceding day because bookings are half-open.
+  const cursor = new Date(start);
+  while (cursor < end) {
+    const midnight = new Date(cursor);
+    midnight.setHours(0, 0, 0, 0);
+    const nextDay = new Date(midnight);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const open = new Date(midnight);
+    open.setMinutes(schedStartMinutes);
+    const close = new Date(midnight);
+    close.setMinutes(schedEndMinutes);
+    const segmentEnd = end < nextDay ? end : nextDay;
+    if (cursor < open || segmentEnd > close) return false;
+    cursor.setTime(nextDay.getTime());
   }
-
   return true;
 }
 
@@ -165,7 +167,7 @@ export function withinAvailabilityWindows(resource, start, end) {
     if (resource.availableUntil && new Date(end) > new Date(resource.availableUntil)) {
       return false;
     }
-    if (resource.recurringSchedule?.daysOfWeek?.length) {
+    if (resource.recurringSchedule) {
       if (!matchesRecurringSchedule(resource.recurringSchedule, start, end)) return false;
     }
     return true;
@@ -252,6 +254,9 @@ export async function validateBookingRequest({
   end,
   excludeBookingId,
 }) {
+  if (!Number.isSafeInteger(quantity) || quantity < 1) {
+    return { ok: false, reason: 'Quantity must be a positive whole number.' };
+  }
   if (!(start instanceof Date) || !(end instanceof Date) || Number.isNaN(+start) || Number.isNaN(+end)) {
     return { ok: false, reason: 'Invalid start or end date.' };
   }

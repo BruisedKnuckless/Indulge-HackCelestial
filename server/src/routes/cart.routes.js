@@ -118,10 +118,17 @@ router.patch(
     if (!item) throw new HttpError(404, 'That item is no longer in your cart.');
 
     const { quantity, startDateTime, endDateTime, savedForLater } = req.body;
+    if (quantity !== undefined && (!Number.isSafeInteger(Number(quantity)) || Number(quantity) < 1)) {
+      throw new HttpError(400, 'Quantity must be a positive whole number.');
+    }
     if (quantity !== undefined) item.quantity = Number(quantity);
     if (startDateTime) item.startDateTime = new Date(startDateTime);
     if (endDateTime) item.endDateTime = new Date(endDateTime);
     if (savedForLater !== undefined) item.savedForLater = Boolean(savedForLater);
+
+    if (!Number.isFinite(+item.startDateTime) || !Number.isFinite(+item.endDateTime) || item.endDateTime <= item.startDateTime) {
+      throw new HttpError(400, 'Choose a valid date range with the end after the start.');
+    }
 
     await cart.save();
     res.json(await hydrate(cart));

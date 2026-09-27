@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { estimatePrice } from '../utils/pricing.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { asyncHandler, HttpError } from '../middleware/error.middleware.js';
 import { WalletService } from '../services/wallet.service.js';
@@ -94,8 +95,12 @@ router.get(
     const isParty = String(booking.seeker) === String(req.user._id) || String(booking.provider) === String(req.user._id);
     if (!isParty) throw new HttpError(403, 'Access denied.');
 
-    const unitPrice = booking.agreedPrice ?? booking.quotedPrice ?? booking.resource?.pricing?.basePrice ?? 0;
     const quantity = booking.requestedQuantity || 1;
+    // Quoted/agreed prices already cover the entire quantity and hire period.
+    const rentalTotal = booking.agreedPrice ?? booking.quotedPrice ?? estimatePrice(booking.resource, {
+      quantity, startDateTime: booking.startDateTime, endDateTime: booking.endDateTime,
+    });
+    const unitPrice = rentalTotal / quantity;
     const category = booking.resource?.category || 'other';
 
     // Logistics fee: if transport requested, look at resource transport specs or standard demo logistics
@@ -167,9 +172,20 @@ router.post(
       throw new HttpError(403, 'Only the requesting business can pay for this booking.');
     }
 
+    // Validate before crediting or reserving any wallet funds, including retries.
+    const existingPayment = await PaymentService.validatePaymentAttempt({ booking, user: req.user, paymentMethod });
+    if (existingPayment) {
+      return res.json({ success: true, booking, transaction: existingPayment, alreadyPaid: true,
+        feeBreakdown: existingPayment.metadata?.feeBreakdown });
+    }
+
     // Backend fee recalculation — source of truth
-    const unitPrice = booking.agreedPrice ?? booking.quotedPrice ?? booking.resource?.pricing?.basePrice ?? 0;
     const quantity = booking.requestedQuantity || 1;
+    // Quoted/agreed prices already cover the entire quantity and hire period.
+    const rentalTotal = booking.agreedPrice ?? booking.quotedPrice ?? estimatePrice(booking.resource, {
+      quantity, startDateTime: booking.startDateTime, endDateTime: booking.endDateTime,
+    });
+    const unitPrice = rentalTotal / quantity;
     const category = booking.resource?.category || 'other';
     const logisticsFee = booking.logistics === 'provider_transport' ? 2000 : 0;
 
