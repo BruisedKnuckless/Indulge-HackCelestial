@@ -18,6 +18,7 @@
 
 import mongoose from 'mongoose';
 import { getWeatherByCoords } from './weather.service.js';
+import { getPublicSignals, correlateWeatherAndSignals } from './public-signals.service.js';
 
 // ─── UUID generator (no extra dep — use crypto) ───────────────────────────────
 import { randomBytes } from 'crypto';
@@ -41,13 +42,33 @@ const CITY_COORDS = {
   thane:           { lat: 19.2183, lon: 72.9781 },
   mumbai:          { lat: 19.0760, lon: 72.8777 },
   'navi mumbai':   { lat: 19.0330, lon: 73.0297 },
+  'kalyan-dombivli': { lat: 19.2437, lon: 73.1355 },
+  kalyan:          { lat: 19.2437, lon: 73.1355 },
+  dombivli:        { lat: 19.2144, lon: 73.0970 },
+  bhiwandi:        { lat: 19.2967, lon: 73.0631 },
+  'mira-bhayandar':{ lat: 19.2952, lon: 72.8544 },
+  'vasai-virar':   { lat: 19.3919, lon: 72.8397 },
   pune:            { lat: 18.5204, lon: 73.8567 },
   nashik:          { lat: 19.9975, lon: 73.7898 },
+  nagpur:          { lat: 21.1458, lon: 79.0882 },
+  aurangabad:      { lat: 19.8762, lon: 75.3433 },
+  'chhatrapati sambhajinagar': { lat: 19.8762, lon: 75.3433 },
   delhi:           { lat: 28.6139, lon: 77.2090 },
+  'delhi ncr':     { lat: 28.6139, lon: 77.2090 },
   bengaluru:       { lat: 12.9716, lon: 77.5946 },
+  bangalore:       { lat: 12.9716, lon: 77.5946 },
   hyderabad:       { lat: 17.3850, lon: 78.4867 },
   chennai:         { lat: 13.0827, lon: 80.2707 },
   kolkata:         { lat: 22.5726, lon: 88.3639 },
+  ahmedabad:       { lat: 23.0225, lon: 72.5714 },
+  surat:           { lat: 21.1702, lon: 72.8311 },
+  jaipur:          { lat: 26.9124, lon: 75.7873 },
+  lucknow:         { lat: 26.8467, lon: 80.9462 },
+  chandigarh:      { lat: 30.7333, lon: 76.7794 },
+  indore:          { lat: 22.7196, lon: 75.8577 },
+  goa:             { lat: 15.4909, lon: 73.8278 },
+  panaji:          { lat: 15.4909, lon: 73.8278 },
+  kochi:           { lat: 9.9312, lon: 76.2673 },
 };
 
 function resolveCoords(location) {
@@ -55,8 +76,15 @@ function resolveCoords(location) {
   if (typeof location === 'string') {
     return CITY_COORDS[location.toLowerCase().trim()] || null;
   }
-  if (typeof location.lat === 'number' && typeof location.lon === 'number') {
-    return { lat: location.lat, lon: location.lon };
+  if (location && typeof location === 'object') {
+    const lat = Number(location.lat);
+    const lon = Number(location.lon ?? location.lng);
+    if (!isNaN(lat) && !isNaN(lon) && lat !== 0) {
+      return { lat, lon };
+    }
+    if (location.name && typeof location.name === 'string') {
+      return CITY_COORDS[location.name.toLowerCase().trim()] || null;
+    }
   }
   return null;
 }
@@ -266,6 +294,11 @@ function applyImpact(snapshot, wc, scenario) {
     bookingId:             String(j.booking),
     resourceId:            String(j.resource),
     currentStatus:         j.status,
+    pickupLocation:        j.pickupLocation || null,
+    deliveryLocation:      j.deliveryLocation || null,
+    scheduledPickupTime:   j.scheduledPickupTime || null,
+    requiredDeliveryTime:  j.requiredDeliveryTime || null,
+    quantity:              j.quantity || 1,
     disruptionProbability: parseFloat(logBase.toFixed(3)),
     estimatedDelayHours:   parseFloat((logBase * dur * 0.8).toFixed(1)),
     recommendation: logBase > 0.6
@@ -417,6 +450,23 @@ export async function runWeatherSimulation(params) {
     const snapshot = await readSnapshot(coords);
     const impact   = applyImpact(snapshot, wc, scenario);
 
+    // Retrieve contextual public signals layer (non-blocking fallback)
+    let publicSignals = null;
+    try {
+      const cityName = typeof params.location === 'string' ? params.location : (params.location?.name || 'Thane');
+      const sigData = await getPublicSignals(cityName, false);
+      const correlation = correlateWeatherAndSignals(wc, sigData.aggregation);
+      publicSignals = {
+        feedSource: sigData.feedSource,
+        aggregation: sigData.aggregation,
+        correlation,
+        clusters: sigData.clusters,
+        sampleSignals: sigData.signals.slice(0, 8),
+      };
+    } catch (sigErr) {
+      console.warn('[DigitalTwin] Public signals retrieval non-fatal warning:', sigErr.message);
+    }
+
     return {
       simulationId: id,
       success: true,
@@ -424,6 +474,7 @@ export async function runWeatherSimulation(params) {
       scenario,
       weatherClassification: wc,
       liveWeatherSnapshot: liveWeather,
+      publicSignals,
       ...impact,
       meta: {
         startedAt,
