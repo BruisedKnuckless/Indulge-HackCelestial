@@ -262,6 +262,12 @@ export default function RequirementDetail() {
             </span>
           </p>
         )}
+        {r.intakeSummary?.source === 'gemini' && (
+          <p className="text-xs muted mt-3 flex items-center gap-1.5">
+            <span className="badge-teal">AI</span>
+            <span>Drafted with a fallback model (Gemini) — Nugen was unavailable — then reviewed by the seeker</span>
+          </p>
+        )}
       </header>
 
       {r.status === 'fulfilled' && (

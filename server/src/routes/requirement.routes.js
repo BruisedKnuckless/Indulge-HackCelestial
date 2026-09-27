@@ -72,14 +72,17 @@ async function intakeProvenance(intakeId, userId) {
   if (!intakeId || !/^[a-f\d]{24}$/i.test(String(intakeId))) return null;
   const intake = await RfqIntake.findOne({ _id: intakeId, user: userId, requirement: null }).lean();
   if (!intake) return null;
-  const usedModel = intake.ai?.status === 'ok' && Object.values(intake.fieldSources || {}).includes('nugen');
+  // ai.provider is set by parseRequirementText() to whichever provider (if
+  // any) actually filled fields — 'nugen', 'gemini', or null if only the
+  // rule parser answered. Trust that over re-deriving it from fieldSources.
+  const provider = intake.ai?.status === 'ok' ? intake.ai.provider : null;
   return {
     intake: intake._id,
     intakeSummary: {
-      source: usedModel ? 'nugen' : 'rules',
-      model: usedModel ? intake.ai.model : null,
-      aligned: usedModel ? Boolean(intake.ai.aligned) : false,
-      confidenceScore: usedModel ? intake.ai.confidenceScore ?? null : null,
+      source: provider || 'rules',
+      model: provider ? intake.ai.model : null,
+      aligned: provider === 'nugen' ? Boolean(intake.ai.aligned) : false,
+      confidenceScore: provider ? intake.ai.confidenceScore ?? null : null,
     },
   };
 }

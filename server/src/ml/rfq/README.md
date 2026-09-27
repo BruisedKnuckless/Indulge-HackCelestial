@@ -18,22 +18,37 @@ Base model (Nugen, e.g. llama-v3p2-3b-reasoning)
 Indulge-RFQ (domain-aligned model, id in nugen-model.json)
    │  POST /api/requirements/parse
    ▼
-LangChain chain (chain.js)
+1. LangChain chain (chain.js) — required integration, always tried first
    ChatPromptTemplate ─► ChatOpenAI @ api.nugen.in/api/v3/inference ─► JSON parser
+   │
+   │  Nugen down / unconfigured / reply fails grounding, AND GEMINI_API_KEY set
+   ▼
+2. Gemini fallback (gemini.js) — direct @google/genai call, same prompt contract
+   │
    ▼
 ground.js   field-by-field validation; numbers must appear in the request,
-            the city must be named, date words must be verbatim
+            the city must be named, date words must be verbatim — applied to
+            whichever of the two answered, identically
    ▼
-rules.js    fills anything the model left out or had dropped
+rules.js    fills anything neither AI provider produced or had dropped
    ▼
-resolve.js  date words + times → a local window (the model never does date maths)
+resolve.js  date words + times → a local window (no AI provider does date maths)
    ▼
-draft + per-field source (nugen | rules) + fields to double-check + confidence_score
+draft + per-field source (nugen | gemini | rules) + fields to double-check
+   + confidence_score (Nugen only — Gemini never reports one)
 ```
 
 The model is small (0.5B–3B), so it only extracts. Everything that can be done
 deterministically is: arithmetic, validation, fallback. This is the same shape
 as the delivery forest (`ml/delivery`) and the Claude step in inspections.
+
+**Gemini is a resilience fallback, not a second primary path.** HackCelestial
+Task 2 requires the Nugen alignment, and that's what's always tried first and
+what the UI names as "the aligned model". Gemini only gets a turn when Nugen
+genuinely didn't answer, and every surface (`ai.provider`, `intakeSummary.source`,
+the status line, the field tags) says plainly when that happened — a
+Gemini-filled field is never presented as Nugen's output. See `intake.js` for
+the exact fallback order and `gemini.js` for the call itself.
 
 ## Files
 
@@ -44,9 +59,10 @@ as the delivery forest (`ml/delivery`) and the Claude step in inspections.
 | `synth.js` | Seeded synthetic requests with gold JSON (Indian number styles, Hinglish, noise). 28 training templates, 12 held out. |
 | `build-dataset.js` | `npm run rfq:dataset` → `data/` |
 | `align.js` | `npm run rfq:align`: runs the Nugen alignment end to end; resumable. |
-| `chain.js` | The LangChain pipeline. |
+| `chain.js` | The LangChain pipeline (Nugen). |
+| `gemini.js` | The Gemini fallback — direct `@google/genai` call, only used when Nugen doesn't answer. |
 | `ground.js`, `rules.js`, `resolve.js` | The deterministic layers. |
-| `intake.js` | `parseRequirementText()`: the orchestrator the route calls. Never throws. |
+| `intake.js` | `parseRequirementText()`: the orchestrator the route calls (Nugen → Gemini → rules). Never throws. |
 | `evaluate.js` | `npm run rfq:eval`: rules vs base vs aligned vs pipeline → `metrics.json`. |
 | `nugen-model.json` | Written by `rfq:align`: the deployed aligned model id. |
 
@@ -78,12 +94,16 @@ Configuration (server env):
 | `NUGEN_API_KEY` | none | Without it the intake runs on the rule parser alone. |
 | `NUGEN_BASE_MODEL` | `llama-v3p2-3b-reasoning` | Base to align; `rfq:align` lists what the account can align. |
 | `NUGEN_RFQ_MODEL` | from `nugen-model.json` | Override the aligned model id. |
-| `RFQ_AI` | `auto` | `auto` / `on` / `off`. |
-| `RFQ_AI_TIMEOUT_MS` | `15000` | |
-| `RFQ_MIN_CONFIDENCE` | `40` | Below this Nugen `confidence_score`, model-filled fields are flagged "Check". |
+| `RFQ_AI` | `auto` | `auto` / `on` / `off` — `off` disables Nugen **and** the Gemini fallback. |
+| `RFQ_AI_TIMEOUT_MS` | `15000` | Shared by both Nugen and the Gemini fallback. |
+| `RFQ_MIN_CONFIDENCE` | `40` | Below this Nugen `confidence_score`, model-filled fields are flagged "Check". Gemini never reports a confidence score, so this never applies to a Gemini-filled field. |
+| `GEMINI_API_KEY` | none | Fallback only — tried only if Nugen didn't answer. Without it, a Nugen failure falls straight through to the rule parser. |
+| `GEMINI_MODEL` | `gemini-flash-latest` | |
 
 Before an aligned model exists, a configured key uses the Nugen base model, and
-the UI says so. It never calls that model aligned.
+the UI says so. It never calls that model aligned. If Nugen is down entirely
+and `GEMINI_API_KEY` is set, Gemini fills the draft instead — again, always
+labelled a fallback, never as Nugen or as "the aligned model".
 
 ## Results
 

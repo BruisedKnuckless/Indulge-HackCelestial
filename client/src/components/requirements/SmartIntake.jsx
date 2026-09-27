@@ -21,10 +21,15 @@ export const INTAKE_FIELD_LABELS = {
 };
 
 function statusLine(ai) {
-  if (ai.status === 'ok') {
+  if (ai.status === 'ok' && ai.provider === 'nugen') {
     const who = ai.aligned ? 'Indulge-RFQ, our Nugen-aligned model' : 'the Nugen base model (alignment pending)';
     const confidence = ai.confidenceScore != null ? ` · ${Math.round(ai.confidenceScore)}% confidence` : '';
     return `Filled by ${who}${confidence} · ${ai.latencyMs} ms`;
+  }
+  // Gemini only ever runs as a fallback when Nugen didn't answer — the line
+  // always says so plainly, never implying this is the aligned model.
+  if (ai.status === 'ok' && ai.provider === 'gemini') {
+    return `Nugen was unavailable (${ai.nugenReason}), so a fallback model (Gemini) filled the form instead.`;
   }
   if (ai.status === 'failed') return `Nugen could not answer (${ai.reason}), so the rule parser filled the form.`;
   return 'Filled by the rule parser: the Nugen model is not configured on this server.';
