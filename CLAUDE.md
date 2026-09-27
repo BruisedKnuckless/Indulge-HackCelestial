@@ -113,6 +113,32 @@ return; each once, in order, by whoever holds the goods).
   (halls, parking, kitchens and staff are used on site), consistency rules between targets,
   and wording (`guidance.js`).
 
+### RFQ smart intake model (`server/src/ml/rfq/`)
+
+Post Requirement has a "Describe what you need" box. `POST /api/requirements/parse`
+turns free text into a form draft through a **Nugen-aligned model called with LangChain**
+(`ChatOpenAI` pointed at `https://api.nugen.in/api/v3/inference`), then deterministic layers:
+`ground.js` (per-field validation; numbers, city and date words must appear in the text),
+`rules.js` (fills gaps; also the eval baseline), `resolve.js` (date maths). Full details
+are in its `README.md`. This is the HackCelestial Task 2 (Nugen) integration.
+
+- **The model only extracts.** It copies date words; code resolves them to local
+  `YYYY-MM-DDTHH:MM` against the client's `today`. It never computes numbers either:
+  a value that is not in the request is dropped (`dropped`) and the rules may refill it.
+- **Trained on synthetic data** (`synth.js`); `vocab.js` is the source of truth for labels.
+  Change it, `synth.js` or `prompt.js` → `npm run rfq:dataset` → `npm run rfq:align` →
+  `npm run rfq:eval`; commit `data/`, `nugen-model.json` and `metrics.json`. Bump
+  `PROMPT_VERSION` when the prompt changes. Production never trains.
+- `data/rfq-intake-handwritten.jsonl` is hand-authored: never regenerate it.
+- **Never throws.** No key, timeout, non-JSON reply → rules-only draft, still 200.
+  `setIntakeModelForTests()` injects a stub chat model; verify never calls Nugen (it unsets
+  `NUGEN_API_KEY` for its RFQ section).
+- Every parse is logged as an `RfqIntake`. A requirement posted with `intakeId` gets
+  `intake` + `intakeSummary` **set server-side** from the seeker's own unused intake; the
+  client cannot claim a model drafted it.
+- LangChain is pinned to `@langchain/openai@~1.4` / `@langchain/core@1.x`: newer releases
+  need Node 22.
+
 ### Inspection protocol generator (`server/src/ml/inspection/`)
 
 Generates the checklist a quality-verification technician inspects for a listed
@@ -242,7 +268,7 @@ Environment:
 
 | Service | Variables |
 |---|---|
-| server | `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES`, `CLIENT_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` |
+| server | `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES`, `CLIENT_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `NUGEN_API_KEY` (optional: RFQ intake model; see `.env.example` for the `RFQ_*` knobs) |
 | client | `VITE_API_URL`, `VITE_SOCKET_URL` |
 
 Traps that have each cost real debugging time:

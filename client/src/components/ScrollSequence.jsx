@@ -159,14 +159,19 @@ export default function ScrollSequence() {
     };
   }, [draw, resize]);
 
+  const endOfSection = () => {
+    const section = sectionRef.current;
+    if (!section) return null;
+    return section.offsetTop + section.offsetHeight - window.innerHeight;
+  };
+
   // Hand-rolled instead of scrollTo({ behavior: 'smooth' }) because the native
   // animation's duration is browser-controlled and too fast to follow the frames.
   const skip = () => {
-    const section = sectionRef.current;
-    if (!section) return;
+    const to = endOfSection();
+    if (to == null) return;
 
     const from = window.scrollY;
-    const to = section.offsetTop + section.offsetHeight - window.innerHeight;
     const start = performance.now();
     let raf = 0;
 
@@ -191,6 +196,14 @@ export default function ScrollSequence() {
     raf = requestAnimationFrame(step);
   };
 
+  // For the loading veil: there is nothing decoded yet to scrub through, so an
+  // eased glide would just crawl past a black screen. Jump straight there —
+  // frames keep preloading in the background for whoever scrolls back up.
+  const skipInstantly = () => {
+    const to = endOfSection();
+    if (to != null) window.scrollTo(0, to);
+  };
+
   const pctLoaded = Math.round((loaded / FRAME_COUNT) * 100);
 
   return (
@@ -205,9 +218,18 @@ export default function ScrollSequence() {
         <canvas ref={canvasRef} className="block w-full h-full" />
 
         {/* Loading veil — covers the canvas until every frame is decoded, so
-            scrubbing never lands on a frame that has not arrived. */}
+            scrubbing never lands on a frame that has not arrived. A skip
+            option sits here too, for anyone who does not want to wait out
+            the preload at all. */}
         {!ready && (
           <div className="absolute inset-0 grid place-items-center bg-black">
+            <button
+              onClick={skipInstantly}
+              className="absolute top-5 right-5 text-white/60 hover:text-white text-xs tracking-wide border border-white/25 hover:border-white/60 rounded-full px-3 py-1.5 transition-colors"
+            >
+              Skip
+            </button>
+
             <div className="text-center px-6">
               <div className="mb-3 flex items-center justify-center">
                 <Logo size={32} dark={true} />

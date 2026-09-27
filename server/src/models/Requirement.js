@@ -143,6 +143,19 @@ const requirementSchema = new mongoose.Schema(
     remainingQuantity: {
       type: Number,
     },
+    // Smart intake provenance: set by the server from the seeker's own
+    // RfqIntake at creation, never from the request body.
+    intake: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'RfqIntake',
+      default: null,
+    },
+    intakeSummary: {
+      source: String, // 'nugen' | 'rules'
+      model: String,
+      aligned: Boolean,
+      confidenceScore: Number,
+    },
   },
   { timestamps: true }
 );

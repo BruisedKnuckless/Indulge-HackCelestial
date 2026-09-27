@@ -295,6 +295,16 @@ export function useRequirement(id) {
  * Every write here can change boards, proposals, and, on accept, the bookings list —
  * so they all invalidate the same broad set rather than trying to be surgical.
  */
+/**
+ * RFQ smart intake: free text → a draft for the Post Requirement form, via the
+ * Nugen-aligned model on the server. Creates nothing, so nothing to invalidate.
+ */
+export function useParseRequirement() {
+  return useMutation({
+    mutationFn: async ({ text, today }) => (await api.post('/requirements/parse', { text, today })).data,
+  });
+}
+
 export function useRequirementActions() {
   const qc = useQueryClient();
 

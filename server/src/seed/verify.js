@@ -30,6 +30,7 @@ import { ADMINS } from './seedData.js';
 import { ensureBootstrapAdmin, readBootstrapAdmin, adminPasswordAllowed } from '../config/admin.js';
 import LogisticsJob from '../models/LogisticsJob.js';
 import Requirement from '../models/Requirement.js';
+import { FeeCalculationService } from '../services/fee-calculation.service.js';
 import Transaction from '../models/Transaction.js';
 import ProcurementOrder from '../models/ProcurementOrder.js';
 import Proposal from '../models/Proposal.js';
@@ -71,6 +72,14 @@ import {
   getTransactionReceiptData,
   getProcurementReceiptData,
 } from '../services/receipt.service.js';
+import { RunnableLambda } from '@langchain/core/runnables';
+import { AIMessage } from '@langchain/core/messages';
+import RfqIntake from '../models/RfqIntake.js';
+import { setIntakeModelForTests } from '../ml/rfq/intake.js';
+import { parseWithRules } from '../ml/rfq/rules.js';
+import { groundOutput } from '../ml/rfq/ground.js';
+import { resolveWindow } from '../ml/rfq/resolve.js';
+import { SYSTEM_PROMPT, formatInstruction } from '../ml/rfq/prompt.js';
 
 let base = '';
 let passed = 0;
@@ -5587,12 +5596,21 @@ async function main() {
     token: kalpataru,
     body: { paymentMethod: 'upi', idempotencyKey: `idem_${Date.now()}` },
   });
+  // The transaction amount is the fee-inclusive total (resource price + GST +
+  // platform fee), not the raw agreedPrice — compute it the same way the
+  // /pay route does rather than assuming a category-independent flat number.
+  const expectedPaymentTotal = FeeCalculationService.calculateBookingFees({
+    resourcePrice: 5000,
+    quantity: 1,
+    category: testListing.category,
+  }).total;
   check(
     '7A-6. Simulated payment succeeds and confirms booking',
     resPayment.status === 200 &&
       resPayment.body.booking.status === 'confirmed' &&
       resPayment.body.transaction.status === 'simulated_paid' &&
-      resPayment.body.transaction.amount === 5000
+      resPayment.body.transaction.amount === expectedPaymentTotal,
+    `got ${resPayment.body?.transaction?.amount}, expected ${expectedPaymentTotal}`
   );
 
   // 7. Duplicate payment execution idempotent
@@ -7347,6 +7365,202 @@ async function main() {
         vikram.location?.city === 'Bengaluru' &&
         JSON.stringify(vikram.location.coordinates) === JSON.stringify([77.5946, 12.9716])
     );
+  }
+
+  /* ─────────────────────────── RFQ smart intake (Nugen via LangChain) ─────────────────────────── */
+  // Offline: the Nugen chat model is replaced by a LangChain runnable that
+  // replies like the aligned model, confidence_score included. A real key in
+  // server/.env must not reach Nugen from the test suite, so it is unset here.
+  {
+    console.log('\nRFQ smart intake: Nugen-aligned model via LangChain, grounding, rules fallback');
+
+    const savedEnv = { key: process.env.NUGEN_API_KEY, mode: process.env.RFQ_AI };
+    delete process.env.NUGEN_API_KEY;
+    delete process.env.RFQ_AI;
+
+    const orchidT = await login('ops@grandorchid.in');
+    const kalpT = await login('desk@kalpataruevents.in');
+    const techT = await login('inspector@indulge.com');
+    const TODAY = '2026-09-27'; // a Sunday
+    const TEXT = 'Need 250 banquet chairs + PA system in Navi Mumbai, 12 Oct 6pm–11pm, budget 40k, urgent';
+    const GOOD = {
+      category: 'furniture',
+      title: '250 banquet chairs',
+      quantity: 250,
+      unit: 'unit',
+      minCapacity: null,
+      budget: 40000,
+      city: 'Navi Mumbai',
+      dateText: '12 Oct',
+      startTime: '18:00',
+      endTime: '23:00',
+      urgency: 'high',
+      notes: 'also a PA system',
+    };
+    let sentMessages = null;
+    const stubModel = (reply, confidence = 87) =>
+      RunnableLambda.from((promptValue) => {
+        sentMessages = promptValue.toChatMessages();
+        if (reply instanceof Error) throw reply;
+        return new AIMessage({
+          content: typeof reply === 'string' ? reply : JSON.stringify(reply),
+          additional_kwargs: { __raw_response: { model: 'model_indulge_rfq', confidence_score: confidence } },
+          response_metadata: { model_name: 'model_indulge_rfq' },
+        });
+      });
+    const parse = (text, token = orchidT) => api('POST', '/api/requirements/parse', { token, body: { text, today: TODAY } });
+
+    setIntakeModelForTests(stubModel(GOOD));
+    const p1 = await parse(TEXT);
+    const d1 = p1.body?.draft || {};
+    check(
+      'RFQ-1. The aligned model fills the draft: category, quantity, budget, city, window, confidence',
+      p1.status === 200 &&
+        Boolean(p1.body.intakeId) &&
+        d1.category === 'furniture' &&
+        d1.quantity === 250 &&
+        d1.maxPrice === 40000 &&
+        d1.urgency === 'high' &&
+        d1.location?.city === 'Navi Mumbai' &&
+        JSON.stringify(d1.location?.coordinates) === JSON.stringify([73.0297, 19.033]) &&
+        d1.start === '2026-10-12T18:00' &&
+        d1.end === '2026-10-12T23:00' &&
+        p1.body.ai.status === 'ok' &&
+        p1.body.ai.confidenceScore === 87 &&
+        p1.body.ai.model === 'model_indulge_rfq' &&
+        p1.body.fieldSources.category === 'nugen',
+      JSON.stringify(p1.body)
+    );
+    check(
+      'RFQ-1b. LangChain sends the aligned prompt contract (system, few-shot, instruction)',
+      sentMessages?.[0]?._getType() === 'system' &&
+        sentMessages[0].content === SYSTEM_PROMPT &&
+        sentMessages.at(-1).content === formatInstruction(TEXT) &&
+        sentMessages.some((m) => m._getType() === 'ai' && String(m.content).startsWith('{'))
+    );
+
+    setIntakeModelForTests(stubModel({ ...GOOD, budget: 400000 }));
+    const p2 = await parse(TEXT);
+    setIntakeModelForTests(stubModel({ ...GOOD, budget: 90000, city: 'Mumbai' }));
+    const p2b = await parse('Need 250 banquet chairs in Pune tomorrow');
+    check(
+      'RFQ-2. Values the request does not contain are dropped; rules refill what they can',
+      p2.body?.dropped?.some((d) => d.field === 'budget' && d.reason === 'not in the request') &&
+        p2.body.draft.maxPrice === 40000 &&
+        p2.body.fieldSources.maxPrice === 'rules' &&
+        p2b.body?.draft?.maxPrice === undefined &&
+        p2b.body.check.includes('maxPrice') &&
+        p2b.body.draft.location?.city === 'Pune' &&
+        p2b.body.fieldSources.location === 'rules',
+      JSON.stringify([p2.body?.dropped, p2b.body])
+    );
+
+    setIntakeModelForTests(stubModel('Sorry, I can only help with hotel bookings.'));
+    const p3 = await parse(TEXT);
+    setIntakeModelForTests(stubModel({ ...GOOD, category: 'chairs_and_stuff' }));
+    const p3b = await parse(TEXT);
+    check(
+      'RFQ-3. A non-JSON reply or an invalid category falls back to the rules, still 200',
+      p3.status === 200 &&
+        p3.body.ai.status === 'failed' &&
+        p3.body.draft.category === 'furniture' &&
+        p3.body.draft.quantity === 250 &&
+        p3.body.fieldSources.category === 'rules' &&
+        p3b.body.draft.category === 'furniture' &&
+        p3b.body.fieldSources.category === 'rules' &&
+        p3b.body.dropped.some((d) => d.field === 'category'),
+      JSON.stringify([p3.body?.ai, p3b.body?.fieldSources])
+    );
+
+    setIntakeModelForTests(stubModel(Object.assign(new Error('boom'), { status: 503 })));
+    const p4 = await parse(TEXT);
+    setIntakeModelForTests(null);
+    const p4b = await parse(TEXT);
+    check(
+      'RFQ-4. Nugen down or not configured: the rule parser answers alone',
+      p4.body?.ai?.status === 'failed' &&
+        p4.body.ai.reason === 'Nugen is unavailable' &&
+        p4b.body?.ai?.status === 'disabled' &&
+        p4b.body.ai.reason === 'NUGEN_API_KEY is not set' &&
+        p4b.body.draft.category === 'furniture' &&
+        p4b.body.draft.maxPrice === 40000 &&
+        Object.values(p4b.body.fieldSources).every((s) => s === 'rules'),
+      JSON.stringify([p4.body?.ai, p4b.body?.ai])
+    );
+
+    const sat = resolveWindow({ dateText: 'this Saturday', startTime: '18:00', endTime: '23:00' }, TODAY);
+    const late = await parse('Need 2 bartenders on 12 Oct 10pm–2am in Pune');
+    const nextFri = resolveWindow({ dateText: 'next Friday' }, TODAY);
+    check(
+      'RFQ-5. Dates are resolved by code, not the model: weekdays, overnight windows, defaults',
+      sat?.start === '2026-10-03T18:00' &&
+        sat.end === '2026-10-03T23:00' &&
+        late.body?.draft?.start === '2026-10-12T22:00' &&
+        late.body.draft.end === '2026-10-13T02:00' &&
+        nextFri?.start === '2026-10-09T09:00' &&
+        resolveWindow({ dateText: 'sometime soon' }, TODAY) === null,
+      JSON.stringify([sat, late.body?.draft, nextFri])
+    );
+
+    const noAuth = await api('POST', '/api/requirements/parse', { body: { text: TEXT } });
+    const asTech = await parse(TEXT, techT);
+    const tooLong = await parse('x'.repeat(1001));
+    check('RFQ-6. Intake needs a business sign-in and a bounded text', noAuth.status === 401 && asTech.status === 403 && tooLong.status === 400);
+
+    setIntakeModelForTests(stubModel(GOOD, 91));
+    const fresh = await parse(TEXT);
+    const d = fresh.body.draft;
+    const reqBody = {
+      title: d.title,
+      category: d.category,
+      quantity: d.quantity,
+      requiredQuantity: d.quantity,
+      unit: d.unit,
+      maxBudget: d.maxPrice,
+      urgency: d.urgency,
+      description: d.description,
+      startDateTime: new Date(`${d.start}:00+05:30`).toISOString(),
+      endDateTime: new Date(`${d.end}:00+05:30`).toISOString(),
+      location: d.location,
+      intakeId: fresh.body.intakeId,
+    };
+    const posted = await api('POST', '/api/requirements', { token: orchidT, body: reqBody });
+    const postedReq = await Requirement.findById(posted.body?.requirement?._id).lean();
+    const linkedIntake = await RfqIntake.findById(fresh.body.intakeId).lean();
+    const reused = await api('POST', '/api/requirements', { token: orchidT, body: reqBody });
+    const reusedReq = await Requirement.findById(reused.body?.requirement?._id).lean();
+
+    setIntakeModelForTests(stubModel(GOOD, 75));
+    const kalpIntake = await parse(TEXT, kalpT);
+    const stolen = await api('POST', '/api/requirements', { token: orchidT, body: { ...reqBody, intakeId: kalpIntake.body.intakeId } });
+    const stolenReq = await Requirement.findById(stolen.body?.requirement?._id).lean();
+    check(
+      'RFQ-7. A posted draft records its provenance server-side; reused or foreign intakes add none',
+      posted.status === 201 &&
+        postedReq?.intakeSummary?.source === 'nugen' &&
+        postedReq.intakeSummary.confidenceScore === 91 &&
+        postedReq.intakeSummary.model === 'model_indulge_rfq' &&
+        postedReq.location?.city === 'Navi Mumbai' &&
+        String(linkedIntake?.requirement) === String(postedReq._id) &&
+        reused.status === 201 &&
+        !reusedReq?.intake &&
+        stolen.status === 201 &&
+        !stolenReq?.intake &&
+        !stolenReq?.intakeSummary?.source,
+      JSON.stringify({ status: posted.status, body: posted.body?.error, summary: postedReq?.intakeSummary })
+    );
+
+    const testSet = readFileSync(new URL('../ml/rfq/data/rfq-intake-test.jsonl', import.meta.url), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    const rulesRight = testSet.filter((r) => groundOutput(parseWithRules(r.text), r.text).fields.category === r.gold.category).length;
+    check(
+      'RFQ-8. The rule fallback reads at least 70% of held-out categories',
+      rulesRight / testSet.length >= 0.7,
+      `${rulesRight}/${testSet.length}`
+    );
+
+    setIntakeModelForTests(null);
+    if (savedEnv.key !== undefined) process.env.NUGEN_API_KEY = savedEnv.key;
+    if (savedEnv.mode !== undefined) process.env.RFQ_AI = savedEnv.mode;
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

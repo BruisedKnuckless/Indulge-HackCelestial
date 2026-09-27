@@ -252,6 +252,16 @@ export default function RequirementDetail() {
         </div>
 
         {r.description && <p className="text-base muted mt-5 max-w-prose">{r.description}</p>}
+        {r.intakeSummary?.source === 'nugen' && (
+          <p className="text-xs muted mt-3 flex items-center gap-1.5">
+            <span className="badge-indigo">AI</span>
+            <span>
+              Drafted with {r.intakeSummary.aligned ? 'Indulge-RFQ, a Nugen-aligned model' : 'a Nugen model'}
+              {r.intakeSummary.confidenceScore != null && ` · ${Math.round(r.intakeSummary.confidenceScore)}% confidence`}
+              , then reviewed by the seeker
+            </span>
+          </p>
+        )}
       </header>
 
       {r.status === 'fulfilled' && (

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Indulge \u2014 B2B Hospitality Resource Exchange API",
+  "description": "Indulge — B2B Hospitality Resource Exchange API",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
@@ -13,11 +13,16 @@
     "train:delivery": "node src/ml/delivery/train.js",
     "inspect:demo": "node src/ml/inspection/cli.js demo",
     "inspect:generate": "node src/ml/inspection/cli.js generate",
-    "inspect:eval": "node src/ml/inspection/evaluate.js"
+    "inspect:eval": "node src/ml/inspection/evaluate.js",
+    "rfq:dataset": "node src/ml/rfq/build-dataset.js",
+    "rfq:align": "node src/ml/rfq/align.js",
+    "rfq:eval": "node src/ml/rfq/evaluate.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
     "@google/generative-ai": "^0.24.1",
+    "@langchain/core": "^1.2.12",
+    "@langchain/openai": "~1.4.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "date-fns": "^3.6.0",
