@@ -12,6 +12,7 @@ import {
   Clock,
   Sparkles,
   Truck,
+  ClipboardCheck,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useCart, useNotifications } from "../../hooks/queries";
@@ -766,6 +767,15 @@ export default function Header() {
                         <HelpCircle size={14} className="text-ink-mute shrink-0" />
                         <span>How Indulge works</span>
                       </Link>
+
+                      <Link
+                        to="/technician/login"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-1.5 text-xs text-ink-soft hover:text-indigo hover:bg-surface-sunk rounded-lg mx-1.5 transition-colors duration-150"
+                      >
+                        <ClipboardCheck size={14} className="text-indigo shrink-0" />
+                        <span>Technician Portal</span>
+                      </Link>
                     </div>
 
                     {/* Sign out */}
@@ -799,6 +809,20 @@ export default function Header() {
                         className="btn-secondary w-full text-center"
                       >
                         Create account
+                      </Link>
+                    </div>
+
+                    <div className="px-4 py-2 border-t border-line">
+                      <Link
+                        to="/technician/login"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center justify-between text-xs text-ink-soft hover:text-indigo transition-colors py-1"
+                      >
+                        <span className="flex items-center gap-2 font-medium">
+                          <ClipboardCheck size={14} className="text-indigo" />
+                          Technician Portal
+                        </span>
+                        <span className="text-[11px] text-ink-mute">Sign in →</span>
                       </Link>
                     </div>
 

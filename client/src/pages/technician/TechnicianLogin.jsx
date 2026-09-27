@@ -39,6 +39,24 @@ export default function TechnicianLogin() {
     }
   };
 
+  const quickSignIn = async (demoEmail) => {
+    setError('');
+    setBusy(true);
+    try {
+      const signedIn = await login(demoEmail, 'indulge123');
+      if (signedIn?.userType !== 'inspector') {
+        logout();
+        setError('This is not a technician account.');
+        return;
+      }
+      navigate('/technician', { replace: true });
+    } catch (err) {
+      setError(errorMessage(err, 'Could not sign you in.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="bg-surface min-h-screen flex flex-col items-center px-4 pt-12">
       <span className="icon-box icon-box-indigo w-12 h-12 mb-3">
@@ -87,13 +105,43 @@ export default function TechnicianLogin() {
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        <div className="mt-5 pt-4 border-t border-line space-y-2">
+          <p className="text-xs font-semibold text-ink-soft uppercase tracking-wider">Demo Technicians (1-Click Sign-in)</p>
+          <div className="grid grid-cols-1 gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => quickSignIn('inspector@indulge.com')}
+              className="btn-secondary w-full text-left py-2.5 px-3 flex items-center justify-between text-xs"
+            >
+              <div>
+                <span className="font-medium text-ink block">Rahul Sharma</span>
+                <span className="text-[11px] text-ink-mute">Senior Field Tech (inspector@indulge.com)</span>
+              </div>
+              <span className="text-indigo font-semibold text-[11px]">Sign in →</span>
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => quickSignIn('priya.tech@indulge.com')}
+              className="btn-secondary w-full text-left py-2.5 px-3 flex items-center justify-between text-xs"
+            >
+              <div>
+                <span className="font-medium text-ink block">Priya Nair</span>
+                <span className="text-[11px] text-ink-mute">Field Tech (priya.tech@indulge.com)</span>
+              </div>
+              <span className="text-indigo font-semibold text-[11px]">Sign in →</span>
+            </button>
+          </div>
+        </div>
+
         <p className="text-sm text-ink-mute mt-4">
           New technician?{' '}
           <Link to="/technician/register" className="link">
             Create an account
           </Link>
         </p>
-        <p className="text-xs text-ink-mute mt-2">Demo technician: inspector@indulge.com</p>
       </div>
 
       <Link to="/login" className="link text-sm mt-6">

@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import Resource from '../models/Resource.js';
+import VerificationRequest from '../models/VerificationRequest.js';
 import VerificationTemplate from '../models/VerificationTemplate.js';
 import { DEFAULT_CATEGORY_TEMPLATES } from '../services/verification/guideline.service.js';
 import { createVerificationForResource, assignTechnician, INSPECTABLE_CATEGORIES } from '../services/verification/verification.service.js';
@@ -155,11 +156,13 @@ export async function ensureTechnicians() {
 
 /**
  * Called from runSeed after the marketplace is seeded: demo products, a
- * generated protocol and a pending inspection for every physical listing,
- * and the Dell laptop assigned to Rahul.
+ * generated protocol and a pending inspection for every physical listing.
+ * All seeded inspections are assigned round-robin to the demo technicians so
+ * the technician queue is populated out of the box.
  */
 export async function seedInspections(users) {
   const technicians = await ensureTechnicians();
+  const techList = Object.values(technicians).filter(Boolean);
 
   const demo = [];
   for (const r of INSPECTION_DEMO_RESOURCES) {
@@ -176,12 +179,19 @@ export async function seedInspections(users) {
   // Deterministic baseline only: seeding must not depend on, or pay for, an LLM.
   const physical = await Resource.find({ category: { $in: INSPECTABLE_CATEGORIES } });
   const inspections = {};
+  let roundRobinIndex = 0;
   for (const resource of physical) {
-    inspections[resource.title] = await createVerificationForResource(resource, null, { ai: false });
+    const vr = await createVerificationForResource(resource, null, { ai: false });
+    inspections[resource.title] = vr;
+    if (vr && techList.length > 0) {
+      // Assign round-robin: technician 0 gets even-index resources, technician 1 gets odd-index, etc.
+      const tech = techList[roundRobinIndex % techList.length];
+      // Schedule inspections at staggered times so the queue looks realistic
+      const scheduledOffset = (roundRobinIndex + 1) * 3600 * 1000; // 1h, 2h, 3h … apart
+      await assignTechnician(vr, tech._id, null, { scheduledAt: new Date(Date.now() + scheduledOffset) });
+      roundRobinIndex++;
+    }
   }
-
-  const dell = inspections['Dell Latitude 5420 Laptop'];
-  if (dell) await assignTechnician(dell, technicians['inspector@indulge.com']._id, null, { scheduledAt: new Date(Date.now() + 2 * 3600 * 1000) });
 
   return { technicians, demo, inspections };
 }
@@ -193,5 +203,53 @@ export async function seedVerificationData() {
     await ensureTechnicians();
   } catch (err) {
     logger.error('Error during verification seeding:', { error: err.message });
+  }
+}
+
+/**
+ * Boot-time backfill for persistent databases.
+ *
+ * Finds any VerificationRequest in `pending` status with no assigned technician
+ * and distributes them round-robin across available technician accounts.
+ * Idempotent: only assigns genuinely unassigned, open inspections.
+ * Never throws — the server must still start if this fails.
+ */
+export async function ensurePendingInspectionsAssigned() {
+  try {
+    // Only run if there are pending, unassigned inspections
+    const pendingCount = await VerificationRequest.countDocuments({
+      status: 'pending',
+      'assignedTechnician.id': null,
+    });
+    if (pendingCount === 0) return;
+
+    const techs = await User.find({ userType: 'inspector', suspended: { $ne: true } }).lean();
+    if (techs.length === 0) {
+      logger.warn('ensurePendingInspectionsAssigned: no active technicians to assign to');
+      return;
+    }
+
+    const pending = await VerificationRequest.find({
+      status: 'pending',
+      'assignedTechnician.id': null,
+    });
+
+    logger.info(`ensurePendingInspectionsAssigned: assigning ${pending.length} pending inspection(s) to ${techs.length} technician(s)`);
+
+    for (let i = 0; i < pending.length; i++) {
+      const vr = pending[i];
+      const tech = techs[i % techs.length];
+      const scheduledOffset = (i + 1) * 2 * 3600 * 1000; // staggered 2h apart
+      try {
+        await assignTechnician(vr, tech._id, null, { scheduledAt: new Date(Date.now() + scheduledOffset) });
+      } catch (err) {
+        logger.warn('ensurePendingInspectionsAssigned: could not assign inspection', {
+          inspectionId: vr.inspectionId,
+          error: err.message,
+        });
+      }
+    }
+  } catch (err) {
+    logger.error('ensurePendingInspectionsAssigned failed', { error: err.message });
   }
 }
