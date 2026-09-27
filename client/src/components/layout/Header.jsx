@@ -160,6 +160,13 @@ const LOGISTICS_NAV_GROUPS = [
   },
 ];
 
+const LOGISTICS_NAV = [
+  { to: "/logistics", label: "Dashboard" },
+  { to: "/logistics/jobs", label: "Jobs" },
+  { to: "/logistics/schedule", label: "Schedule" },
+  { to: "/digital-twin", label: "Digital Twin" },
+];
+
 /* ── NavLink — knows its own active state ────────────────────────────────── */
 
 function resolveActive(to, pathname, search = '') {

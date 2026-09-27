@@ -45,7 +45,7 @@ export default class ErrorBoundary extends React.Component {
                 type="button"
                 onClick={() => {
                   this.setState({ hasError: false, error: null });
-                  window.location.href = '/';
+                  window.location.href = '/home';
                 }}
                 className="btn-secondary btn-sm text-xs"
               >

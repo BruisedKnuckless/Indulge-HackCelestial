@@ -144,11 +144,12 @@ function RequireAdminAuth({ children }) {
  * session: home, platform alerts, theme switch and the admin's profile menu.
  */
 function AdminShell({ children }) {
+  const location = useLocation();
   return (
     <div className="min-h-screen flex flex-col bg-surface">
       <AdminHeader />
       <main className="flex-1">
-        <ErrorBoundary>
+        <ErrorBoundary key={location.pathname}>
           <Suspense
             fallback={
               <div className="min-h-[50vh] flex items-center justify-center py-16">
@@ -166,12 +167,13 @@ function AdminShell({ children }) {
 
 /** Standard chrome: grey header, white page, quiet footer. */
 function Shell({ children }) {
+  const location = useLocation();
   return (
     <div className="min-h-screen flex flex-col bg-surface">
       <Header />
       <VerificationBanner />
       <main className="flex-1">
-        <ErrorBoundary>
+        <ErrorBoundary key={location.pathname}>
           <Suspense
             fallback={
               <div className="min-h-[50vh] flex items-center justify-center py-16">

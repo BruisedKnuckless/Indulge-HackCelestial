@@ -174,6 +174,7 @@ function ChartCard({ title, subtitle, children, height = 260, accentColor }) {
 
 export default function Analytics() {
   const { dark } = useTheme();
+  const [analyticsTab, setAnalyticsTab] = useState('performance');
 
   const [activeStatusIndex, setActiveStatusIndex] = useState(null);
   const [activeUtilIndex, setActiveUtilIndex] = useState(null);
@@ -189,7 +190,7 @@ export default function Analytics() {
   const { data: contribData } = useMyContribution();
   const contrib = contribData?.profile;
 
-  if (isLoading) return <Spinner label="Crunching your numbers" />;
+  if (isLoading && analyticsTab === 'performance') return <Spinner label="Crunching your numbers" />;
 
   const rows = util?.rows || [];
   const series = revenue?.series || [];
@@ -203,7 +204,7 @@ export default function Analytics() {
     count,
   }));
 
-  const [analyticsTab, setAnalyticsTab] = useState('performance');
+  const hasAnything = rows.length > 0 || series.length > 0;
 
   return (
     <div className="shell pt-12 pb-20">
