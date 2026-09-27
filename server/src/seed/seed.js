@@ -531,8 +531,7 @@ export async function runSeed({ quiet = false } = {}) {
   log(`\n  Demo login — any of these emails, password: ${DEMO_PASSWORD}`);
   log(`    ${users.grandOrchid.email}   (hotel, has listings + incoming requests)`);
   log(`    ${users.seasons.email}  (banquet venue)`);
-  log(`  Platform admin — ${ADMINS[0].email} at /admin/login, same password`);
-  log(`  Technician — ${TECHNICIANS[0].email} at /technician/login, same password\n`);
+  log(`  Platform admin — ${ADMINS[0].email} at /admin/login, same password\n`);
 
   return { users, resources };
 }
