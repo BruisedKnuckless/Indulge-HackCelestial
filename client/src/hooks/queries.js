@@ -592,7 +592,6 @@ export function useBusinessBilling() {
   });
 }
 
-
 /* ----------------------------------------------------- Listing inspections */
 
 /**
@@ -733,4 +732,82 @@ export function useBookingInspections(bookingId) {
     queryFn: async () => (await api.get(`/verifications/booking/${bookingId}`)).data,
     enabled: Boolean(user) && Boolean(bookingId),
   });
+}
+
+/* ----------------------------------------------------- Wallet & Earnings */
+
+export function useWallet() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['wallet'],
+    queryFn: async () => (await api.get('/wallet')).data,
+    enabled: Boolean(user),
+  });
+}
+
+export function useWalletTransactions(page = 1, limit = 20) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['wallet-transactions', page, limit],
+    queryFn: async () => (await api.get('/wallet/transactions', { params: { page, limit } })).data,
+    enabled: Boolean(user),
+  });
+}
+
+export function useBookingQuote(bookingId) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['booking-quote', bookingId],
+    queryFn: async () => (await api.get(`/wallet/quote/${bookingId}`)).data,
+    enabled: Boolean(user && bookingId),
+  });
+}
+
+export function useListerEarnings() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['lister-earnings'],
+    queryFn: async () => (await api.get('/wallet/earnings')).data,
+    enabled: Boolean(user),
+  });
+}
+
+export function useBookingSettlement(bookingId) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['booking-settlement', bookingId],
+    queryFn: async () => (await api.get(`/wallet/settlement/${bookingId}`)).data,
+    enabled: Boolean(user && bookingId),
+  });
+}
+
+export function useWalletActions() {
+  const qc = useQueryClient();
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['wallet'] });
+    qc.invalidateQueries({ queryKey: ['wallet-transactions'] });
+    qc.invalidateQueries({ queryKey: ['booking-quote'] });
+    qc.invalidateQueries({ queryKey: ['lister-earnings'] });
+    qc.invalidateQueries({ queryKey: ['business-billing'] });
+    qc.invalidateQueries({ queryKey: ['bookings'] });
+    qc.invalidateQueries({ queryKey: ['booking'] });
+  };
+
+  return {
+    topUp: useMutation({
+      mutationFn: async ({ amount, paymentMethod }) =>
+        (await api.post('/wallet/topup', { amount, paymentMethod })).data,
+      onSuccess: refresh,
+    }),
+    payBooking: useMutation({
+      mutationFn: async ({ bookingId, paymentMethod, transactionRef }) =>
+        (await api.post('/wallet/pay-booking', { bookingId, paymentMethod, transactionRef })).data,
+      onSuccess: refresh,
+    }),
+    withdraw: useMutation({
+      mutationFn: async ({ amount, payoutMethod, accountDetails }) =>
+        (await api.post('/wallet/withdraw', { amount, payoutMethod, accountDetails })).data,
+      onSuccess: refresh,
+    }),
+  };
 }

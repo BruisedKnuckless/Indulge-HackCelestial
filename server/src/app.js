@@ -31,6 +31,9 @@ import historyRoutes from './routes/history.routes.js';
 import billingRoutes from './routes/billing.routes.js';
 import verificationRoutes from './routes/verification.routes.js';
 import adminInspectionRoutes from './routes/admin-inspection.routes.js';
+import walletRoutes from './routes/wallet.routes.js';
+import weatherRoutes from './routes/weather.routes.js';
+import digitalTwinRoutes from './routes/digital-twin.routes.js';
 
 export function createApp() {
   const app = express();
@@ -163,6 +166,11 @@ export function createApp() {
   app.use('/api/history', historyRoutes);
   app.use('/api/billing', billingRoutes);
   app.use('/api/verifications', verificationRoutes);
+  app.use('/api/verification-templates', verificationRoutes);
+  app.use('/api/wallet', walletRoutes);
+  // ── Weather / Digital Twin data pipeline ──────────────────────────────────
+  app.use('/api/weather', weatherRoutes);
+  app.use('/api/digital-twin', digitalTwinRoutes);
 
   // 9. Error Handling
   app.use(notFound);

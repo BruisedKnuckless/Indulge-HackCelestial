@@ -15,6 +15,9 @@ import { PaymentService } from '../services/payment.service.js';
 import { assessDelivery } from '../ml/delivery/predict.js';
 import { openReturnInspectionIfInspected } from '../services/verification/verification.service.js';
 import { recordCustody } from '../services/verification/custody.service.js';
+import { FeeCalculationService } from '../services/fee-calculation.service.js';
+import { WalletService } from '../services/wallet.service.js';
+import { SettlementService } from '../services/settlement.service.js';
 
 const router = Router();
 
@@ -320,19 +323,71 @@ router.patch(
       gatewaySignature,
     } = req.body;
 
+    const booking = await Booking.findById(req.params.id).populate('resource');
+    if (!booking) throw new HttpError(404, 'Booking not found.');
+
+    const unitPrice = booking.agreedPrice ?? booking.quotedPrice ?? booking.resource?.pricing?.basePrice ?? 0;
+    const quantity = booking.requestedQuantity || 1;
+    const category = booking.resource?.category || 'other';
+    const logisticsFee = booking.logistics === 'provider_transport' ? 2000 : 0;
+
+    const feeBreakdown = FeeCalculationService.calculateBookingFees({
+      resourcePrice: unitPrice,
+      quantity,
+      category,
+      logisticsFee,
+    });
+
+    const key = idempotencyKey || req.headers['idempotency-key'] || `PAY-${booking._id}-${Date.now()}`;
+
+    // Wallet balance handling
+    if (paymentMethod === 'wallet' || paymentMethod === 'indulge_balance') {
+      await WalletService.reserveForBooking({
+        userId: req.user._id,
+        bookingId: booking._id,
+        totalPaise: feeBreakdown.paise.total,
+        idempotencyKey: key,
+        description: `Booking reservation for ${booking.resource?.title || 'Resource'}`,
+      });
+    } else {
+      // Direct demo payment -> auto credit into wallet ledger then reserve
+      await WalletService.topUp({
+        userId: req.user._id,
+        amountRupees: feeBreakdown.total,
+        paymentMethod,
+        idempotencyKey: `TOP-${key}`,
+      });
+      await WalletService.reserveForBooking({
+        userId: req.user._id,
+        bookingId: booking._id,
+        totalPaise: feeBreakdown.paise.total,
+        idempotencyKey: key,
+        description: `Booking reservation for ${booking.resource?.title || 'Resource'}`,
+      });
+    }
+
     const result = await PaymentService.confirmPayment({
       bookingId: req.params.id,
       paymentMethod,
-      idempotencyKey: idempotencyKey || req.headers['idempotency-key'],
+      idempotencyKey: key,
       gatewayPaymentId,
       gatewaySignature,
       user: req.user,
+      feeBreakdown,
+    });
+
+    // Create provider's PENDING settlement
+    const settlement = await SettlementService.createPendingSettlement({
+      booking,
+      feeBreakdown,
     });
 
     const populatedBooking = await Booking.findById(result.booking._id).populate(POPULATE);
     res.json({
       booking: populatedBooking,
       transaction: result.transaction,
+      settlement,
+      feeBreakdown,
       alreadyPaid: result.alreadyPaid,
     });
   })
@@ -360,6 +415,21 @@ router.patch(
       booking, requirement: booking.sourceRequirement, actor: req.user, role: roleOn(booking, req.user._id),
       action: 'booking_cancelled', note: booking.cancellationReason,
     });
+
+    // If paid, refund reserved funds back to seeker and cancel provider settlement
+    const existingTx = await Transaction.findOne({ booking: booking._id });
+    if (existingTx && ['paid', 'simulated_paid'].includes(existingTx.status)) {
+      try {
+        await PaymentService.processRefund({
+          transactionId: existingTx._id,
+          reason: `Booking cancelled: ${booking.cancellationReason}`,
+          user: req.user,
+          adminOverride: true,
+        });
+      } catch (err) {
+        console.error('Error auto-refunding on cancellation:', err);
+      }
+    }
 
     const other = String(booking.provider) === String(req.user._id) ? booking.seeker : booking.provider;
     await notify({
@@ -409,6 +479,13 @@ router.patch(
       booking, requirement: booking.sourceRequirement, actor: req.user, role: roleOn(booking, req.user._id),
       action: 'booking_completed',
     });
+
+    // Advance provider settlement from PENDING to AVAILABLE
+    try {
+      await SettlementService.evaluateBookingCompletion(booking._id);
+    } catch (err) {
+      console.error('Error evaluating settlement completion on booking completion:', err);
+    }
 
     res.json({ booking: await booking.populate(POPULATE) });
   })
@@ -550,6 +627,22 @@ router.patch(
     }
 
     await booking.save();
+
+    if (status === 'return_completed') {
+      try {
+        if (req.body.hasDispute || req.body.conditionDispute) {
+          await SettlementService.holdSettlementForDispute(
+            booking._id,
+            req.body.disputeReason || 'Return condition inspection requires review.'
+          );
+        } else {
+          await WalletService.releaseBookingReservation(booking.seeker, booking._id);
+          await SettlementService.evaluateBookingCompletion(booking._id);
+        }
+      } catch (err) {
+        console.error('Error in return_completed settlement processing:', err);
+      }
+    }
 
     const RETURN_LABELS = {
       return_requested:        'Return requested',
@@ -760,6 +853,37 @@ router.post(
     }
 
     res.status(201).json({ booking: await booking.populate(POPULATE) });
+  })
+);
+
+router.post(
+  '/:id/dispute',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) throw new HttpError(404, 'Booking not found');
+    const parties = [String(booking.provider), String(booking.seeker)];
+    if (!parties.includes(String(req.user._id))) {
+      throw new HttpError(403, 'You are not a party to this booking.');
+    }
+    const { reason = 'Return inspection condition dispute' } = req.body;
+    const settlement = await SettlementService.holdSettlementForDispute(booking._id, reason);
+    res.json({ message: 'Dispute registered. Settlement placed on hold.', settlement });
+  })
+);
+
+router.post(
+  '/:id/resolve-dispute',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) throw new HttpError(404, 'Booking not found');
+    const parties = [String(booking.provider), String(booking.seeker)];
+    if (!parties.includes(String(req.user._id))) {
+      throw new HttpError(403, 'You are not a party to this booking.');
+    }
+    const settlement = await SettlementService.resolveDispute(booking._id);
+    res.json({ message: 'Dispute resolved. Settlement returned to eligible schedule.', settlement });
   })
 );
 

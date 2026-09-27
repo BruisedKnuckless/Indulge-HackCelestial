@@ -7,12 +7,14 @@ import {
 import {
   LayoutGrid, Activity, Clock, TrendingUp, ShoppingBag,
   ShieldCheck, Award, Zap, CheckCircle2, AlertCircle, ArrowUpRight,
+  Sparkles, BarChart3,
 } from 'lucide-react';
 import { useAnalytics, useMyContribution } from '../hooks/queries';
 import { useTheme } from '../context/ThemeContext';
 import { Spinner, EmptyState } from '../components/ui';
 import { CATEGORY_LABELS } from '../lib/constants';
 import { inr } from '../lib/format';
+import DigitalTwinPanel from '../components/digital-twin/DigitalTwinPanel';
 
 
 /* ── Multi-series professional chart palette ─────────────────────────────── */
@@ -201,21 +203,58 @@ export default function Analytics() {
     count,
   }));
 
-  const hasAnything = rows.length > 0 || series.length > 0;
+  const [analyticsTab, setAnalyticsTab] = useState('performance');
 
   return (
     <div className="shell pt-12 pb-20">
-      <div className="flex items-baseline justify-between flex-wrap gap-2 mb-6">
+      <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
-          <h1 className="h-page">Business analytics</h1>
+          <h1 className="h-page">
+            {analyticsTab === 'performance' ? 'Business analytics' : 'Digital Twin Simulation'}
+          </h1>
           <p className="text-base text-ink-soft mt-1">
-            How well your listed capacity is being used, and what it is earning.
+            {analyticsTab === 'performance'
+              ? 'How well your listed capacity is being used, and what it is earning.'
+              : 'Simulate weather impact on bookings, 30 km logistics radius, and resource availability.'}
           </p>
         </div>
-        <Link to="/listings" className="btn-secondary">
-          Manage listings
-        </Link>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center p-1 rounded-xl bg-surface border border-line">
+            <button
+              onClick={() => setAnalyticsTab('performance')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                analyticsTab === 'performance'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-ink-soft hover:text-ink'
+              }`}
+            >
+              <BarChart3 size={14} />
+              <span>Business Performance</span>
+            </button>
+            <button
+              onClick={() => setAnalyticsTab('digital-twin')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                analyticsTab === 'digital-twin'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-ink-soft hover:text-ink'
+              }`}
+            >
+              <Sparkles size={14} />
+              <span>Digital Twin & Weather</span>
+            </button>
+          </div>
+          {analyticsTab === 'performance' && (
+            <Link to="/listings" className="btn-secondary text-xs py-2 px-3">
+              Manage listings
+            </Link>
+          )}
+        </div>
       </div>
+
+      {analyticsTab === 'digital-twin' ? (
+        <DigitalTwinPanel embedded initialCity="Thane" />
+      ) : (
+        <>
 
       {/* ── KPI Row ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
@@ -690,6 +729,8 @@ export default function Analytics() {
             </p>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
