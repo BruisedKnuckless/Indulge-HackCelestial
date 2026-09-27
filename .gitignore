@@ -8,3 +8,6 @@ server/public/uploads/*
 
 # Nugen alignment progress (ids only; per machine)
 server/src/ml/rfq/data/.align-state.json
+
+# Judge presentation notes — internal only, not part of the app
+PRESENTATION.md

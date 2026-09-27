@@ -11,7 +11,7 @@ normal route, which validates everything again (including availability).
 ## Pipeline
 
 ```
-Base model (Nugen, e.g. qwen-v2p5-0p5b-instruct)
+Base model (Nugen, e.g. llama-v3p2-3b-reasoning)
    │  npm run rfq:dataset   synthetic RFQs + domain guide + our benchmark
    │  npm run rfq:align     Nugen: documents → benchmark → alignment → deploy
    ▼
@@ -76,7 +76,7 @@ Configuration (server env):
 | Variable | Default | |
 |---|---|---|
 | `NUGEN_API_KEY` | none | Without it the intake runs on the rule parser alone. |
-| `NUGEN_BASE_MODEL` | `qwen-v2p5-0p5b-instruct` | Base to align; `rfq:align` lists what the account can align. |
+| `NUGEN_BASE_MODEL` | `llama-v3p2-3b-reasoning` | Base to align; `rfq:align` lists what the account can align. |
 | `NUGEN_RFQ_MODEL` | from `nugen-model.json` | Override the aligned model id. |
 | `RFQ_AI` | `auto` | `auto` / `on` / `off`. |
 | `RFQ_AI_TIMEOUT_MS` | `15000` | |

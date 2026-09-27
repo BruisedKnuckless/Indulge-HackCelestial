@@ -7,6 +7,7 @@ import { groundOutput, toDraft } from './ground.js';
 import { parseWithRules } from './rules.js';
 import { indiaToday } from './resolve.js';
 import { LEXICON } from './vocab.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * RFQ smart intake: free text → a draft for the Post Requirement form.
@@ -46,7 +47,7 @@ export function intakeConfig(env = process.env) {
   const mode = String(env.RFQ_AI || 'auto').toLowerCase();
   const apiKey = env.NUGEN_API_KEY || '';
   const recorded = recordedModel();
-  const model = env.NUGEN_RFQ_MODEL || recorded?.modelId || env.NUGEN_BASE_MODEL || 'qwen-v2p5-0p5b-instruct';
+  const model = env.NUGEN_RFQ_MODEL || recorded?.modelId || env.NUGEN_BASE_MODEL || 'llama-v3p2-3b-reasoning';
   const aligned = Boolean(env.NUGEN_RFQ_MODEL || recorded?.modelId);
   const timeoutMs = Number(env.RFQ_AI_TIMEOUT_MS) || 15000;
   const minConfidence = Number(env.RFQ_MIN_CONFIDENCE ?? 40);
@@ -135,6 +136,16 @@ export async function parseRequirementText(text, { today, env = process.env, mod
     } catch (err) {
       ai.status = 'failed';
       ai.reason = describeError(err);
+      // describeError() only returns a short phrase for the UI; the raw
+      // status/body is what actually explains a Nugen failure, so it goes to
+      // the server log (never to the client — it may echo request details).
+      logger.error('RFQ intake: Nugen call failed', {
+        model: config.model,
+        httpStatus: err?.status ?? err?.response?.status ?? null,
+        errorType: err?.type || err?.code || err?.name || null,
+        errorBody: err?.error ?? null,
+        message: err?.message,
+      });
     }
     ai.latencyMs = Date.now() - started;
   }

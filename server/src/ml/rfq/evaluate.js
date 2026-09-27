@@ -100,7 +100,7 @@ async function main() {
   const limit = limitArg > 0 ? Number(process.argv[limitArg + 1]) : Infinity;
   const apiKey = process.env.NUGEN_API_KEY;
   const recorded = existsSync(MODEL_FILE) ? JSON.parse(readFileSync(MODEL_FILE, 'utf8')) : null;
-  const baseModel = recorded?.baseModelId || process.env.NUGEN_BASE_MODEL || 'qwen-v2p5-0p5b-instruct';
+  const baseModel = recorded?.baseModelId || process.env.NUGEN_BASE_MODEL || 'llama-v3p2-3b-reasoning';
   const alignedModel = process.env.NUGEN_RFQ_MODEL || recorded?.modelId || null;
 
   const sets = {
