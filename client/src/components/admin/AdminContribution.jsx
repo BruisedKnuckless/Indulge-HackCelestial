@@ -95,6 +95,7 @@ export default function AdminContribution({ onOpen }) {
         <>
           <DataTable
             rows={profiles}
+            rowKey={(p) => p.businessId}
             empty="No businesses match the specified filters."
             columns={[
               {

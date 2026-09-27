@@ -7,6 +7,7 @@ import api, { errorMessage } from '../api/client';
 import { useMyListings, useAnalytics } from '../hooks/queries';
 import { Price, Stars, Spinner, EmptyState } from '../components/ui';
 import { CATEGORY_LABELS, PRICE_UNIT_LABELS, resourceImage } from '../lib/constants';
+import { INSPECTABLE_CATEGORIES } from '../lib/inspection';
 import { inr, dateRange } from '../lib/format';
 
 export default function Listings() {
@@ -302,7 +303,23 @@ export default function Listings() {
                           <span className="badge badge-red">Failed inspection</span>
                         )}
 
-                        {r.verificationId && ['verified', 'conditionally_verified', 'rejected'].includes(r.verificationStatus) && (
+                        {r.verificationStatus === 'externally_verified' && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                            <ShieldCheck size={13} className="text-amber-600 dark:text-amber-400" />
+                            <span>⚠ Externally Verified</span>
+                          </span>
+                        )}
+
+                        {r.verificationStatus === 'unverified' && INSPECTABLE_CATEGORIES.includes(r.category) && (
+                          <>
+                            <span className="badge badge-muted">○ Not Verified</span>
+                            <Link to={`/r/${r._id}`} className="link text-xs">
+                              Manage verification
+                            </Link>
+                          </>
+                        )}
+
+                        {r.verificationId && ['verified', 'conditionally_verified', 'rejected', 'externally_verified'].includes(r.verificationStatus) && (
                           <Link to={`/inspections/${r.verificationId}`} className="link text-xs">
                             Inspection report
                           </Link>

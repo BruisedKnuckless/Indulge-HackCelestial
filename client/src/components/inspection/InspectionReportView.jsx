@@ -5,6 +5,9 @@ import { COMPARISON, DECISIONS, RESULT_BY_KEY, STATUS_LABEL, statusBadge, fmtDat
 
 const CUSTODY_LABEL = {
   listing_created: 'Listing created',
+  verification_method_selected: 'Verification method chosen',
+  verification_fee_charged: 'Verification fee charged',
+  external_verification_submitted: 'External verification submitted',
   protocol_generated: 'Inspection protocol generated',
   inspection_created: 'Inspection opened',
   technician_assigned: 'Technician assigned',
@@ -20,6 +23,106 @@ const CUSTODY_LABEL = {
   dispute_resolved: 'Damage review resolved',
 };
 
+function CustodyChain({ custody }) {
+  if (!custody?.length) return null;
+  return (
+    <section className="card p-5">
+      <h2 className="h-card mb-3">Chain of custody</h2>
+      <ol className="relative border-l border-line ml-2 space-y-3">
+        {custody.map((c) => (
+          <li key={c._id} className="relative pl-4 text-sm">
+            <span className="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-surface border-2 border-line-strong" />
+            <p className="font-medium">{CUSTODY_LABEL[c.event] || humanise(c.event)}</p>
+            <p className="text-xs text-ink-soft">
+              {fmtDateTime(c.at)} · {c.actorName || humanise(c.actorType)}
+              {c.details?.inspectionId ? ` · ${c.details.inspectionId}` : ''}
+              {c.details?.score != null ? ` · ${c.details.score}/100` : ''}
+              {c.details?.amount != null ? ` · ₹${Number(c.details.amount).toLocaleString('en-IN')}` : ''}
+              {c.evidence?.length ? ` · ${c.evidence.length} evidence` : ''}
+            </p>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/**
+ * kind:'external' report — a lister-submitted record with no Indulge
+ * protocol, technician or score. Kept as its own layout rather than
+ * threading conditionals through the Indulge-scored report below.
+ */
+function ExternalReportView({ report, showCustody }) {
+  const { inspection: vr, resource, custody = [] } = report;
+  const submitted = vr.status === 'externally_verified';
+  return (
+    <div className="space-y-5">
+      <section className="card p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-sm text-ink-soft">{vr.inspectionId}</span>
+          <span className={`badge ${statusBadge(vr.status)}`}>{submitted ? 'Externally verified' : 'Awaiting report'}</span>
+        </div>
+        <h1 className="h-page mt-1">{vr.resourceName}</h1>
+        {submitted ? (
+          <div className="mt-4 text-sm space-y-1">
+            <p className="flex items-center gap-1.5 font-semibold text-warn">
+              <BadgeCheck size={16} /> ⚠ EXTERNALLY VERIFIED
+            </p>
+            <p className="text-ink-soft">
+              {vr.externalTechnician?.name}
+              {vr.externalTechnician?.company ? ` · ${vr.externalTechnician.company}` : ''}
+              {vr.externalTechnician?.contact ? ` · ${vr.externalTechnician.contact}` : ''}
+            </p>
+            <p className="text-ink-soft">Submitted {fmtDate(vr.completedAt)} by the lister.</p>
+          </div>
+        ) : (
+          <p className="text-sm text-ink-soft mt-2">The lister has chosen to arrange their own technician; no report has been submitted yet.</p>
+        )}
+        {vr.inspectorNotes && <p className="mt-3 text-sm border-l-2 border-line-strong pl-3">{vr.inspectorNotes}</p>}
+      </section>
+
+      {vr.evidence?.length > 0 && (
+        <section className="card p-5">
+          <h2 className="h-card mb-3">Submitted evidence</h2>
+          <div className="flex flex-wrap gap-2">
+            {vr.evidence.map((e) =>
+              e.type === 'photo' ? (
+                <a key={e.evidenceId} href={mediaUrl(e.url)} target="_blank" rel="noreferrer">
+                  <img src={mediaUrl(e.url)} alt={e.text || e.evidenceId} className="w-24 h-24 rounded object-cover border border-line" />
+                </a>
+              ) : e.type === 'video' ? (
+                <video key={e.evidenceId} src={mediaUrl(e.url)} controls className="w-40 h-24 rounded border border-line bg-surface-sunk" />
+              ) : (
+                <span key={e.evidenceId} className="tag text-xs">
+                  {e.type === 'measurement' ? `${e.value}${e.unit ? ` ${e.unit}` : ''}` : e.text}
+                </span>
+              )
+            )}
+          </div>
+        </section>
+      )}
+
+      {resource && (
+        <section className="card p-5 text-sm">
+          <h2 className="h-card mb-2">Listing</h2>
+          <p className="text-ink-soft">
+            {resource.title}
+            {resource.brand ? ` · ${resource.brand}` : ''}
+            {resource.model ? ` ${resource.model}` : ''}
+          </p>
+        </section>
+      )}
+
+      {showCustody && <CustodyChain custody={custody} />}
+
+      <p className="text-xs font-medium text-warn">
+        {report.disclaimer ||
+          'Reported by a technician the lister arranged themselves. Indulge did not conduct or verify this inspection, and does not guarantee its accuracy.'}
+      </p>
+    </div>
+  );
+}
+
 /**
  * The inspection report, shared by the technician, the listing owner, the
  * booking parties and the admin console. Everything shown is what the server
@@ -28,6 +131,7 @@ const CUSTODY_LABEL = {
 export default function InspectionReportView({ report, showCustody = true }) {
   const { inspection: vr, resource, protocol, custody = [] } = report;
   const [showAll, setShowAll] = useState(false);
+  if (vr.kind === 'external') return <ExternalReportView report={report} showCustody={showCustody} />;
   const final = FINAL_STATUSES.includes(vr.status);
   const decision = DECISIONS[vr.status];
   const evidenceBy = {};
@@ -221,25 +325,7 @@ export default function InspectionReportView({ report, showCustody = true }) {
         )}
       </section>
 
-      {showCustody && custody.length > 0 && (
-        <section className="card p-5">
-          <h2 className="h-card mb-3">Chain of custody</h2>
-          <ol className="relative border-l border-line ml-2 space-y-3">
-            {custody.map((c) => (
-              <li key={c._id} className="relative pl-4 text-sm">
-                <span className="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-surface border-2 border-line-strong" />
-                <p className="font-medium">{CUSTODY_LABEL[c.event] || humanise(c.event)}</p>
-                <p className="text-xs text-ink-soft">
-                  {fmtDateTime(c.at)} · {c.actorName || humanise(c.actorType)}
-                  {c.details?.inspectionId ? ` · ${c.details.inspectionId}` : ''}
-                  {c.details?.score != null ? ` · ${c.details.score}/100` : ''}
-                  {c.evidence?.length ? ` · ${c.evidence.length} evidence` : ''}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
+      {showCustody && <CustodyChain custody={custody} />}
 
       <p className="text-xs text-ink-mute">
         {report.disclaimer ||

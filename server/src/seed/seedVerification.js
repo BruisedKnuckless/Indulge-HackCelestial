@@ -2,7 +2,12 @@ import User from '../models/User.js';
 import Resource from '../models/Resource.js';
 import VerificationTemplate from '../models/VerificationTemplate.js';
 import { DEFAULT_CATEGORY_TEMPLATES } from '../services/verification/guideline.service.js';
-import { createVerificationForResource, assignTechnician, INSPECTABLE_CATEGORIES } from '../services/verification/verification.service.js';
+import {
+  createVerificationForResource,
+  createExternalVerificationRecord,
+  submitExternalVerification,
+  assignTechnician,
+} from '../services/verification/verification.service.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -154,9 +159,17 @@ export async function ensureTechnicians() {
 }
 
 /**
- * Called from runSeed after the marketplace is seeded: demo products, a
- * generated protocol and a pending inspection for every physical listing,
- * and the Dell laptop assigned to Rahul.
+ * Called from runSeed after the marketplace is seeded: the four demo
+ * products, each on a different verification path, so the demo shows all
+ * three from the start rather than only the happy path:
+ *
+ *   Dell Latitude 5420  — Indulge technician, assigned to Rahul (TEST A)
+ *   Apple iPhone 14     — externally verified, report already submitted (TEST B)
+ *   Toyota Innova       — Indulge technician requested, not yet assigned
+ *   50 Banquet Chairs   — not verified at all (TEST C) — the rest of the
+ *                         marketplace's physical listings stay this way too;
+ *                         verification is optional, so most listings simply
+ *                         don't have it, same as a real marketplace.
  */
 export async function seedInspections(users) {
   const technicians = await ensureTechnicians();
@@ -172,16 +185,36 @@ export async function seedInspections(users) {
       })
     );
   }
+  const byTitle = Object.fromEntries(demo.map((r) => [r.title, r]));
+  const ownerOf = (r) => users[INSPECTION_DEMO_RESOURCES.find((d) => d.title === r.title).owner];
 
   // Deterministic baseline only: seeding must not depend on, or pay for, an LLM.
-  const physical = await Resource.find({ category: { $in: INSPECTABLE_CATEGORIES } });
   const inspections = {};
-  for (const resource of physical) {
-    inspections[resource.title] = await createVerificationForResource(resource, null, { ai: false });
+
+  const dellResource = byTitle['Dell Latitude 5420 Laptop'];
+  const dell = await createVerificationForResource(dellResource, ownerOf(dellResource), { ai: false });
+  if (dell) {
+    await assignTechnician(dell, technicians['inspector@indulge.com']._id, null, { scheduledAt: new Date(Date.now() + 2 * 3600 * 1000) });
+    inspections['Dell Latitude 5420 Laptop'] = dell;
   }
 
-  const dell = inspections['Dell Latitude 5420 Laptop'];
-  if (dell) await assignTechnician(dell, technicians['inspector@indulge.com']._id, null, { scheduledAt: new Date(Date.now() + 2 * 3600 * 1000) });
+  const innovaResource = byTitle['Toyota Innova Crysta (7-seater)'];
+  inspections['Toyota Innova Crysta (7-seater)'] = await createVerificationForResource(innovaResource, ownerOf(innovaResource), { ai: false });
+
+  const iphoneResource = byTitle['Apple iPhone 14 (event check-in device)'];
+  const iphoneOwner = ownerOf(iphoneResource);
+  await createExternalVerificationRecord(iphoneResource, iphoneOwner);
+  inspections['Apple iPhone 14 (event check-in device)'] = await submitExternalVerification(iphoneResource, iphoneOwner, {
+    technicianName: 'Suresh Patil',
+    company: 'CityTech Mobile Repairs',
+    contact: '+91 98200 55021',
+    note: 'Powered on and tested calls, camera and charging port. Screen and body show light handling wear consistent with the declared "Good" condition. No cracks or water-damage indicators.',
+    evidence: [{ type: 'note', text: 'Diagnostic report on file with the lister.' }],
+  });
+
+  // 50 Banquet Chairs is left with verificationMethod: 'none' — the default —
+  // so it demonstrates the "Not Verified" path and the "request Indulge
+  // verification" flow untouched.
 
   return { technicians, demo, inspections };
 }

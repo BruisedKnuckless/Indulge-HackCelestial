@@ -15,6 +15,7 @@ export const DECISIONS = {
   verified: { label: 'Verified', code: 'VERIFIED', tone: 'badge-green' },
   conditionally_verified: { label: 'Verified with issues', code: 'VERIFIED_WITH_ISSUES', tone: 'badge-amber' },
   rejected: { label: 'Failed', code: 'FAILED', tone: 'badge-red' },
+  externally_verified: { label: 'Externally verified', code: 'EXTERNALLY_VERIFIED', tone: 'badge-amber' },
 };
 
 export const STATUS_LABEL = {
@@ -27,6 +28,15 @@ export const STATUS_LABEL = {
   verified: 'Verified',
   conditionally_verified: 'Verified with issues',
   rejected: 'Failed',
+  externally_verified: 'Externally verified',
+  unverified: 'Not verified',
+};
+
+/** The lister's choice of how (or whether) a listing is physically verified. */
+export const VERIFICATION_METHOD_LABEL = {
+  indulge_technician: 'Indulge Technician',
+  external_technician: 'My Own Technician',
+  none: 'No Verification',
 };
 
 export const COMPARISON = {
@@ -38,6 +48,9 @@ export const COMPARISON = {
 };
 
 export const FINAL_STATUSES = ['verified', 'conditionally_verified', 'rejected'];
+
+/** Physical items only — mirrors INSPECTABLE_CATEGORIES on the server. */
+export const INSPECTABLE_CATEGORIES = ['furniture', 'av_equipment', 'vehicle', 'other'];
 
 export function statusBadge(status) {
   if (DECISIONS[status]) return DECISIONS[status].tone;

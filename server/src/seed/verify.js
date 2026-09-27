@@ -1530,6 +1530,33 @@ async function main() {
   });
   check('indefinite listing remains reusable across subsequent bookings', b2.status === 201);
 
+  // Regression: PATCH is a partial update. updateResourceSchema is
+  // createResourceSchema.partial(), and totalQuantity used to carry a Zod
+  // `.default(1)` — which still fires when a key is merely absent from a
+  // partial body, silently resetting an untouched listing's stock to 1 on
+  // every edit that didn't resend it (e.g. editing just the price).
+  const qtyRes = await api('POST', '/api/resources', {
+    token: orchid,
+    body: {
+      title: 'QA Quantity Survives Partial Edit',
+      category: 'furniture',
+      totalQuantity: 250,
+      unit: 'unit',
+      pricing: { basePrice: 50, priceUnit: 'per_unit' },
+    },
+  });
+  const qtyId = qtyRes.body.resource._id;
+  const qtyPatch = await api('PATCH', `/api/resources/${qtyId}`, {
+    token: orchid,
+    body: { description: 'Edited without touching quantity.' },
+  });
+  const qtyAfter = await Resource.findById(qtyId).lean();
+  check(
+    'editing a listing without resending totalQuantity does not reset it to 1',
+    qtyRes.status === 201 && qtyPatch.status === 200 && qtyAfter.totalQuantity === 250,
+    `created=${qtyRes.body.resource?.totalQuantity} afterEdit=${qtyAfter?.totalQuantity}`
+  );
+
   // 2 & 3. Available-until accepts before cutoff, rejects after cutoff
   const untilRes = await api('POST', '/api/resources', {
     token: orchid,
@@ -6844,6 +6871,7 @@ async function main() {
         declaredCondition: 'Good',
         specifications: { Sensor: 'Full frame', 'Shutter count': 12000 },
         accessories: ['Battery', 'Charger'],
+        verificationMethod: 'indulge_technician',
         verificationStatus: 'verified',
         conditionScore: 100,
       },
@@ -6851,14 +6879,22 @@ async function main() {
     const camId = created.body?.resource?._id;
     const camVr = camId ? await VerificationRequest.findOne({ resource: camId }).lean() : null;
     check(
-      'INS-9. New physical listing → protocol + pending, unassigned inspection',
-      created.status === 201 && camVr?.status === 'pending' && !camVr.assignedTechnician?.id && camVr.inspectionCategory === 'camera',
-      JSON.stringify({ status: created.status, err: created.body?.error, vr: camVr?.status, cat: camVr?.inspectionCategory })
+      'INS-9. Choosing Indulge Technician at creation → protocol + pending, unassigned inspection + fee charged',
+      created.status === 201 &&
+        camVr?.status === 'pending' &&
+        !camVr.assignedTechnician?.id &&
+        camVr.inspectionCategory === 'camera' &&
+        camVr.fee?.amount > 0 &&
+        camVr.fee?.status === 'simulated_paid',
+      JSON.stringify({ status: created.status, err: created.body?.error, vr: camVr?.status, cat: camVr?.inspectionCategory, fee: camVr?.fee })
     );
     const camDb = camId ? await Resource.findById(camId).lean() : null;
     check(
-      'INS-10. Provider cannot self-verify on create (verificationStatus/conditionScore ignored)',
-      camDb?.verificationStatus === 'pending' && camDb.conditionScore == null && camDb.brand === 'Canon'
+      'INS-10. Provider cannot self-verify on create (verificationStatus/conditionScore ignored, method honoured)',
+      camDb?.verificationStatus === 'pending' &&
+        camDb.conditionScore == null &&
+        camDb.brand === 'Canon' &&
+        camDb.verificationMethod === 'indulge_technician'
     );
     const selfVerify = await api('PATCH', `/api/resources/${dell._id}`, {
       token: ownerToken,
@@ -7038,10 +7074,18 @@ async function main() {
     );
     const chain = (await CustodyEvent.find({ resource: dell._id }).sort({ at: 1 }).lean()).map((c) => c.event);
     check(
-      'INS-36. Chain of custody records listing → protocol → assignment → start → evidence → submission',
-      ['listing_created', 'protocol_generated', 'inspection_created', 'technician_assigned', 'inspection_started', 'evidence_captured', 'inspection_submitted'].every((ev) =>
-        chain.includes(ev)
-      ),
+      'INS-36. Chain of custody records listing → method → fee → protocol → assignment → start → evidence → submission',
+      [
+        'listing_created',
+        'verification_method_selected',
+        'verification_fee_charged',
+        'protocol_generated',
+        'inspection_created',
+        'technician_assigned',
+        'inspection_started',
+        'evidence_captured',
+        'inspection_submitted',
+      ].every((ev) => chain.includes(ev)),
       chain.join(',')
     );
 
@@ -7071,8 +7115,18 @@ async function main() {
     const techs = await api('GET', '/api/admin/technicians', { token: insAdmin });
     check('INS-41. Admin lists technicians with workload', techs.status === 200 && techs.body.technicians.length === 2);
     check('INS-42. Business accounts cannot use the admin inspection API', (await api('GET', '/api/admin/inspections', { token: ownerToken })).status === 404);
+    // 50 Banquet Chairs seeds as 'none' (not verified) — the lister requests
+    // Indulge verification later, exactly the "request later" path.
     const chairsR = await Resource.findOne({ title: '50 Banquet Chairs' }).lean();
-    const chairsVr = await VerificationRequest.findOne({ resource: chairsR._id, kind: 'initial' }).lean();
+    check('INS-42b. Seeded "no verification" listing has no verification record', chairsR.verificationMethod === 'none' && !chairsR.verificationId);
+    const chairsRequest = await api('POST', `/api/resources/${chairsR._id}/request-verification`, { token: seasons });
+    const chairsVr = chairsRequest.body?.inspectionId
+      ? await VerificationRequest.findOne({ inspectionId: chairsRequest.body.inspectionId }).lean()
+      : null;
+    check(
+      'INS-42c. Lister requests Indulge verification on an existing "not verified" listing (fee charged)',
+      chairsRequest.status === 201 && chairsVr?.fee?.status === 'simulated_paid' && chairsVr.kind === 'initial'
+    );
     check(
       'INS-43. Only technician accounts can be assigned',
       (await api('PATCH', `/api/admin/inspections/${chairsVr._id}/assign`, { token: insAdmin, body: { technicianId: String(orchid._id) } })).status === 400
@@ -7258,6 +7312,166 @@ async function main() {
       burst.every((r) => r.status === 200) && camAfter.parameters.every((p) => p.result === 'pass' && p.note === 'ok') && camAfter.status === 'in_progress',
       burst.map((r) => r.status).join(',')
     );
+
+    /* ---- Optional verification: three paths, chosen by the lister ---- */
+
+    const fee = await api('GET', '/api/resources/verification-fee');
+    check('INS-64. The verification fee is a public, configured number', fee.status === 200 && fee.body.amount > 0 && fee.body.currency === 'INR');
+
+    // Path 3: no verification (also the default when the field is omitted).
+    const noneListing = await api('POST', '/api/resources', {
+      token: ownerToken,
+      body: { title: 'Foldable Stage Riser', category: 'other', totalQuantity: 4, unit: 'unit', pricing: { basePrice: 900, priceUnit: 'per_day' } },
+    });
+    const noneId = noneListing.body?.resource?._id;
+    check(
+      'INS-65. No verification chosen (or omitted) → stays unverified, no inspection created, no fee',
+      noneListing.status === 201 &&
+        noneListing.body.resource.verificationMethod === 'none' &&
+        noneListing.body.resource.verificationStatus === 'unverified' &&
+        !noneListing.body.resource.verificationId &&
+        !(await VerificationRequest.exists({ resource: noneId })),
+      JSON.stringify(noneListing.body?.resource)
+    );
+    check(
+      'INS-66. Its public summary is an explicit "Not Verified", never a silent absence',
+      noneListing.body?.verification?.method === 'none' &&
+        noneListing.body.verification.decision === null &&
+        /No physical inspection/.test(noneListing.body.verification.disclaimer)
+    );
+
+    // Editing a listing can never change its verification method after the fact.
+    const sneakEdit = await api('PATCH', `/api/resources/${noneId}`, { token: ownerToken, body: { verificationMethod: 'indulge_technician' } });
+    const noneAfterEdit = await Resource.findById(noneId).lean();
+    check(
+      'INS-67. Editing a listing cannot change its verification method (only the dedicated endpoints can)',
+      sneakEdit.status === 200 && noneAfterEdit.verificationMethod === 'none' && !(await VerificationRequest.exists({ resource: noneId }))
+    );
+
+    // Path 2: the lister's own external technician.
+    const extListing = await api('POST', '/api/resources', {
+      token: ownerToken,
+      body: {
+        title: 'JBL PA Speaker (pair)',
+        category: 'av_equipment',
+        totalQuantity: 2,
+        unit: 'unit',
+        pricing: { basePrice: 2200, priceUnit: 'per_day' },
+        verificationMethod: 'external_technician',
+      },
+    });
+    const extId = extListing.body?.resource?._id;
+    check(
+      'INS-68. Choosing an external technician opens a record immediately but stays unverified until submitted',
+      extListing.status === 201 &&
+        extListing.body.resource.verificationMethod === 'external_technician' &&
+        extListing.body.resource.verificationStatus === 'unverified' &&
+        extListing.body.verification.decision === null,
+      JSON.stringify(extListing.body?.resource)
+    );
+    const extNoName = await api('POST', `/api/resources/${extId}/external-verification`, { token: ownerToken, body: { note: 'Checked it over.' } });
+    check('INS-69. Submitting an external report needs the technician’s name', extNoName.status === 400);
+    const extSubmit = await api('POST', `/api/resources/${extId}/external-verification`, {
+      token: ownerToken,
+      body: {
+        technicianName: 'Ramesh Kulkarni',
+        company: 'SoundFix Audio Services',
+        note: 'Both speakers power on cleanly, no crackle at full volume, grilles intact.',
+        reportUrl: 'https://example.com/reports/pa-speaker-check.pdf',
+      },
+    });
+    const extVr = extSubmit.body?.inspectionId ? await VerificationRequest.findOne({ inspectionId: extSubmit.body.inspectionId }).lean() : null;
+    check(
+      'INS-70. External report submission finalises the record — no score, no Indulge decision',
+      extSubmit.status === 200 &&
+        extVr?.kind === 'external' &&
+        extVr.status === 'externally_verified' &&
+        extVr.finalScore == null &&
+        extVr.externalTechnician?.name === 'Ramesh Kulkarni' &&
+        extVr.evidence.length === 1, // the report link
+      JSON.stringify(extSubmit.body)
+    );
+    const extResource = await Resource.findById(extId).lean();
+    check(
+      'INS-71. Listing shows externally_verified, distinct from an Indulge verification',
+      extResource.verificationStatus === 'externally_verified' && Boolean(extResource.verifiedAt)
+    );
+    const extPub = await api('GET', `/api/resources/${extId}`);
+    check(
+      'INS-72. Public summary marks it EXTERNALLY_VERIFIED with a clear "Indulge did not conduct this" disclaimer, no verifiedBy',
+      extPub.body?.verification?.decision === 'EXTERNALLY_VERIFIED' &&
+        extPub.body.verification.verifiedBy === null &&
+        /did not conduct/.test(extPub.body.verification.disclaimer)
+    );
+    check(
+      'INS-73. Resubmitting an already-externally-verified report is refused',
+      (await api('POST', `/api/resources/${extId}/external-verification`, { token: ownerToken, body: { technicianName: 'X', note: 'Again' } })).status === 409
+    );
+    check(
+      'INS-74. External submission is blocked once a listing already uses Indulge technician verification',
+      (
+        await api('POST', `/api/resources/${dell._id}/external-verification`, {
+          token: ownerToken,
+          body: { technicianName: 'Someone else', note: 'Trying to shadow-verify the Dell.' },
+        })
+      ).status === 409
+    );
+    check(
+      'INS-75. An Indulge technician cannot be assigned to an externally-verified record',
+      (await api('PATCH', `/api/admin/inspections/${extVr._id}/assign`, { token: insAdmin, body: { technicianId: String(rahul._id) } })).status === 400
+    );
+
+    // Seeker "nudge" — a notification, never a verification record or a charge.
+    const nudge = await api('POST', `/api/resources/${noneId}/nudge-verification`, { token: seekerToken });
+    check(
+      'INS-76. A seeker can ask the lister to get a listing Indulge Verified — this only notifies, never verifies',
+      nudge.status === 200 && !(await VerificationRequest.exists({ resource: noneId }))
+    );
+    check(
+      'INS-77. A lister nudging their own listing is refused',
+      (await api('POST', `/api/resources/${noneId}/nudge-verification`, { token: ownerToken })).status === 400
+    );
+    check('INS-78. The nudge requires sign-in', (await api('POST', `/api/resources/${noneId}/nudge-verification`)).status === 401);
+
+    // A return inspection needs a real Indulge baseline — it must not be
+    // fabricated for a listing that was never actually Indulge-inspected.
+    const extBooking = await Booking.create({
+      resource: extId,
+      provider: kalpataru._id,
+      seeker: orchid._id,
+      requestedQuantity: 2,
+      startDateTime: new Date(Date.now() - 3 * DAY),
+      endDateTime: new Date(Date.now() - DAY),
+      status: 'completed',
+      quotedPrice: 2200,
+      agreedPrice: 2200,
+    });
+    const noBaselineReturn = await api('POST', '/api/admin/inspections/return', { token: insAdmin, body: { bookingId: String(extBooking._id) } });
+    check(
+      'INS-79. No return inspection is fabricated for a listing with no completed Indulge baseline',
+      noBaselineReturn.status === 400 && !(await VerificationRequest.exists({ booking: extBooking._id }))
+    );
+
+    // Security: only the owner may request or submit verification for a listing.
+    check(
+      'INS-80. A stranger cannot request Indulge verification for someone else’s listing',
+      (await api('POST', `/api/resources/${noneId}/request-verification`, { token: seekerToken })).status === 403
+    );
+    check(
+      'INS-81. A stranger cannot submit an external verification report for someone else’s listing',
+      (
+        await api('POST', `/api/resources/${noneId}/external-verification`, { token: seekerToken, body: { technicianName: 'X', note: 'X' } })
+      ).status === 403
+    );
+
+    // Admin visibility of external verifications.
+    const adminExternal = await api('GET', '/api/admin/inspections?kind=external', { token: insAdmin });
+    check(
+      'INS-82. Admin console lists external verifications with the reported technician, no score to assign',
+      adminExternal.status === 200 &&
+        adminExternal.body.inspections.every((r) => r.kind === 'external') &&
+        adminExternal.body.inspections.some((r) => r.inspectionId === extVr.inspectionId && r.externalTechnician?.name === 'Ramesh Kulkarni')
+    );
   }
 
   /* ─────────────────────────── Technician self-registration ─────────────────────────── */
@@ -7336,7 +7550,12 @@ async function main() {
     );
 
     const trTechs = await api('GET', '/api/admin/technicians', { token: trAdmin });
-    const openVr = await VerificationRequest.findOne({ status: { $nin: ['verified', 'conditionally_verified', 'rejected'] } }).lean();
+    // Only an Indulge-run inspection (kind: 'initial'/'return') can be
+    // assigned a technician — an external record has none to assign.
+    const openVr = await VerificationRequest.findOne({
+      kind: { $in: ['initial', 'return'] },
+      status: { $nin: ['verified', 'conditionally_verified', 'rejected'] },
+    }).lean();
     const trAssign = await api('PATCH', `/api/admin/inspections/${openVr?._id}/assign`, { token: trAdmin, body: { technicianId: String(anita._id) } });
     const trAfter = await api('GET', '/api/verifications', { token: trToken });
     check(

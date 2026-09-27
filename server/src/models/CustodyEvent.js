@@ -10,6 +10,9 @@ import mongoose from 'mongoose';
  */
 export const CUSTODY_EVENT_TYPES = [
   'listing_created',
+  'verification_method_selected', // lister chose Indulge / external / none
+  'verification_fee_charged', // simulated, like every payment on Indulge
+  'external_verification_submitted',
   'protocol_generated',
   'inspection_created',
   'technician_assigned',
