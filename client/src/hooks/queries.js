@@ -811,3 +811,62 @@ export function useWalletActions() {
     }),
   };
 }
+
+/* ------------------------------------------------------- Physical verification choice */
+
+/**
+ * Optional physical verification: Indulge technician / own external
+ * technician / none. See server/src/services/verification/verification.service.js.
+ */
+
+/** The simulated fee for Indulge-technician verification, shown before confirming that choice. */
+export function useVerificationFee() {
+  return useQuery({
+    queryKey: ['verification-fee'],
+    queryFn: async () => (await api.get('/resources/verification-fee')).data,
+    staleTime: 10 * 60_000,
+  });
+}
+
+function useVerificationActionRefresh() {
+  const qc = useQueryClient();
+  return (resourceId) => {
+    qc.invalidateQueries({ queryKey: ['resource', resourceId] });
+    qc.invalidateQueries({ queryKey: ['listings', 'mine'] });
+    qc.invalidateQueries({ queryKey: ['listing-inspections', resourceId] });
+  };
+}
+
+/** Lister: request an Indulge technician for an existing listing (or right after creating one). */
+export function useRequestIndulgeVerification() {
+  const refresh = useVerificationActionRefresh();
+  return useMutation({
+    mutationFn: async (resourceId) => (await api.post(`/resources/${resourceId}/request-verification`)).data,
+    onSuccess: (_data, resourceId) => refresh(resourceId),
+  });
+}
+
+/** Lister: submit the report/evidence from a technician they arranged themselves. */
+export function useSubmitExternalVerification() {
+  const refresh = useVerificationActionRefresh();
+  return useMutation({
+    mutationFn: async ({ resourceId, technicianName, company, contact, note, reportUrl, file }) => {
+      const fd = new FormData();
+      fd.append('technicianName', technicianName);
+      if (company) fd.append('company', company);
+      if (contact) fd.append('contact', contact);
+      fd.append('note', note);
+      if (reportUrl) fd.append('reportUrl', reportUrl);
+      if (file) fd.append('file', file);
+      return (await api.post(`/resources/${resourceId}/external-verification`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
+    },
+    onSuccess: (_data, { resourceId }) => refresh(resourceId),
+  });
+}
+
+/** Seeker: ask the lister to get a listing Indulge Verified. Sends a notification only. */
+export function useNudgeVerification() {
+  return useMutation({
+    mutationFn: async (resourceId) => (await api.post(`/resources/${resourceId}/nudge-verification`)).data,
+  });
+}

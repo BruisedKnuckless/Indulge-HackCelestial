@@ -50,6 +50,7 @@ function row(vr) {
     booking: vr.booking,
     inspectionCategory: vr.inspectionCategory,
     technician: vr.assignedTechnician?.id ? { id: vr.assignedTechnician.id, name: vr.assignedTechnician.name } : null,
+    externalTechnician: vr.kind === 'external' ? vr.externalTechnician : undefined,
     finalScore: vr.finalScore,
     conditionStatus: vr.conditionStatus,
     checks: params.length,
@@ -57,6 +58,7 @@ function row(vr) {
     failed: params.filter((p) => p.result === 'fail').length,
     minor: params.filter((p) => p.result === 'minor_issue').length,
     evidence: (vr.evidence || []).length,
+    fee: vr.fee?.amount ? vr.fee : undefined,
     disputeStatus: vr.disputeStatus,
     damageDetected: Boolean(vr.damageSummary?.damageDetected),
     createdAt: vr.createdAt,
@@ -74,7 +76,7 @@ router.get(
     if (status === 'open') filter.status = { $in: ['pending', 'assigned', 'scheduled', 'in_progress'] };
     else if (status === 'unassigned') filter.status = 'pending';
     else if (VERIFICATION_STATUSES.includes(status)) filter.status = status;
-    if (['initial', 'return'].includes(kind)) filter.kind = kind;
+    if (['initial', 'return', 'external'].includes(kind)) filter.kind = kind;
     if (['open', 'resolved'].includes(dispute)) filter.disputeStatus = dispute;
     if (technician && /^[a-f0-9]{24}$/i.test(technician)) filter['assignedTechnician.id'] = technician;
     if (q) filter.$or = [{ resourceName: { $regex: escape(q), $options: 'i' } }, { inspectionId: { $regex: escape(q), $options: 'i' } }];

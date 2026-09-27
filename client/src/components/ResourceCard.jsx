@@ -192,6 +192,15 @@ export default function ResourceCard({
                   </span>
                 </>
               )}
+              {r.verificationStatus === 'externally_verified' && (
+                <>
+                  <span className="text-ink-mute text-xs">•</span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                    <CheckCircle2 size={12} />
+                    <span>⚠ Externally Verified</span>
+                  </span>
+                </>
+              )}
             </div>
 
             {/* Rating • Distance • Location */}
@@ -332,6 +341,12 @@ export default function ResourceCard({
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800" title="Indulge Verified Resource">
                 <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
                 <span>Verified</span>
+              </span>
+            )}
+            {r.verificationStatus === 'externally_verified' && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800" title="Verified by a technician the lister arranged — not Indulge">
+                <CheckCircle2 size={11} className="text-amber-600 dark:text-amber-400" />
+                <span>Externally Verified</span>
               </span>
             )}
           </div>

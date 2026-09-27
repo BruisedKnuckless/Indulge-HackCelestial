@@ -521,7 +521,7 @@ export async function runSeed({ quiet = false } = {}) {
   });
 
   const { inspections } = await seedInspections(users);
-  log(`  ✓ ${Object.values(inspections).filter(Boolean).length} listing inspections generated (all pending — none pre-verified)`);
+  log(`  ✓ ${Object.values(inspections).filter(Boolean).length} demo listings across all 3 verification paths (Indulge / external / not verified)`);
 
   const requirementCount = await Requirement.countDocuments();
 

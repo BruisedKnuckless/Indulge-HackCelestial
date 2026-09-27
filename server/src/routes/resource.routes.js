@@ -11,19 +11,27 @@ import {
   createResourceSchema,
   updateResourceSchema,
   PROTECTED_RESOURCE_FIELDS,
+  EDIT_PROTECTED_RESOURCE_FIELDS,
 } from '../middleware/validate.middleware.js';
 import {
   uploadMiddleware,
   uploadResourceMedia,
   replaceResourceMedia,
   deleteResourceMedia,
+  evidenceUploadMiddleware,
+  storeEvidenceFile,
 } from '../services/media.service.js';
 import {
   createVerificationForResource,
+  createExternalVerificationRecord,
+  requestIndulgeVerification,
+  submitExternalVerification,
+  nudgeIndulgeVerification,
   isInspectable,
   protocolGenerationIsSlow,
   publicVerificationSummary,
 } from '../services/verification/verification.service.js';
+import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -86,6 +94,18 @@ router.get(
   })
 );
 
+/**
+ * GET /api/resources/verification-fee
+ * The simulated fee for Indulge-technician verification, shown before the
+ * lister confirms that choice. Not authenticated — it's a number, not data.
+ */
+router.get(
+  '/verification-fee',
+  asyncHandler(async (_req, res) => {
+    res.json({ amount: env.verificationFeeInr, currency: 'INR' });
+  })
+);
+
 router.post(
   '/',
   requireAuth,
@@ -94,6 +114,10 @@ router.post(
   asyncHandler(async (req, res) => {
     const body = { ...req.body, owner: req.user._id };
     for (const key of PROTECTED_RESOURCE_FIELDS) if (key !== 'owner') delete body[key];
+    // Physical verification only makes sense for physical items — the choice
+    // is otherwise ignored so a non-physical listing can never end up in an
+    // inconsistent "method chosen, nothing to show for it" state.
+    if (!isInspectable(body)) body.verificationMethod = 'none';
 
     // Fall back to the business's own address so a listing is always mappable.
     if (!body.location?.coordinates?.length) {
@@ -105,28 +129,39 @@ router.post(
 
     const resource = await Resource.create(body);
 
-    // Physical listings get an inspection protocol and a pending inspection.
-    // With an LLM configured, generation can take a while, so it runs after
-    // the response; the deterministic baseline alone is fast enough to await.
-    // Either way a failure never fails the listing.
+    // Physical verification is optional and it's the lister's choice, made
+    // right here (verificationMethod, validated by createResourceSchema).
+    // Whichever path is chosen — or none — this must never fail the listing.
+    // (A 'none' choice starts no verification record and so has nothing to
+    // audit; 'listing_created' is recorded as the first custody event by
+    // whichever of the two functions below actually opens one.)
     if (isInspectable(resource)) {
-      if (protocolGenerationIsSlow()) {
-        resource.verificationStatus = 'pending';
-        setImmediate(() =>
-          createVerificationForResource(resource, req.user).catch((err) =>
-            logger.warn('Inspection generation failed after listing create', { resourceId: String(resource._id), error: err.message })
-          )
-        );
-      } else {
-        const vr = await createVerificationForResource(resource, req.user);
-        if (vr) {
+      if (resource.verificationMethod === 'indulge_technician') {
+        // With an LLM configured, protocol generation can take a while, so it
+        // runs after the response; the deterministic baseline alone is fast
+        // enough to await.
+        if (protocolGenerationIsSlow()) {
           resource.verificationStatus = 'pending';
-          resource.verificationId = vr._id;
+          setImmediate(() =>
+            createVerificationForResource(resource, req.user).catch((err) =>
+              logger.warn('Inspection generation failed after listing create', { resourceId: String(resource._id), error: err.message })
+            )
+          );
+        } else {
+          const vr = await createVerificationForResource(resource, req.user);
+          if (vr) {
+            resource.verificationStatus = 'pending';
+            resource.verificationId = vr._id;
+          }
         }
+      } else if (resource.verificationMethod === 'external_technician') {
+        const vr = await createExternalVerificationRecord(resource, req.user);
+        if (vr) resource.verificationId = vr._id;
       }
+      // 'none' (the default): the listing simply stays 'unverified'.
     }
 
-    res.status(201).json({ resource });
+    res.status(201).json({ resource, verification: await publicVerificationSummary(resource) });
   })
 );
 
@@ -176,7 +211,7 @@ router.patch(
       }
     }
 
-    const blocked = ['_id', ...PROTECTED_RESOURCE_FIELDS];
+    const blocked = ['_id', ...EDIT_PROTECTED_RESOURCE_FIELDS];
     for (const [key, value] of Object.entries(req.body)) {
       if (!blocked.includes(key)) resource[key] = value;
     }
@@ -218,6 +253,79 @@ router.patch(
     resource.status = status;
     await resource.save();
     res.json({ ok: true, resource });
+  })
+);
+
+/**
+ * POST /api/resources/:id/request-verification
+ * Lister-facing: request an Indulge technician for a listing that started
+ * out unverified or externally verified. Reuses the exact pipeline a new
+ * listing gets when this is chosen at creation, including the fee.
+ */
+router.post(
+  '/:id/request-verification',
+  requireAuth,
+  requireBusinessUser,
+  asyncHandler(async (req, res) => {
+    const resource = await Resource.findById(req.params.id);
+    if (!resource) throw new HttpError(404, 'Listing not found.');
+    if (String(resource.owner) !== String(req.user._id)) {
+      throw new HttpError(403, 'You can only request verification for your own listings.');
+    }
+    const vr = await requestIndulgeVerification(resource, req.user);
+    res.status(201).json({ resource, verification: await publicVerificationSummary(resource), inspectionId: vr.inspectionId });
+  })
+);
+
+/**
+ * POST /api/resources/:id/external-verification
+ * Lister-facing: submit the report and evidence from a technician they
+ * arranged themselves. Multipart with an optional single file; `reportUrl`
+ * covers an external link (e.g. a hosted PDF) instead of, or alongside, an
+ * uploaded photo/video. One call both attaches evidence and finalises the
+ * record — Indulge is recording what was reported, not reviewing it.
+ */
+router.post(
+  '/:id/external-verification',
+  requireAuth,
+  requireBusinessUser,
+  evidenceUploadMiddleware.single('file'),
+  asyncHandler(async (req, res) => {
+    const resource = await Resource.findById(req.params.id);
+    if (!resource) throw new HttpError(404, 'Listing not found.');
+    if (String(resource.owner) !== String(req.user._id)) {
+      throw new HttpError(403, 'You can only submit verification for your own listings.');
+    }
+
+    const { technicianName, company, contact, note, reportUrl } = req.body || {};
+    const evidence = [];
+    if (req.file) {
+      const stored = await storeEvidenceFile(req.file);
+      evidence.push({ type: stored.type, url: stored.url });
+    }
+    if (reportUrl && /^https?:\/\//i.test(reportUrl)) {
+      evidence.push({ type: 'note', text: `Report: ${reportUrl}` });
+    }
+
+    const vr = await submitExternalVerification(resource, req.user, { technicianName, company, contact, note, evidence });
+    res.json({ resource, verification: await publicVerificationSummary(resource), inspectionId: vr.inspectionId });
+  })
+);
+
+/**
+ * POST /api/resources/:id/nudge-verification
+ * Seeker-facing: ask the lister to get this listing Indulge Verified. Never
+ * creates a verification record or a fee itself — only the owner can do
+ * that — this just sends them a notification.
+ */
+router.post(
+  '/:id/nudge-verification',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const resource = await Resource.findById(req.params.id).lean();
+    if (!resource) throw new HttpError(404, 'Listing not found.');
+    await nudgeIndulgeVerification(resource, req.user);
+    res.json({ ok: true });
   })
 );
 

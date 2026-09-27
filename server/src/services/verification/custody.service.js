@@ -25,6 +25,25 @@ export async function recordCustody({ resource, booking, inspection, event, acto
   }
 }
 
+/**
+ * Records 'listing_created' as the first link in a resource's chain, but
+ * only once — a later re-request (e.g. Indulge verification requested again
+ * after a failed inspection, or requested after the listing already chose
+ * 'none') must not make it look like the listing was created twice.
+ */
+export async function ensureListingCreatedEvent(resource, { actor, actorName } = {}) {
+  const exists = await CustodyEvent.exists({ resource: resource._id, event: 'listing_created' });
+  if (exists) return null;
+  return recordCustody({
+    resource: resource._id,
+    event: 'listing_created',
+    actorType: 'provider',
+    actor: actor ?? resource.owner,
+    actorName,
+    details: { title: resource.title },
+  });
+}
+
 /** The chain for a listing (optionally one booking), oldest first. */
 export function custodyChain({ resource, booking } = {}) {
   const filter = {};

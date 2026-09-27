@@ -440,10 +440,16 @@ export async function runWeatherSimulation(params) {
     }
 
     const scenario = {
-      rainfallMmPerHour: params.scenario.rainfallMmPerHour  ?? (liveWeather?.current?.rainfallIntensity || 0),
-      windSpeedMps:      params.scenario.windSpeedMps       ?? (liveWeather?.current?.windSpeed || 0),
-      temperature:       params.scenario.temperature        ?? (liveWeather?.current?.temperature || 25),
-      durationHours:     params.scenario.durationHours      ?? 1,
+      rainfallMmPerHour: params.useLiveWeather
+        ? (liveWeather?.current?.rainfallIntensity || 0)
+        : (params.scenario?.rainfallMmPerHour ?? 0),
+      windSpeedMps: params.useLiveWeather
+        ? (liveWeather?.current?.windSpeed || 0)
+        : (params.scenario?.windSpeedMps ?? 0),
+      temperature: params.useLiveWeather
+        ? (liveWeather?.current?.temperature || 25)
+        : (params.scenario?.temperature ?? 25),
+      durationHours: params.scenario?.durationHours ?? 1,
     };
 
     const wc       = classifyWeather(scenario);

@@ -81,6 +81,12 @@ export function validateEnv(customEnv = process.env, { requireDb = false, requir
   const paymentGatewaySecret = (customEnv.PAYMENT_GATEWAY_SECRET || '').trim();
   const paymentWebhookSecret = (customEnv.PAYMENT_WEBHOOK_SECRET || 'indulge_dev_webhook_secret_32_bytes').trim();
 
+  // Optional physical verification: what an Indulge-technician inspection costs
+  // the lister. Isolated here rather than in the booking/escrow payment
+  // pipeline — this fee is charged before any booking exists and is,
+  // like every payment in this prototype, simulated end to end.
+  const verificationFeeInr = Math.max(0, Number(customEnv.VERIFICATION_FEE_INR) || 1500);
+
   return {
     nodeEnv,
     isProduction,
@@ -100,6 +106,7 @@ export function validateEnv(customEnv = process.env, { requireDb = false, requir
     paymentGatewayKeyId,
     paymentGatewaySecret,
     paymentWebhookSecret,
+    verificationFeeInr,
   };
 }
 

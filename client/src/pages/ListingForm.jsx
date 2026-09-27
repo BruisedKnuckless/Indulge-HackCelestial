@@ -9,6 +9,8 @@ import { Alert, Spinner } from '../components/ui';
 import DeliveryConditions from '../components/DeliveryConditions';
 import { CATEGORIES, PRICE_UNITS, UNITS } from '../lib/constants';
 import { toLocalInput, dateTime } from '../lib/format';
+import { INSPECTABLE_CATEGORIES as INSPECTED_CATEGORIES } from '../lib/inspection';
+import VerificationChoice from '../components/inspection/VerificationChoice';
 
 const DAYS_OF_WEEK = [
   { label: 'Sun', value: 0 },
@@ -20,8 +22,6 @@ const DAYS_OF_WEEK = [
   { label: 'Sat', value: 6 },
 ];
 
-/** Physical items get an Indulge inspection; mirrors INSPECTABLE_CATEGORIES on the server. */
-const INSPECTED_CATEGORIES = ['furniture', 'av_equipment', 'vehicle', 'other'];
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair', 'Worn'];
 
 /** "RAM: 16GB" per line → { RAM: '16GB' }. Lines without a colon are ignored. */
@@ -54,6 +54,8 @@ const BLANK = {
   declaredCondition: '',
   specifications: '',
   accessories: '',
+  // Physical verification — a one-time choice, made only at creation.
+  verificationMethod: 'none',
   // Availability policy
   availabilityMode: 'indefinite',
   availableUntil: '',
@@ -255,6 +257,9 @@ export default function ListingForm() {
         declaredCondition: form.declaredCondition,
         specifications: parseSpecs(form.specifications),
         accessories: form.accessories.split(',').map((s) => s.trim()).filter(Boolean),
+        // A one-time choice made only at creation — editing never changes it;
+        // use "Manage verification" on My Listings instead.
+        ...(!editing && { verificationMethod: form.verificationMethod }),
       }),
 
       // Availability policy
@@ -640,7 +645,7 @@ export default function ListingForm() {
             <div className="border border-line rounded p-4 mb-4">
               <p className="h-card">Product details</p>
               <p className="text-xs text-ink-soft mt-0.5 mb-4">
-                Optional. An Indulge technician inspects physical items before they are marked verified; every detail you give here becomes something they check.
+                Optional. If you choose physical verification below, every detail here becomes something the technician checks.
               </p>
               <div className="grid sm:grid-cols-3 gap-x-3">
                 <Field label="Brand">
@@ -667,6 +672,10 @@ export default function ListingForm() {
                 <input value={form.accessories} onChange={set('accessories')} className="field" placeholder="Charger, carry case" />
               </Field>
             </div>
+          )}
+
+          {INSPECTED_CATEGORIES.includes(form.category) && !editing && (
+            <VerificationChoice value={form.verificationMethod} onChange={(v) => setForm((f) => ({ ...f, verificationMethod: v }))} />
           )}
 
           <Field label="Image URLs" hint="One per line. First image is the card cover.">

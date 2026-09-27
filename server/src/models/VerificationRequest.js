@@ -2,22 +2,29 @@ import mongoose from 'mongoose';
 import { RESOURCE_CATEGORIES } from './Resource.js';
 
 /**
- * One physical inspection of a listing by an Indulge technician.
+ * One record of a listing being physically verified — either by an Indulge
+ * technician, or reported by the lister's own external technician.
  *
  * `kind: 'initial'` verifies a listing before it is trusted; `kind: 'return'`
  * re-runs the same protocol after a booking and compares against the initial
- * (baseline) inspection to find new damage or loss.
+ * (baseline) inspection to find new damage or loss; `kind: 'external'` holds
+ * a lister-submitted report from a technician arranged outside Indulge — it
+ * carries no protocol, no assigned technician and no score, because Indulge
+ * never performed or judged that inspection.
  *
  * Final statuses map onto the product vocabulary:
  *   verified               → VERIFIED
  *   conditionally_verified → VERIFIED_WITH_ISSUES
  *   rejected               → FAILED
+ *   externally_verified    → EXTERNALLY VERIFIED (kind: 'external' only — never
+ *                             a result of Indulge's own inspection)
  *
- * Everything here that a technician records is tied to the technician's own
- * user id by the server (never taken from the request body).
+ * Everything a technician records is tied to the technician's own user id by
+ * the server (never taken from the request body). An external record is
+ * likewise always written by the listing's own owner, never a third party.
  */
 export const VERIFICATION_STATUSES = [
-  'pending', // created, no technician yet
+  'pending', // created, no technician yet (or, for kind:'external', awaiting the lister's report)
   'assigned', // technician assigned by an admin
   'scheduled',
   'in_progress',
@@ -26,6 +33,7 @@ export const VERIFICATION_STATUSES = [
   'verified',
   'conditionally_verified',
   'rejected',
+  'externally_verified', // kind:'external' only
 ];
 
 export const FINAL_VERIFICATION_STATUSES = ['verified', 'conditionally_verified', 'rejected'];
@@ -100,13 +108,34 @@ const comparisonSchema = new mongoose.Schema(
 const verificationRequestSchema = new mongoose.Schema(
   {
     inspectionId: { type: String, required: true, unique: true, index: true },
-    kind: { type: String, enum: ['initial', 'return'], default: 'initial', index: true },
+    kind: { type: String, enum: ['initial', 'return', 'external'], default: 'initial', index: true },
     resource: { type: mongoose.Schema.Types.ObjectId, ref: 'Resource', required: true, index: true },
     provider: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    // Who asked for this verification — usually the provider themselves; kept
+    // distinct from `provider` so an admin-initiated request is still honest
+    // about who owns the listing versus who triggered the inspection.
+    requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     protocol: { type: mongoose.Schema.Types.ObjectId, ref: 'InspectionProtocol', default: null },
     // Return inspections only.
     booking: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking', default: null, index: true },
     baselineInspection: { type: mongoose.Schema.Types.ObjectId, ref: 'VerificationRequest', default: null },
+
+    // Optional Indulge-technician verification fee, charged (simulated, like
+    // every payment in this prototype) when the lister chooses this path.
+    fee: {
+      amount: { type: Number, default: 0 },
+      currency: { type: String, default: 'INR' },
+      status: { type: String, enum: ['none', 'simulated_paid'], default: 'none' },
+      chargedAt: { type: Date, default: null },
+    },
+
+    // kind: 'external' only — a technician arranged by the lister, not an
+    // Indulge account, so there is nothing here to assign or authenticate.
+    externalTechnician: {
+      name: { type: String, default: null },
+      company: { type: String, default: null },
+      contact: { type: String, default: null },
+    },
 
     category: { type: String, enum: RESOURCE_CATEGORIES, required: true, index: true },
     inspectionCategory: { type: String, default: null }, // ml/inspection category (laptop, vehicle…)

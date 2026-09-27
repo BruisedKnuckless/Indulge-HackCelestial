@@ -182,7 +182,13 @@ export const createResourceSchema = z.object({
   }),
   description: z.string().optional(),
   highlights: z.array(z.string()).optional(),
-  totalQuantity: z.number().int().min(1, 'Total quantity must be at least 1.').optional().default(1),
+  // No `.default()` here on purpose: this schema is reused as
+  // `updateResourceSchema = createResourceSchema.partial()` for PATCH, and a
+  // Zod default still fires when a key is merely absent from a partial
+  // update's body — silently resetting an untouched listing's quantity back
+  // to 1 on every edit that doesn't resend it. Resource.totalQuantity already
+  // defaults to 1 at the Mongoose layer for a genuine create with no value.
+  totalQuantity: z.number().int().min(1, 'Total quantity must be at least 1.').optional(),
   unit: z.enum(['unit', 'hour', 'seat', 'sqft', 'slot']).optional(),
   capacity: z.number().min(0).optional(),
   pricing: z
@@ -211,6 +217,9 @@ export const createResourceSchema = z.object({
   declaredCondition: z.string().trim().max(60).optional(),
   specifications: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]).transform(String)).optional(),
   accessories: z.array(z.string()).optional(),
+  // Physical verification choice — optional, made once at creation. See
+  // services/verification/verification.service.js for what each path does.
+  verificationMethod: z.enum(['indulge_technician', 'external_technician', 'none']).optional(),
 }).passthrough();
 
 /**
@@ -221,6 +230,14 @@ export const PROTECTED_RESOURCE_FIELDS = [
   'verificationStatus', 'verificationId', 'verifiedAt', 'conditionScore', 'recommendedPrice',
   'owner', 'ratingAvg', 'ratingCount',
 ];
+
+/**
+ * verificationMethod is a one-time choice made at creation. Editing an
+ * existing listing must not silently switch it — that only happens through
+ * the dedicated request-verification / external-verification endpoints,
+ * which update the Resource themselves.
+ */
+export const EDIT_PROTECTED_RESOURCE_FIELDS = [...PROTECTED_RESOURCE_FIELDS, 'verificationMethod'];
 
 export const updateResourceSchema = createResourceSchema.partial();
 

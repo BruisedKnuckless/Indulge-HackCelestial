@@ -119,10 +119,24 @@ const resourceSchema = new mongoose.Schema(
     ratingAvg: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
 
-    // Resource Verification & Field Inspection System
+    // Resource Verification & Field Inspection System.
+    //
+    // verificationMethod is the lister's *choice*, made once (at listing
+    // creation, or later via the dedicated request/submit endpoints — never
+    // silently changed by editing the listing). verificationStatus is the
+    // resulting *state*, decided only by the service layer:
+    //   indulge_technician  -> pending/in_progress/verified/conditionally_verified/rejected
+    //   external_technician -> unverified (until submitted) -> externally_verified
+    //   none                -> unverified, forever, unless upgraded later
+    verificationMethod: {
+      type: String,
+      enum: ['indulge_technician', 'external_technician', 'none'],
+      default: 'none',
+      index: true,
+    },
     verificationStatus: {
       type: String,
-      enum: ['unverified', 'pending', 'in_progress', 'verified', 'conditionally_verified', 'rejected'],
+      enum: ['unverified', 'pending', 'in_progress', 'verified', 'conditionally_verified', 'rejected', 'externally_verified'],
       default: 'unverified',
       index: true,
     },

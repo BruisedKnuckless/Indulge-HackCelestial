@@ -284,23 +284,33 @@ export default function DigitalTwinPanel({ initialCity = 'Thane', embedded = fal
   };
 
   // Handle switching to Live Weather Mode
-  const handleUseLiveWeather = () => {
-    if (liveWeather?.current) {
-      const liveScenario = {
-        rainfallMmPerHour: Math.round(liveWeather.current.rainfallIntensity || 0),
-        temperature: Math.round(liveWeather.current.temperature || 26),
-        windSpeedMps: Math.round(liveWeather.current.windSpeed || 2),
-        durationHours: 1,
-      };
-      setScenario(liveScenario);
-      setIsLiveMode(true);
-      runSimulation(liveScenario, true);
-      toast.success(`Live weather inputs applied for ${selectedCity.name}`);
-    } else {
-      setIsLiveMode(true);
-      runSimulation(null, true);
-      toast.success(`Fetching live weather pipeline for ${selectedCity.name}`);
+  const handleUseLiveWeather = async () => {
+    let currentLive = liveWeather?.current;
+    if (!currentLive) {
+      try {
+        setLiveLoading(true);
+        const res = await api.get(`/weather?lat=${selectedCity.lat}&lon=${selectedCity.lon}`);
+        if (res.data?.available && res.data.current) {
+          setLiveWeather(res.data);
+          currentLive = res.data.current;
+        }
+      } catch (err) {
+        console.warn('Live weather fetch error:', err);
+      } finally {
+        setLiveLoading(false);
+      }
     }
+
+    const liveScenario = {
+      rainfallMmPerHour: Math.round(currentLive?.rainfallIntensity || 0),
+      temperature: Math.round(currentLive?.temperature || 26),
+      windSpeedMps: Math.round(currentLive?.windSpeed || 2),
+      durationHours: 1,
+    };
+    setScenario(liveScenario);
+    setIsLiveMode(true);
+    runSimulation(liveScenario, true);
+    toast.success(`Live weather inputs applied for ${selectedCity.name}`);
   };
 
   // Handle manual scenario change

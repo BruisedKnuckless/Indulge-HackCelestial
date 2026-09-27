@@ -152,7 +152,7 @@ export default function ResourceDetail() {
 
           {/* ------------------------------------------------- details */}
           <div className="min-w-0">
-            <VerificationBadge verification={data?.verification} isOwner={isOwn} />
+            <VerificationBadge verification={data?.verification} resource={resource} isOwner={isOwn} />
 
             <h1 className="text-3xl font-normal leading-tight mb-1">{resource.title}</h1>
 

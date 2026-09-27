@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { ClipboardCheck, UserPlus, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { ClipboardCheck, UserPlus, UserCheck, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { useAdminInspections, useAdminInspection, useAdminTechnicians, useAdminInspectionActions } from '../../hooks/queries';
 import { errorMessage } from '../../api/client';
 import { Spinner } from '../ui';
@@ -15,6 +15,7 @@ const STATUS_FILTERS = [
   { value: 'verified', label: 'Verified' },
   { value: 'conditionally_verified', label: 'With issues' },
   { value: 'rejected', label: 'Failed' },
+  { value: 'externally_verified', label: 'External' },
 ];
 
 function AssignControl({ inspection, technicians, actions }) {
@@ -101,17 +102,27 @@ function InspectionDrawer({ id, onClose, technicians, actions }) {
         <Spinner label="Loading inspection" />
       ) : (
         <>
-          {!FINAL_STATUSES.includes(vr.status) && (
+          {vr.kind === 'external' ? (
             <section className="card p-4">
-              <h3 className="h-card mb-2">Technician</h3>
-              <p className="text-sm text-ink-soft mb-3">
-                {vr.assignedTechnician?.name
-                  ? `${vr.assignedTechnician.name}, assigned ${fmtDateTime(vr.assignedTechnician.assignedAt)}`
-                  : 'Not assigned yet.'}{' '}
-                Only the assigned technician can record results.
+              <h3 className="h-card mb-2">Verification method</h3>
+              <p className="text-sm text-ink-soft">
+                The lister chose to arrange their own technician.{' '}
+                {vr.status === 'externally_verified' ? 'Their report is below.' : 'No report has been submitted yet.'}
               </p>
-              <AssignControl inspection={vr} technicians={technicians} actions={actions} />
             </section>
+          ) : (
+            !FINAL_STATUSES.includes(vr.status) && (
+              <section className="card p-4">
+                <h3 className="h-card mb-2">Technician</h3>
+                <p className="text-sm text-ink-soft mb-3">
+                  {vr.assignedTechnician?.name
+                    ? `${vr.assignedTechnician.name}, assigned ${fmtDateTime(vr.assignedTechnician.assignedAt)}`
+                    : 'Not assigned yet.'}{' '}
+                  Only the assigned technician can record results.
+                </p>
+                <AssignControl inspection={vr} technicians={technicians} actions={actions} />
+              </section>
+            )
           )}
           {data.booking && (
             <p className="text-sm text-ink-soft">
@@ -197,6 +208,7 @@ export default function AdminInspections() {
           <p className="text-xs text-ink-mute">
             {r.provider?.businessName}
             {r.kind === 'return' ? ' · return' : ''}
+            {r.kind === 'external' ? ' · external technician' : ''}
           </p>
         </div>
       ),
@@ -206,7 +218,9 @@ export default function AdminInspections() {
       key: 'technician',
       header: 'Technician',
       render: (r) =>
-        r.technician ? (
+        r.kind === 'external' ? (
+          <span className="text-ink-soft">{r.externalTechnician?.name || '— awaiting report'}</span>
+        ) : r.technician ? (
           r.technician.name
         ) : (
           <button
@@ -220,7 +234,12 @@ export default function AdminInspections() {
           </button>
         ),
     },
-    { key: 'score', header: 'Score', align: 'right', render: (r) => (r.finalScore != null ? `${r.finalScore}/100` : `${r.completed}/${r.checks}`) },
+    {
+      key: 'score',
+      header: 'Score',
+      align: 'right',
+      render: (r) => (r.kind === 'external' ? '—' : r.finalScore != null ? `${r.finalScore}/100` : `${r.completed}/${r.checks}`),
+    },
     {
       key: 'issues',
       header: 'Failed · minor',
@@ -248,10 +267,20 @@ export default function AdminInspections() {
         </button>
       </SectionHeader>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         <Kpi label="Unassigned" value={counts.pending || 0} icon={Clock} tone="amber" onClick={() => setStatus('unassigned')} />
         <Kpi label="Open" value={open} icon={ClipboardCheck} tone="indigo" onClick={() => setStatus('open')} />
         <Kpi label="Completed" value={done} icon={CheckCircle2} tone="green" />
+        <Kpi
+          label="External"
+          value={counts.externally_verified || 0}
+          icon={UserCheck}
+          tone="teal"
+          onClick={() => {
+            setKind('external');
+            setStatus('externally_verified');
+          }}
+        />
         <Kpi label="Open disputes" value={data?.openDisputes || 0} icon={AlertTriangle} tone="violet" />
       </div>
 
@@ -269,7 +298,16 @@ export default function AdminInspections() {
 
       <Toolbar>
         <Segmented value={status} onChange={setStatus} options={STATUS_FILTERS} />
-        <Select value={kind} onChange={setKind} placeholder="Initial + return" options={[{ value: 'initial', label: 'Initial' }, { value: 'return', label: 'Return' }]} />
+        <Select
+          value={kind}
+          onChange={setKind}
+          placeholder="All kinds"
+          options={[
+            { value: 'initial', label: 'Initial' },
+            { value: 'return', label: 'Return' },
+            { value: 'external', label: 'External' },
+          ]}
+        />
         <SearchBox value={q} onChange={setQ} placeholder="Item or INS id" />
       </Toolbar>
 
